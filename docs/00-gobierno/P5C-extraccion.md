@@ -74,13 +74,13 @@ Medido ejecutando con `cleanTest --no-build-cache --no-parallel` y contando los 
 
 | | Antes (`rentas` solo) | `rentas` | `catastro` | Total |
 |---|---:|---:|---:|---:|
-| **Pruebas** | **3 667** | **3 680** | **945** | **4 625** |
+| **Pruebas** | **3 667** | **3 681** | **945** | **4 626** |
 | Fallos | 0 | 0 | 0 | 0 |
 
-`rentas` **sube 13 y no baja**, y eso es exactamente lo que dice que la resta no está hecha: las
-425 del contexto `catastro` siguen ahí. Las 13 nuevas son 5 de `ProyeccionDeSoloLecturaTest`, 5 de
-`CandadoDeEmisionJdbcTest`, 2 del AC 2 en `DeteccionDeOmisosJdbcTest` y 1 del AC 3 en
-`PredialControllerTest`.
+`rentas` **sube 14 y no baja**, y eso es exactamente lo que dice que la resta no está hecha: las
+425 del contexto `catastro` siguen ahí. Las 14 nuevas son 5 de `ProyeccionDeSoloLecturaTest`, 5 de
+`CandadoDeEmisionJdbcTest`, 2 del AC 2 en `DeteccionDeOmisosJdbcTest`, 1 del AC 3 en
+`PredialControllerTest` y 1 de `PadronDelEjercicioTest`.
 
 Módulo a módulo en `catastro`:
 
@@ -136,7 +136,7 @@ Dos renombrados más, y los dos con precedente en P5B: `kamayuk-esquema` →
 
 ## 5. Criterio 1, la parte que sí se pudo medir: el padrón comparado como archivo
 
-`PadronRecalculadoTest` construye el conjunto sellado, determina **doce contribuyentes con quince
+`PadronDelEjercicioTest` construye el conjunto sellado, determina **doce contribuyentes con quince
 predios** y escribe un CSV con la base afecta, la base imponible, el impuesto, el derecho de
 emisión, la base ponderada de cada predio y las cuatro cuotas con su vencimiento. La cuenta la hace
 la regla de producción; escribirla en la prueba habría medido la prueba.
@@ -147,7 +147,9 @@ reparto de cuotas, y —lo que más importa aquí— **la ponderación por porce
 es el dato que sale de `titularidad`, o sea de `catastro`.
 
 La misma clase corrió en un **worktree de `rentas@24c9ed0`** —el árbol anterior a P5C— sin una sola
-adaptación.
+adaptación. **No sustituye a `PadronRecalculadoTest`**, que es el de P5B y compara otra cosa: allí
+lo que se movió fue de dónde salen los **parámetros**; aquí, de dónde sale el **predio**. Los dos
+miden el mismo invariante por lados distintos y conviven.
 
 ```
 $ diff /tmp/padron-ANTES.csv /tmp/padron-DESPUES.csv
@@ -232,7 +234,7 @@ petición que corregir — el sistema no está en estado de emitir.
 | El candado deja de comprobar el **conteo** | 1 en rojo de 5, la suya |
 | El candado deja de comprobar la **huella** | 1 en rojo de 5, la suya |
 | El candado se niega **siempre** (el contraste) | **4 en rojo de 5.** Sin él, un candado que rechazara todo pasaría las tres pruebas de arriba y dejaría la emisión inalcanzable para siempre |
-| **Quitar la llamada al candado** de `DeterminarPredialMasivo` | **VERDE en las 3 674 pruebas del backend.** El candado existía **sin estar puesto** |
+| **Quitar la llamada al candado** de `DeterminarPredialMasivo` | **VERDE en las 3 680 pruebas del backend.** El candado existía **sin estar puesto** |
 
 La cuarta es el hallazgo. Se cierra con una prueba de capa web que monta la corrida masiva con la
 valuación sin cerrar y exige 409; con ella, la misma rotura la nombra.
@@ -265,7 +267,7 @@ Contra PostgreSQL **16.15 real** en `127.0.0.1:55444`, con `cleanTest`, `--no-bu
 
 | Tarea | `catastro` | `rentas` |
 |---|---|---|
-| `./gradlew build` | **VERDE** — 945 pruebas | **VERDE** — 3 680 pruebas |
+| `./gradlew build` | **VERDE** — 945 pruebas | **VERDE** — 3 681 pruebas |
 | `./gradlew verificarArquitectura` | **VERDE** | **VERDE** |
 | `./gradlew verificarAislamiento` | **VERDE** | **VERDE** |
 

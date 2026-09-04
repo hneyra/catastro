@@ -66,13 +66,24 @@ BEGIN
     v_muni     := COALESCE(NEW.municipalidad_id, OLD.municipalidad_id);
 
     -- Una fila en la cache es un conjunto SELLADO: `normativa` no sirve otra cosa
-    -- (ADR-0025 §1). Se mira por `(municipalidad, conjunto)` y no solo por el conjunto
-    -- porque `conjunto_parametros` es de tenant en `normativa`: cada municipalidad abre y
-    -- sella el suyo, y un `conjunto_id` solo es unico dentro de su municipalidad.
+    -- (ADR-0025 §1).
     --
-    -- Se cuenta sobre las dos primeras columnas de la clave primaria y se ignora el
-    -- `ambito`: el conjunto se descarga en dos mitades (VALUACION y OBLIGACION) y basta una
-    -- para saber que esta sellado.
+    -- El `ambito` se IGNORA a proposito: el conjunto se descarga en dos mitades (VALUACION y
+    -- OBLIGACION) y basta una para saber que esta sellado. Mirarlo dejaria entrar un arancel
+    -- mientras solo estuviera descargada la otra mitad, que es exactamente cuando el conjunto
+    -- ya esta sellado. Eso SI tiene una prueba que lo caza: anadir `AND c.ambito = ...` deja en
+    -- rojo las dos pruebas del rechazo.
+    --
+    -- `municipalidad_id` va en el WHERE porque `conjunto_parametros` es de tenant en
+    -- `normativa` —cada municipalidad abre y sella el suyo, y un `conjunto_id` solo es unico
+    -- dentro de su municipalidad—, PERO SE MIDIO Y ES REDUNDANTE POR EL CAMINO NORMAL, y
+    -- conviene decirlo en vez de dejar creer que protege algo que no puede fallar: quitarlo
+    -- deja las cinco pruebas de `GuardaDelArancelTest` en VERDE. El motivo es que
+    -- `normativa_conjunto` lleva RLS con `FORCE` (V2) y este disparador NO es `SECURITY
+    -- DEFINER`, asi que corre con el rol y el contexto de quien escribe: la fila de la vecina
+    -- no la ve. La clausula solo cambia algo para una conexion que omita RLS —un superusuario—,
+    -- y ahi no hay prueba que la ejercite porque un superusuario tampoco deberia escribir
+    -- aranceles. Se conserva por eso y no por costumbre.
     IF EXISTS (
         SELECT 1
           FROM normativa_conjunto c

@@ -1,7 +1,5 @@
 package kamayuk.catastro.contribuyentes.infraestructura;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -26,6 +24,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * El padron de contribuyentes, preguntado por HTTP a {@code rentas} (ADR-0029, ADR-0030).
@@ -74,10 +75,10 @@ public class DirectorioHttpDeRentas implements DirectorioDeContribuyentes {
     private static final Duration ESPERA_DE_LECTURA = Duration.ofSeconds(30);
 
     private final HttpClient cliente;
-    private final ObjectMapper json;
+    private final JsonMapper json;
     private final String raiz;
 
-    public DirectorioHttpDeRentas(ObjectMapper json, @Value("${kamayuk.rentas.url:}") String raiz) {
+    public DirectorioHttpDeRentas(JsonMapper json, @Value("${kamayuk.rentas.url:}") String raiz) {
         this.json = json;
         this.raiz = raiz.endsWith("/") ? raiz.substring(0, raiz.length() - 1) : raiz;
         this.cliente = HttpClient.newBuilder().connectTimeout(ESPERA_DE_CONEXION).build();
@@ -140,15 +141,15 @@ public class DirectorioHttpDeRentas implements DirectorioDeContribuyentes {
         if (cuerpo == null || cuerpo.path("direccion").isMissingNode()) {
             return Optional.empty();
         }
-        return Optional.ofNullable(cuerpo.path("direccion").asText(null));
+        return Optional.ofNullable(cuerpo.path("direccion").asString(null));
     }
 
     private static ResumenDeContribuyente resumen(JsonNode fila) {
         return new ResumenDeContribuyente(
                 fila.path("id").asLong(),
-                fila.path("codigo").asText(""),
-                fila.path("nombre").asText(""),
-                fila.path("documento").asText(""));
+                fila.path("codigo").asString(""),
+                fila.path("nombre").asString(""),
+                fila.path("documento").asString(""));
     }
 
     private JsonNode pedir(String ruta, String que) {
@@ -183,6 +184,12 @@ public class DirectorioHttpDeRentas implements DirectorioDeContribuyentes {
             return json.readTree(respuesta.body());
         } catch (IOException noContesta) {
             throw new PadronInalcanzable(que, noContesta);
+        } catch (JacksonException ilegible) {
+            // Jackson 3 no lanza `IOException` sino `JacksonException`, que es NO COMPROBADA
+            // (C-7). Sin este `catch` un cuerpo que no es JSON —el HTML de un proxy, por
+            // ejemplo— saldria como una excepcion cruda de una libreria en vez de como «rentas
+            // no contesta lo que dice contestar», que es lo que quien opera necesita leer.
+            throw new PadronInalcanzable(que, ilegible);
         } catch (InterruptedException interrumpido) {
             Thread.currentThread().interrupt();
             throw new PadronInalcanzable(que, interrumpido);

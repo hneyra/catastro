@@ -17,14 +17,17 @@
 # La compilacion, en cambio, es una sola: las dos salen del mismo `construccion`,
 # asi que el codigo que migra en produccion es exactamente el que CI verifico.
 
-# El contexto de compilacion es la RAIZ del repositorio, no `backend/`, y no es un
-# detalle: el catalogo de las 134 opciones (NEG-03) vive en `docs/` y el build lo
-# copia a los recursos de kamayuk-catastro-seguridad. Con el contexto en `backend/` ese archivo
-# sencillamente no existia dentro de la imagen, la tarea que lo copia se saltaba
-# con NO-SOURCE, y el jar salia sin catalogo —compilando en verde—. El sintoma
-# aparecio mucho despues: la aplicacion arrancaba y servia peticiones, pero la
-# implantacion de una municipalidad no encontraba ninguna opcion que sembrar, asi
-# que nadie podia entrar a ninguna pantalla.
+# El contexto de compilacion es la RAIZ del repositorio, no `backend/`. En el monolito eso era por
+# el catalogo de opciones; aqui ya no —ver el comentario del `COPY` que se fue—, y se conserva
+# porque el `.dockerignore` que acota el contexto vive en la raiz y desde `backend/` no se aplica.
+#
+# En `rentas` el motivo original sigue vigente y conviene tenerlo escrito, porque es la cicatriz
+# que dejo: el catalogo de las 134 opciones (NEG-03) vive en su `docs/` y su build lo copia a los
+# recursos de `kamayuk-rentas-seguridad`. Con el contexto en `backend/` ese archivo no existia
+# dentro de la imagen, la tarea que lo copia se saltaba con NO-SOURCE, y el jar salia sin catalogo
+# —compilando en verde—. El sintoma aparecio mucho despues: la aplicacion arrancaba y servia
+# peticiones, pero la implantacion no encontraba ninguna opcion que sembrar, asi que nadie podia
+# entrar a ninguna pantalla.
 #
 # ---------------------------------------------------------------------------
 FROM eclipse-temurin:25-jdk AS construccion
@@ -40,16 +43,35 @@ RUN ./gradlew --version --no-daemon
 COPY backend/buildSrc/ buildSrc/
 COPY backend/config/ config/
 
-# Lo unico que se trae de fuera de backend/, y con nombre propio para que se vea
-# en el diff si alguien anade una segunda dependencia externa por descuido.
-COPY docs/10-negocio/catalogo-de-opciones.md /origen/docs/10-negocio/
+# NO se trae nada de fuera de `backend/`, y eso es un cambio de C-7 (punto 5).
+#
+# Este `Dockerfile` copiaba `docs/10-negocio/catalogo-de-opciones.md` —heredado del monolito, donde
+# ese archivo es la fuente de las 134 opciones que siembra la implantacion (RF-122)—. En `catastro`
+# ese archivo NO EXISTE: se quedo en `rentas` con el resto del catalogo del manual, asi que el
+# `COPY` fallaba con «not found» antes de compilar una sola clase. Nadie lo veia porque ningun CI
+# construye todavia esta imagen.
+#
+# Su parte del catalogo la declara `kamayuk.catastro.seguridad.dominio.CatalogoDelSistema`, en
+# codigo, con una prueba que la compara contra los `@RequiereAcceso` de este repositorio.
 
 COPY backend/ ./
 
 # Sin pruebas: las bloqueantes necesitan Docker y ya corrieron en CI. Una imagen
 # que las repitiera dentro del build las volveria a ejecutar en cada despliegue,
 # con un motor distinto al verificado.
-RUN ./gradlew --no-daemon :kamayuk-catastro-aplicacion:bootJar :kamayuk-catastro-esquema:installDist
+# `-Pkamayuk.sinLibreriasComunes` (C-7, punto 5). Sin ella el build se para en el `require` de
+# `settings.gradle.kts`: el composite build de `comun-verificaciones` vive en el clon hermano
+# `infrastructure/`, que esta FUERA del contexto de esta imagen y no se puede meter dentro —un
+# `.dockerignore` no puede describir un contexto que es el directorio padre—. Era el hueco 9.4 de
+# P5A, heredado de P3, y llevaba ahi sin que nada lo midiera porque ningun CI construye todavia
+# esta imagen.
+#
+# Se puede porque `comun-verificaciones` es `testImplementation` y solo de
+# `kamayuk-catastro-aplicacion`: aqui no corre ni una prueba. Y no abre una puerta, porque el
+# `build.gradle.kts` de la raiz **hace fallar toda tarea de prueba** mientras la propiedad este
+# puesta: o esta la libreria, o no hay verificacion.
+RUN ./gradlew --no-daemon -Pkamayuk.sinLibreriasComunes \
+    :kamayuk-catastro-aplicacion:bootJar :kamayuk-catastro-esquema:installDist
 
 # ---------------------------------------------------------------------------
 FROM eclipse-temurin:25-jre AS aplicacion

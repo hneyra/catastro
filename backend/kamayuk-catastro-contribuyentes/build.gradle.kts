@@ -15,5 +15,5 @@ dependencies {
     // acceso a la peticion en curso (de donde sale el token que se reenvia), y de Jackson el
     // arbol JSON. Ni un cliente HTTP de framework: ver el javadoc de `ClienteHttpDeNormativa`.
     implementation("org.springframework:spring-web")
-    implementation("com.fasterxml.jackson.core:jackson-databind")
+    implementation("tools.jackson.core:jackson-databind")
 }

@@ -14,42 +14,20 @@ primero —el que manda— no se cumple**. §2 dice el paso exacto en el que se 
 
 | # | Criterio | Estado | Medida |
 |---|---|---|---|
-| **1** | La corrida de valuación en `catastro` más la de emisión en `rentas` producen **el mismo padrón, céntimo a céntimo**, que la del monolito | **NO SE CUMPLE.** §2 | Lo que sí se midió: el padrón que el sistema **sí sabe calcular hoy** sale byte a byte idéntico antes y después, `sha256 225d0356…`. §5 |
+| **1** | La corrida de valuación en `catastro` más la de emisión en `rentas` producen **el mismo padrón, céntimo a céntimo**, que la del monolito | **NO SE CUMPLE**, y el motivo es de **datos y no de código**. §2 | El padrón que el sistema **sí sabe calcular hoy** sale byte a byte idéntico antes y después, `sha256 225d0356…`. §5 |
 | **2** | La página de omisos pagina y cuenta lo filtrado | **Cumplido** | Con el conteo dejando de filtrar —el defecto de #631 exacto— el sobre dice **7 donde debe decir 3** y **1 donde debe decir 0**. §6 |
 | **3** | Con el ingestor detenido a mitad, `rentas` **se niega** a emitir y dice por qué | **Cumplido** | Cuatro roturas del candado y una quinta que destapó que existía sin estar **puesto**. §7 |
-| **4** | Los tres verificadores bloqueantes en verde en los dos repositorios, y las excepciones nominadas de P3 que este prompt cierra, cerradas | **Cumplido** | Los seis en verde. `PENDIENTE-CRUCE-01` sale de la lista. §8 |
+| **4** | Los tres verificadores bloqueantes en verde en los dos repositorios, y las excepciones nominadas de P3 que este prompt cierra, cerradas | **Cumplido** | Los seis en verde. **`PENDIENTE-CRUCE-01`, `-04` y `-05` salen de la lista**; queda una entrada, la de `caja`. §8 |
 
 ---
 
-## 2. Criterio 1 — por qué no se cumple, y el paso exacto
+## 2. Criterio 1 — por qué no se cumple
 
-**Se paró en la resta.** `rentas` **todavía contiene** `kamayuk-rentas-catastro` con sus 200 clases,
-sus 15 tablas y sus 425 pruebas. La migración de baja `V3__baja_de_catastro.sql` **no se escribió**.
-
-Lo que falta, enumerado para que quien siga no lo tenga que volver a medir:
-
-1. **Vaciar `kamayuk-rentas-catastro` hasta dejar los nueve puertos** —`FichasDelPadron`,
-   `LectorDeFichas`, `LectorDeCaracteristicas`, `TitularesDelPredio`, `GestorDeTitularidad`,
-   `TransferenciaDeFiscalizacion`, `PrediosDelContribuyente`, `LectorDeFichasEconomicas`,
-   `LectorDeValoresUnitarios`— e implementarlos con clientes HTTP. **Las 27 clases de `src/main`
-   que los consumen no cambian**: importan el puerto, no la implementación. Eso ya está
-   comprobado — es la misma forma con que `catastro` consume ahora el padrón de `rentas`.
-2. **Retirar las claves foráneas.** El enunciado dice **tres**; medidas contra el baseline son
-   **veinte**: quince contra `predio` (`acta_fiscalizacion`, `anuncio`, `beneficio`,
-   `certificado`, `declaracion_jurada`, `determinacion`, `determinacion_arbitrio`,
-   `determinacion_predio_detalle`, `licencia_edificacion`, `licencia_funcionamiento`,
-   `liquidacion_detalle`, `notificacion_administrativa`, `programa_muestra`,
-   `resolucion_determinacion`, `transferencia`) y cinco contra `ficha_catastral`. Y
-   **`cuenta_corriente_asiento.predio_id` nunca tuvo ninguna** — `V2` no la declaró, cosa que #660
-   ya había dejado escrita.
-3. **Re-fixturizar 54 clases de prueba** de `rentas` que siembran `predio`, `ficha_catastral`,
-   `titularidad`, `via`, `sector` o `manzana`. El mecanismo está probado en este mismo trabajo:
-   tablas `_de_prueba` como las de `EscenarioDeNormativa` (P5B §11), que aquí ya se usó para el
-   padrón (`EscenarioDelPadron`).
-
-**Y aunque la resta estuviera hecha, el criterio 1 seguiría sin poder cumplirse como está escrito,
-por un motivo que no es de esta etapa:** *no existe ninguna corrida de valuación con cifras, ni
-aquí ni en el monolito*. Medido leyendo el código:
+**No es la resta: la resta está hecha.** `V6__baja_de_catastro.sql` retiró las veinte claves
+foráneas y las quince tablas, el módulo quedó reducido a los puertos y su transporte, y `rentas`
+está en verde con sus tres verificadores. Lo que impide el criterio 1 es que **no existe ninguna
+corrida de valuación con cifras**, ni en `catastro` ni en el monolito, y eso está medido leyendo el
+código:
 
 - `DeterminarPredial` recibe el autovalúo **declarado** en la petición, y su javadoc lo dice con
   todas las letras: «el sistema no sabe valorizar un predio todavía». Le faltan el cuadro de
@@ -62,42 +40,85 @@ aquí ni en el monolito*. Medido leyendo el código:
   fórmula predial.
 
 De modo que «la corrida de valuación en `catastro`» no tiene hoy dos versiones que comparar: tiene
-cero. Lo que ADR-0027 pide se puede construir como **mecanismo** —y §7 lo construye del lado de
-`rentas`— pero sus cuatro cifras saldrían nulas con su motivo, no con un número.
+cero. Lo que ADR-0027 pide se construyó como **mecanismo** —§7, del lado receptor— y sus cuatro
+cifras saldrían nulas con su motivo, no con un número. **El día que esas cuatro decisiones cierren,
+lo que falta es el emisor; el receptor ya está probado.**
 
----
+Lo que sí se pudo comparar —y es la línea base para ese día— está en §5.
 
-## 3. El desglose de pruebas
+### Y una corrección al enunciado, medida
+
+El enunciado de esta etapa hablaba de **tres** claves foráneas que dejan de existir:
+`declaracion_jurada`, `determinacion` y `cuenta_corriente_asiento`. Medidas contra el baseline son
+**veinte**:
+
+| Contra | Cuántas | Cuáles |
+|---|---:|---|
+| `predio` | **15** | `acta_fiscalizacion`, `anuncio`, `beneficio`, `certificado`, `declaracion_jurada`, `determinacion`, `determinacion_arbitrio`, `determinacion_predio_detalle`, `licencia_edificacion`, `licencia_funcionamiento`, `liquidacion_detalle`, `notificacion_administrativa`, `programa_muestra`, `resolucion_determinacion`, `transferencia` |
+| `ficha_catastral` | **5** | `acta_fiscalizacion`, `declaracion_jurada`, `licencia_funcionamiento`, y **dos** de `resolucion_determinacion` (la ficha anterior y la nueva) |
+
+Y de las tres que el enunciado nombraba, una **no existe**: `cuenta_corriente_asiento.predio_id`
+nunca tuvo clave foránea. `V2` del monolito no la declaró, y #660 ya lo había dejado escrito al
+medir por qué un asiento puede quedar apuntando a un predio que ya no está. `V6` no inventa un
+`DROP` de algo que no hay, y lo dice en su cabecera.
+
+## 3. El desglose de pruebas, y a dónde se fue cada una
 
 Medido ejecutando con `cleanTest --no-build-cache --no-parallel` y contando los XML de
 `*/build/test-results/test/TEST-*.xml`, no leyendo la salida de Gradle.
 
 | | Antes (`rentas` solo) | `rentas` | `catastro` | Total |
 |---|---:|---:|---:|---:|
-| **Pruebas** | **3 667** | **3 681** | **945** | **4 626** |
+| **Pruebas** | **3 667** | **3 246** | **945** | **4 191** |
 | Fallos | 0 | 0 | 0 | 0 |
 
-`rentas` **sube 14 y no baja**, y eso es exactamente lo que dice que la resta no está hecha: las
-425 del contexto `catastro` siguen ahí. Las 14 nuevas son 5 de `ProyeccionDeSoloLecturaTest`, 5 de
-`CandadoDeEmisionJdbcTest`, 2 del AC 2 en `DeteccionDeOmisosJdbcTest`, 1 del AC 3 en
-`PredialControllerTest` y 1 de `PadronDelEjercicioTest`.
+**`rentas` baja 421, y cuadra al número:**
 
-Módulo a módulo en `catastro`:
+```
+3 667 (base) − 425 (el contexto `catastro`, que ahora corre en su repositorio)
+            −  10 (los dos disparadores de catastro: titularidad y vigencias)
+            −   4 (TitularPrincipalRepositoryJdbcTest, sustituido por 5)
+            −   1 (el solape de fichas, que V72 impide y V6 se llevó)
+            +  19 (nuevas: 5 proyección + 5 candado + 5 titular por el puerto
+                   + 2 del AC 2 + 1 del AC 3 + 1 del padrón)
+                                                                    = 3 246
+```
 
-| Módulo | Pruebas |
-|---|---:|
-| `kamayuk-catastro-aplicacion` (las barreras) | 84 |
-| `kamayuk-catastro-catastro` (el contexto) | **425** |
-| `kamayuk-catastro-dominio-compartido` | 154 |
-| `kamayuk-catastro-esquema` | 51 |
-| `kamayuk-catastro-parametros` | 54 |
-| `kamayuk-catastro-plataforma` | 177 |
-| **TOTAL** | **945** |
+**Ninguna prueba se perdió sin estar en otro sitio**, y conviene decir dónde:
 
-Las 425 del contexto son **las mismas 425** que `rentas` tenía tras P5B: ni una prueba de negocio
-se perdió al mover. Las 51 del esquema son las 46 de antes más las 5 de la guarda del arancel.
+| Se fue de `rentas` | Cuántas | Dónde está ahora |
+|---|---:|---|
+| El contexto acotado `catastro` entero | 425 | `catastro`, las mismas 425 |
+| `TitularidadNoExcede100Test` y `VigenciasQueNoSePisanTest` | 10 | `catastro`, contra los disparadores de verdad —`V6` los retiró de esta base, así que aquí ya no podían medir nada— |
+| `TitularPrincipalRepositoryJdbcTest` | 4 | Sustituida por `TitularPrincipalPorElPuertoTest`, **5 pruebas**: mide el mismo criterio por el puerto, y una más para el desempate que cambió |
+| «el solape de fichas ya no se puede escribir», en `ConteoDeLaDeteccionTest` | 1 | `catastro` (`VigenciasQueNoSePisanTest`). Medía la restricción de exclusión de `V72`, que se fue con su tabla |
+| La mitad de `AreaEnLaMismaFormaEntreModulosTest` que comparaba `FichaEncontradaResource` | 0 pruebas | La guarda estructural equivalente corre en `catastro`; aquí el par que queda son las dos puertas de `rentas`, que es donde #607 encontró las dos convenciones |
 
----
+Módulo a módulo:
+
+| Módulo | Antes | Ahora | Δ |
+|---|---:|---:|---:|
+| aplicacion | 130 | 130 | 0 |
+| **catastro** | **425** | **0** | **−425** |
+| coactiva | 197 | 197 | 0 |
+| contribuyentes | 80 | 80 | 0 |
+| cuentacorriente | 273 | 273 | 0 |
+| dominio-compartido | 154 | 154 | 0 |
+| esquema | 46 | 41 | −5 |
+| fiscalizacion | 297 | 298 | +1 |
+| indicadores | 57 | 57 | 0 |
+| licencias | 285 | 285 | 0 |
+| parametros | 54 | 54 | 0 |
+| plataforma | 177 | 177 | 0 |
+| rentas | 586 | 595 | +9 |
+| sanciones | 240 | 240 | 0 |
+| seguridad | 180 | 180 | 0 |
+| tesoreria | 304 | 304 | 0 |
+| valores | 181 | 181 | 0 |
+| **TOTAL** | **3 667** | **3 246** | **−421** |
+
+`kamayuk-rentas-catastro` queda con **cero pruebas y eso es correcto**: ya no tiene qué probar. De
+sus 200 clases quedan **26 de producción** —los 19 puertos y las 7 del transporte— y 7 de fixtures.
 
 ## 4. El renombrado, y la única decisión que se aparta del enunciado
 
@@ -260,14 +281,14 @@ proyección con un `JOIN` y volveríamos al cruce que esta etapa deshace.
 
 ---
 
-## 8. Criterio 4 — las barreras, y el cruce que se cierra
+## 8. Criterio 4 — las barreras, y los tres cruces que se cierran
 
 Contra PostgreSQL **16.15 real** en `127.0.0.1:55444`, con `cleanTest`, `--no-build-cache` y
 `--no-parallel`.
 
 | Tarea | `catastro` | `rentas` |
 |---|---|---|
-| `./gradlew build` | **VERDE** — 945 pruebas | **VERDE** — 3 681 pruebas |
+| `./gradlew build` | **VERDE** — 945 pruebas | **VERDE** — 3 246 pruebas |
 | `./gradlew verificarArquitectura` | **VERDE** | **VERDE** |
 | `./gradlew verificarAislamiento` | **VERDE** | **VERDE** |
 
@@ -277,21 +298,118 @@ Contra PostgreSQL **16.15 real** en `127.0.0.1:55444`, con `cleanTest`, `--no-bu
 > medido, no supuesto: el demonio es un túnel a un VPS, el contenedor arranca allí y su puerto se
 > publica allí. Es el mismo hueco que declararon P3, P4, P5A y P5B.
 
-### `PENDIENTE-CRUCE-01`, cerrado
+### Tres de los cuatro cruces, cerrados
 
-`DeteccionRepositoryJdbc` y `ConciliacionRepositoryJdbc` —las dos juntas a propósito, porque es el
-mismo padrón paginado en un caso y contado en el otro (#564)— dejan de leer tablas de `catastro`.
-Sus **cinco entradas** salen de `CrucesConsentidosDelSgtm`, y salen porque
-`ningunCruceConsentidoSobra` vuelve a escanear **sin** la lista y las habría puesto en rojo.
+`V6` retiró de la base de `rentas` las quince tablas de `catastro`, así que **ninguna de las cuatro
+clases que las leían puede seguir haciéndolo**. Cada una se cerró por el camino que su propia nota
+de P3 anticipaba:
 
-Quedan tres: `-04`, `-05` y `-06`.
+| Id | Clase | Cómo se cerró |
+|---|---|---|
+| `-01` | `DeteccionRepositoryJdbc` y `ConciliacionRepositoryJdbc` | Leen `predio_ref` y `ficha_ref`, la proyección local de `V4`. Iban juntas a propósito —es el mismo padrón, paginado en un caso y contado en el otro (#564)— y por eso se cierran juntas |
+| `-04` | `TitularPrincipalRepositoryJdbc` | **Desaparece.** Lo sustituye `TitularPrincipalPorElPuerto`, que pregunta por `TitularesDelPredio`. Su nota avisaba del desempate, y ese matiz quedó escrito en la clase nueva |
+| `-05` | `CuotaDeArbitrioRepositoryJdbc` | Traduce el código predial contra `predio_ref`. Su nota proponía un puerto HTTP; la proyección lo resuelve sin salir de la base, que es **mejor**: el filtro entra en el MISMO `WHERE` que el conteo |
+
+**Queda una entrada**: `ReciboRepositoryJdbc` → `contribuyente`, `PENDIENTE-CRUCE-06`, que es de
+`caja` y tiene D-17 abierta. `-02` y `-03` los había cerrado P5B.
+
+Retirarlas no es un trámite: `ningunCruceConsentidoSobra` vuelve a escanear **sin** la lista y exige
+que cada entrada siga eximiendo un cruce de verdad, así que dejar cualquiera de las siete la habría
+puesto en rojo.
+
+**Y `NINGUN_SQL_CRUZA_LA_FRONTERA_DE_SISTEMA` está en verde después de la baja**, con la lista
+reducida a una: se comprobó ejecutando `verificarArquitectura` sobre el árbol ya sin las tablas.
 
 En `catastro` la lista está **vacía y tiene que estarlo**, y las tres cosas que en el monolito
 habrían entrado no entran por tres motivos distintos, escritos en la propia clase.
 
----
+### El desajuste que la baja destapó en el contrato
 
-## 9. La guarda del arancel, reconstruida (hueco 3 de P5B)
+Cuarenta operaciones de `/catastro/` estaban en `IMPLEMENTADAS` y ya no las publica este backend.
+**Se quedan en el contrato y salen de esa lista**, que es lo mismo que P5B hizo con `GET
+/seguridad/parametros` y lo que ya se hacía con `GET /portal/deuda`: el contrato describe lo que la
+interfaz pide, y la interfaz las sigue pidiendo; lo que dejó de ser cierto es que las sirva
+`rentas`.
+
+**Tres NO salen, y conviene decir por qué**: `GET /catastro/fichas/conciliacion`, su `/resumen` y
+`GET /catastro/predios/{predioId}/titulares` los publica `rentas` y los seguirá publicando — la
+conciliación es un derivado de `declaracion_jurada`, que `catastro` no puede mirar sin depender de
+`rentas` (ADR-0015), y los titulares los sirve `rentas` porque `contribuyentes` es la base del grafo
+(#366, ADR-0015 §2.4).
+
+## 9. La resta: qué se fue de `rentas`, y en qué quedó el módulo
+
+### `V6__baja_de_catastro.sql`, en cuatro bloques y en este orden
+
+**Primero las claves foráneas, después las tablas.** Al revés, PostgreSQL exigiría `CASCADE` sobre
+cada `DROP TABLE`, y eso se llevaría por delante lo que apunte a ella **sin que se vea en el diff**.
+Es la misma decisión que `V2` tomó en P5B y por el mismo motivo: aquí cada línea dice exactamente
+qué garantía se retira.
+
+1. **Las quince** contra `predio`, una a una y por nombre.
+2. **Las cinco** contra `ficha_catastral`.
+3. **Los tres disparadores** —el del arancel, que ya estaba roto desde P5B, y los dos invariantes
+   de titularidad y participación—.
+4. **Las quince tablas**, en orden de dependencia y **sin `CASCADE`**: si quedara algo apuntando a
+   una de ellas, el `DROP` tiene que fallar y decirlo.
+5. **Las dos funciones** que solo ellas usaban.
+
+**Las columnas se quedan.** `declaracion_jurada.predio_id`, `determinacion.predio_id` y las demás
+son la referencia al hecho de catastro que sustenta cada acto, y perderlas sería perder por qué se
+determinó lo que se determinó. Lo único que se retira es la garantía del motor — literalmente el
+costo que ADR-0029 nombra: «se paga una clave foránea por una invariante».
+
+### Y una función NO se fue, y lo dijo el motor antes que ninguna revisión
+
+`nombre_normalizado(text)` iba a irse con las otras dos. El `DROP` falló:
+
+```
+ERROR: cannot drop function nombre_normalizado(text) because other objects depend on it
+Detail: index contribuyente_nombre_trgm_ix depends on function nombre_normalizado(text)
+```
+
+No es de catastro: la comparten `via.nombre_busqueda` (`V66`) y el índice de búsqueda por
+aproximación del **padrón de contribuyentes** (`V11`, RF-014), que se queda aquí. Que los dos
+sistemas la tengan cada uno en su esquema es lo correcto —es una función de texto, no una regla de
+negocio— y `catastro` la conserva en su baseline por su lado. Queda escrito en `V6`.
+
+### El módulo se queda, como ADAPTADOR CLIENTE
+
+Es la opción (a) del encargo, y es lo que P5B hizo con `kamayuk-rentas-parametros`. De sus **200
+clases** quedan **26 de producción**:
+
+- **Los 19 puertos** del paquete raíz. **No se tocó ni uno**: ya eran el contrato, y por eso las
+  **27 clases de `src/main`** que los consumen no cambiaron una línea. Ésa es la propiedad que
+  ARQ-01 §4 compró y que aquí se cobró.
+- **7 de transporte**: el cliente HTTP y los adaptadores.
+
+Sin dominio, sin repositorio y **sin una sola consulta**. Si volviera a tener una, `rentas` leería
+tablas de `catastro` y el escáner de frontera lo diría.
+
+### SIETE de los nueve puertos no tienen hoy quien los conteste
+
+Y hay que decirlo porque es la consecuencia visible de la resta. `catastro` publica hoy la grilla de
+fichas, el listado de predios, el resumen predial y las escrituras de titularidad e inquilinos — y
+**no** las rutas que ADR-0030 fija para esta frontera (`GET /predios/{id}/titulares`,
+`/caracteristicas`, `POST /predios/{id}/titularidad`, `/transferencia-fiscal`).
+
+Así que el cliente hace dos cosas distintas:
+
+- **Dos puertos salen por HTTP** contra la ruta que `catastro` publica de verdad: la grilla de
+  fichas y el cuadro de valores unitarios.
+- **Los otros siete lanzan `SinRutaEnCatastro`**, que nombra la operación de ADR-0030 que los
+  serviría. **No devuelven vacío**, y ahí está toda la decisión: una lista vacía de predios se lee
+  como «este contribuyente no tiene ninguno» y un `Optional.empty()` como «este predio no tiene
+  ficha». Las dos son plausibles y falsas — la determinación predial saldría con la base a cero y
+  ninguna cifra parecería mal. Es el criterio de #48 con la licencia que salía con «valor de obra
+  0,00», y el que `LectorDeValoresUnitarios` ya llevaba escrito.
+
+**Esto no es una regresión que introduzca P5C: es la que P5C hace visible.** Mientras las tablas
+seguían aquí, `rentas` era dueño de un catastro que ya vivía en otro repositorio y la frontera era
+mentira. La clase `SinRutaTodavia` **es** la lista de trabajo pendiente de esta frontera, escrita
+donde se ejecuta, y encoge cada vez que `catastro` publique una ruta.
+
+## 10. La guarda del arancel, reconstruida (hueco 3 de P5B)
 
 P5B retiró de `rentas` el disparador `arancel_de_conjunto_sellado_inmutable` **y su función**,
 porque consultaba `conjunto_parametros`, que se fue a `normativa`: una función que consulta una
@@ -332,7 +450,7 @@ del mismo conjunto.
 
 ---
 
-## 10. El baseline: lo que le sobraba, con su diff
+## 11. El baseline: lo que le sobraba, con su diff
 
 El generador de ADR-0032 restringe el esquema de `sgtm` a las tablas de este sistema pero arrastra
 **toda** función del esquema original. **Se comprobó con el mismo método que P5B**, y sobraban
@@ -354,7 +472,7 @@ estar rota igual. Lo que la delata no es de quién es, sino qué consulta.
 
 ---
 
-## 11. Los dos hallazgos que salieron de mover, y no de razonar
+## 12. Los hallazgos que salieron de mover, y no de razonar
 
 **Una prueba dependía del ORDEN DE EJECUCIÓN, y sólo el cambio de paquete lo destapó.**
 `SinNormativaFronteraTest` afirmaba que el repliegue a la caché devuelve el conjunto 7070; otra
@@ -367,14 +485,21 @@ dependencia de orden estaba desde que existe**, y en `rentas` sigue pasando en v
 casualidad.
 
 **El escenario de prueba necesita escribir a mano el filtro que en producción pone RLS.** Es el
-primero de los dos defectos que P5B §11 documenta, repetido aquí exactamente: sin
-`AND c.municipalidad_id = ?` en el `JOIN` contra `contribuyente_de_prueba`, la segunda municipalidad
-casa también con los contribuyentes de la primera y el predio sale con **dos titulares al 100 %** —
-lo caza el disparador de titularidad, que tiene razón.
+primero de los dos defectos que P5B §11 documenta, y en esta etapa se cobró **cuatro veces**: en el
+`JOIN` contra `contribuyente_de_prueba` —dos titulares al 100 % sobre el mismo predio—; en la
+subconsulta del sector de `ConteoDeLaDeteccionTest` —«more than one row returned by a subquery»—;
+en los cuatro fixtures que leen el escenario, que ahora resuelven su municipalidad por
+`TenantContext`; y, el más caro, **en la guarda «ya está sembrado»** de la conciliación: `SELECT
+count(*) FROM predio_de_prueba` sin filtro contaba los predios de las cuatro municipalidades del
+archivo, de modo que ninguna volvía a sembrarse y siete pruebas medían un padrón vacío.
+
+**Y una función que parecía de catastro no lo era, y lo dijo el motor.** `nombre_normalizado(text)`
+iba a irse con `V6`; el `DROP` falló nombrando `contribuyente_nombre_trgm_ix`. Es de los dos
+sistemas —la vía y el padrón— y ninguna revisión lo habría visto. §9.
 
 ---
 
-## 12. Lo que se movió, archivo a archivo
+## 13. Lo que se movió, archivo a archivo
 
 | Qué | De | A |
 |---|---|---|
@@ -384,6 +509,8 @@ lo caza el disparador de titularidad, que tiene razón.
 | `cargar-{predios, fichas-demo, detalle-fichas-demo, sectores, manzanas, catalogo-vial, transferencias-demo, arancel-vial}.sh` | `infrastructure` | `catastro/infra/carga-de-datos/` |
 | `ejemplos/{vias, sectores, manzanas, fichas, detalle-de-fichas, transferencias}.csv` | `rentas` | `catastro/infra/carga-de-datos/ejemplos/` |
 | `V1__baseline.sql` corregido | `sgtm/docs/40-datos/baselines/catastro/` | `kamayuk-catastro-esquema/…/db/migration/` |
+| Las 15 tablas, sus 20 claves foráneas y sus 3 disparadores | `rentas` (`V6` los retira) | `catastro` (`V1` baseline) |
+| `TitularidadNoExcede100Test` y `VigenciasQueNoSePisanTest` | `rentas` | `catastro`, contra los disparadores de verdad |
 
 **Lo que NO se movió, y por qué:** `contribuyentes.csv` se queda en `rentas` y esta prueba lo lee
 del repositorio hermano. Dos copias del mismo padrón de demostración divergen, y la que se leyera
@@ -393,48 +520,51 @@ costo, declarado abajo.
 
 ---
 
-## 13. Huecos declarados
+## 14. Huecos declarados
 
-1. **LA RESTA NO ESTÁ HECHA.** `rentas` conserva el contexto `catastro` entero, sus 15 tablas y sus
-   20 claves foráneas. §2 enumera los tres pasos que faltan. **Mientras eso siga así, no hay dos
-   sistemas: hay uno y una copia**, y la proyección de `V4` convive con las tablas que proyecta.
+1. **No hay corrida de valuación con cifras**, ni aquí ni en el monolito, y por eso el criterio 1 no
+   se cumple. **Es de datos y no de código**: faltan el cuadro de valores unitarios y la
+   depreciación (GOB-03, H-14 y H-15), los aranceles de ordenanza (D-02b), el `% actualización`
+   (D-11) y que algún ejercicio esté sellado (D-02a). Lo que sí está construido es **la mitad
+   receptora** —las tablas, el candado y su forma, §7— y la línea base con la que comparar el día
+   que el emisor exista (§5).
 
-2. **No existe la corrida de valuación de ADR-0027 en `catastro`.** Ni sus rutas
-   (`/valuaciones/{ejercicio}`, `/huellas`, `POST /corridas-de-valuacion`), ni
-   `ValuacionDePredioPublicada`, ni `CorridaDeValuacionCerrada` del lado emisor. Lo que sí está es
-   **la mitad receptora**, en `rentas`: las tablas, el candado y su forma. El motivo no es de
-   tiempo sino de datos: §2 lo mide. **El día que D-02a, D-02b, D-11 y GOB-03 cierren, lo que hay
-   que construir es el emisor, y el receptor ya está probado.**
+2. **Siete de los nueve puertos no tienen ruta que los conteste** (§9). `catastro` publica hoy la
+   grilla de fichas, el listado de predios, el resumen predial y las escrituras de titularidad; las
+   de ADR-0030 —titulares, características, titularidad, transferencia fiscal, valuación— no. Los
+   siete **lanzan nombrando la operación que los serviría**, y `SinRutaTodavia` es esa lista.
+   **Es lo más caro que deja esta etapa**, y es lo que la resta hizo visible.
 
 3. **El ingestor de eventos no existe.** Lo que hay es el esquema —el buzón deduplicado por
-   `evento_id`, la secuencia, los privilegios— y un fixture, `ProyeccionDeCatastro`, que hace su
-   papel en las pruebas leyendo de las tablas que todavía conviven. No hay cola, no hay
-   suscripción, no hay reintento. Su forma está fijada por `V4` y por el rol; su transporte, no.
+   `evento_id`, la secuencia, los privilegios— y cinco fixtures que hacen su papel en las pruebas.
+   No hay cola, no hay suscripción, no hay reintento. Su forma está fijada por `V4` y por el rol;
+   su transporte, no.
 
 4. **Tres copias de la plataforma y del dominio compartido.** `rentas`, `normativa` y ahora
    `catastro` llevan cada uno los suyos (331 pruebas duplicadas por repositorio). Es el hueco 1 de
-   P5B agravado en un tercio: **nada impide que diverjan**, y el riesgo que eso trae es el que
-   ADR-0024 §3 nombra. Sacar `dominio-compartido` a librería compartida son 938 archivos de
-   renombrado sólo en `rentas`.
+   P5B agravado en un tercio: **nada impide que diverjan**, y el riesgo es el que ADR-0024 §3
+   nombra. Sacar `dominio-compartido` a librería compartida son 938 archivos de renombrado sólo en
+   `rentas`.
 
 5. **`catastro` no compila sus pruebas sin `rentas` clonado al lado**, por `contribuyentes.csv`
-   (§12). Es el hueco 2 de P5B con los papeles cambiados, y **el CI de `catastro` tendría que hacer
+   (§13). Es el hueco 2 de P5B con los papeles cambiados, y **el CI de `catastro` tendría que hacer
    checkout de tres repositorios**; no se ha escrito en su `backend.yml`, porque los workflows no
    se empujan desde esta sesión.
 
-6. **El cliente del padrón reenvía el token, no lo intercambia.** ADR-0028 §1 pide un token
-   **delegado** por RFC 8693 con la audiencia de `rentas`. `DirectorioHttpDeRentas` reenvía el del
-   funcionario tal cual: conserva el sujeto y el claim `municipalidad_id` —o sea es correcto en lo
-   que importa, el aislamiento— y pierde que la bitácora de `rentas` distinga «lo pidió catastro en
-   nombre de fulano» de «lo pidió fulano». Y **en una corrida sin usuario delante no hay token**:
-   la llamada sale sin credencial y `rentas` la rechaza, que es deliberado — preferimos que falle a
-   que una corrida nocturna se invente una identidad. ADR-0028 §2 dice cómo se cierra.
+6. **El cliente reenvía el token, no lo intercambia.** ADR-0028 §1 pide un token **delegado** por
+   RFC 8693 con la audiencia del destino. `ClienteHttpDeCatastro` y `DirectorioHttpDeRentas`
+   reenvían el del funcionario tal cual: conservan el sujeto y el claim `municipalidad_id` —o sea
+   son correctos en lo que importa, el aislamiento— y pierden que la bitácora del destino distinga
+   «lo pidió catastro en nombre de fulano» de «lo pidió fulano». Y **en una corrida sin usuario
+   delante no hay token**: la llamada sale sin credencial y el destino la rechaza, que es
+   deliberado. ADR-0028 §2 dice cómo se cierra.
 
 7. **`catastro` no tiene contrato de API derivado.** Es el hueco 5 de P5B con el mismo argumento: el
    generador de `rentas` deriva del prototipo del manual (#312) y aquí no hay prototipo del que
    derivar. Las tres pruebas que lo sujetan en `rentas` —`ContratoDeApiTest`, `FormasDeLaApiTest`,
-   `RespuestasDeLaApiTest`— **no se copiaron**, y sus entradas se retiraron de `tasks.test` con su
-   motivo escrito.
+   `RespuestasDeLaApiTest`— no se copiaron. **Y con la baja, dos promesas de `ParametrosDeLaConsulta`
+   se quedaron sin dueño**: las del plano catastral (#536, #612), que este backend ya no publica; la
+   promesa tiene que recogerla `catastro`, y hasta que tenga contrato no puede.
 
 8. **La secuencia de siembra de la municipalidad de demostración ya no la orquesta nadie.**
    `sembrar-demostracion.sh` nombraba diez pasos en un solo orden y vive en `infrastructure`; ahora
@@ -444,17 +574,29 @@ costo, declarado abajo.
    `infra/carga-de-datos/README.md` y no está resuelto.
 
 9. **`rol_ingestor_catastro` se crea sin `LOGIN` y nadie le asigna clave.** Igual que los otros
-   cuatro, y por lo mismo (`crear-roles.sql` no lleva claves), pero **no está en el inventario de
-   secretos de INF-06** ni en `asignar-claves.sh`. Hasta que lo esté, el ingestor no se puede
-   conectar en un ambiente desplegado.
+   cuatro, y por lo mismo, pero **no está en el inventario de secretos de INF-06**
+   (`infra/componentes/secretos.ts`, donde sí está `rol_carga_parametros`) ni en
+   `asignar-claves.sh`. Hasta que lo esté, el ingestor no se puede conectar en un ambiente
+   desplegado.
 
-10. **`P3-safeguards.md` sigue describiendo seis identificadores abiertos.** Hoy son tres: P5B
-    cerró `-02` y `-03`, y P5C cierra `-01`. El documento es el registro de su etapa y no se editó;
-    la lista viva es `CrucesConsentidosDelSgtm`, que es la que se pone roja.
+10. **`P3-safeguards.md` sigue describiendo seis identificadores abiertos.** Hoy es **uno**: P5B
+    cerró `-02` y `-03`, y P5C cierra `-01`, `-04` y `-05`. El documento es el registro de su etapa
+    y no se editó; la lista viva es `CrucesConsentidosDelSgtm`, que es la que se pone roja.
 
----
+11. **La grilla de fichas y la titularidad, en las pruebas de `rentas`, se miden contra un fixture
+    y no contra la consulta de producción.** Es inevitable —esa consulta vive en `catastro`— y lo
+    que se conserva es lo que sigue siendo de `rentas`: que **componga** bien la acotación por
+    predio (#631) y que la fecha **viaje**. Lo que ya no se mide aquí es que la página y el
+    `count(*)` de catastro salgan del mismo `WHERE`; eso lo miden sus 425 pruebas. **El recuento de
+    la conciliación sí se sigue midiendo contra PostgreSQL**, porque lee `predio_ref`.
 
-## 14. Cómo sembrar el escenario en una prueba, ahora que el padrón no está
+12. **El desempate del titular principal cambió** (`PENDIENTE-CRUCE-04`). El SQL desempataba por el
+    `id` de la fila de titularidad; el puerto no lo publica, así que ahora se desempata por
+    `contribuyenteId`. Lo que cambia es a cuál de dos copropietarios **empatados** se le cobra el
+    arbitrio; lo que no cambia —y lo mide una prueba— es que la elección sea la misma en dos
+    corridas.
+
+## 15. Cómo sembrar el escenario en una prueba, ahora que el catastro no está
 
 Tres piezas, y conviene entenderlas juntas porque son el equivalente de P5B §11:
 

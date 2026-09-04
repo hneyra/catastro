@@ -22,7 +22,9 @@ qué tabla fue a qué repositorio y por qué, [GOB-05](https://github.com/hneyra
 | Su frontend (`catastro-web`) | **NO existe** |
 | Su imagen `ghcr.io/hneyra/kamayuk-catastro` | **NO existe.** El descriptor la nombra igual, y es correcto: aquí no se despliega nada todavía |
 | **Carga cartográfica** | **NO hay ni un polígono** en ninguna instalación. `V61` trajo la columna; nada la llena todavía |
+| **La resta en `rentas`** | **Hecha.** Su `V6` retiró las **20** claves foráneas —el enunciado decía tres— y las 15 tablas; su módulo `kamayuk-rentas-catastro` quedó como adaptador cliente: 26 clases, sin dominio y sin una sola consulta |
 | **La corrida de valuación de ADR-0027** | **NO existe.** Y no es un olvido de la extracción: el sistema **no sabe valorizar un predio** —faltan el cuadro de valores unitarios y la depreciación (GOB-03 H-14/H-15), los aranceles de ordenanza (D-02b) y el `% actualización` (D-11)—. Está declarado en `docs/00-gobierno/P5C-extraccion.md` |
+| **Las rutas de ADR-0030 para la frontera** | **NO se publican todavía.** `catastro` sirve la grilla de fichas, el listado de predios y las escrituras; **siete de los nueve puertos que `rentas` consume no tienen quien los conteste**, y lo dicen en vez de devolver vacío |
 
 **Las barreras se construyeron primero, a propósito**, y el negocio entró después, por encima de
 ellas. Lo que P5C midió al hacerlo está en

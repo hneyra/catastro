@@ -15,7 +15,7 @@ arancel de terreno. **Calcula el valor del predio; no calcula el impuesto.**
 | `infrastructure/` — el descriptor (ADR-0031 §2) | **Existe y verifica**: `yarn verificar` en verde, sin Pulumi, sin token y sin cluster |
 | `.github/workflows/` — su CI | **Existe**, con tres flujos: el descriptor, las **dos barreras bloqueantes** del backend y la guarda del registro |
 | `docs/30-arquitectura/adr/` | **Existe**, con 3 ADR propio(s) y su indice ⚠ ver la nota de abajo |
-| `backend/` — dos modulos y **cero clases de negocio** | **Existe desde P3**: `kamayuk-esquema` con su prueba de aislamiento (9 pruebas) y `kamayuk-verificaciones` con las barreras (79). El **negocio** llega en la etapa 5 |
+| `backend/` — siete modulos con el negocio dentro | **Existe.** P3 puso las barreras y **P5C trajo el contexto acotado entero**: `./gradlew build` en verde con **945 pruebas**, y `verificarArquitectura` y `verificarAislamiento` tambien |
 | `docs/40-datos/baselines/V1__baseline.sql` — su esquema | **NO esta aqui todavia.** Generado y verificado, vive en [`sgtm/docs/40-datos/baselines/catastro/`](https://github.com/hneyra/sgtm/blob/migracion-a-microservicios/docs/40-datos/baselines/catastro/V1__baseline.sql) hasta que la extraccion lo traiga |
 | Su frontend (`catastro-web`, ADR-0030 §1) | **NO existe** |
 | La imagen `ghcr.io/hneyra/kamayuk-catastro` | **NO existe.** El `Deployment` del descriptor la nombra igual: es correcto, y en esta etapa no se despliega nada |

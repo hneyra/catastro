@@ -14,17 +14,20 @@ qué tabla fue a qué repositorio y por qué, [GOB-05](https://github.com/hneyra
 | Pieza | Estado |
 |---|---|
 | `infrastructure/` — el descriptor de despliegue | **Existe.** `yarn verificar` en verde, sin Pulumi, sin token y sin clúster |
-| `backend/kamayuk-esquema` | **Existe el módulo y su prueba de aislamiento (9 pruebas). Cero migraciones**: el baseline es [ADR-0032](https://github.com/hneyra/infrastructure/blob/main/docs/30-arquitectura/adr/ADR-0032-el-esquema-nace-en-baseline.md) y todavía no está aquí |
-| `backend/kamayuk-verificaciones` | **Existe.** `verificarArquitectura` corre **79 pruebas** contra las muestras de la librería común, con cero clases de negocio |
-| `docs/30-arquitectura/adr/` | **Existe**, 3 ADR propios más los que enlaza |
-| **Código de negocio** | **NO existe. Ni una clase.** Llega en la etapa 5 |
-| Su esquema (`V1__baseline.sql`) | **NO está aquí.** Vive en `sgtm/docs/40-datos/baselines/catastro/` hasta que la extracción lo traiga |
+| `backend/` — siete módulos | **Existe desde P5C.** `kamayuk-catastro-{dominio-compartido, esquema, plataforma, parametros, contribuyentes, catastro, aplicacion}` |
+| **Código de negocio** | **Existe.** El contexto acotado `catastro` entero: predio, ficha versionada, construcciones, titularidad, inquilinos, catálogo vial, las cuatro clases de ficha, la geometría y el arancel |
+| Su esquema | **Existe.** `V1__baseline.sql` (ADR-0032) más `V2` —la copia local de conjuntos sellados— y `V3` —la guarda del arancel reconstruida— |
+| `./gradlew build` | **VERDE — 945 pruebas, 0 fallos**, contra PostgreSQL 16.15 real |
+| `verificarArquitectura` / `verificarAislamiento` | **VERDE los dos** |
 | Su frontend (`catastro-web`) | **NO existe** |
-| Su imagen `ghcr.io/hneyra/kamayuk-catastro` | **NO existe.** El descriptor la nombra igual, y es correcto: aquí no se despliega nada |
+| Su imagen `ghcr.io/hneyra/kamayuk-catastro` | **NO existe.** El descriptor la nombra igual, y es correcto: aquí no se despliega nada todavía |
 | **Carga cartográfica** | **NO hay ni un polígono** en ninguna instalación. `V61` trajo la columna; nada la llena todavía |
+| **La corrida de valuación de ADR-0027** | **NO existe.** Y no es un olvido de la extracción: el sistema **no sabe valorizar un predio** —faltan el cuadro de valores unitarios y la depreciación (GOB-03 H-14/H-15), los aranceles de ordenanza (D-02b) y el `% actualización` (D-11)—. Está declarado en `docs/00-gobierno/P5C-extraccion.md` |
 
-**Las barreras se construyeron primero, a propósito.** Hoy este repositorio es exactamente eso:
-dos verificaciones bloqueantes esperando al negocio que van a vigilar.
+**Las barreras se construyeron primero, a propósito**, y el negocio entró después, por encima de
+ellas. Lo que P5C midió al hacerlo está en
+[`docs/00-gobierno/P5C-extraccion.md`](docs/00-gobierno/P5C-extraccion.md), con sus cuatro
+criterios y sus huecos declarados.
 
 ## Lo que este repositorio NO hace
 
@@ -44,8 +47,13 @@ dos verificaciones bloqueantes esperando al negocio que van a vigilar.
 
 ```
 backend/                Gradle. Java 25, Spring Boot 4 cuando llegue el negocio
-  kamayuk-esquema/      migraciones (hoy ninguna) y la prueba de aislamiento
-  kamayuk-verificaciones/  donde corren las barreras. Ve a todos los demás módulos
+  kamayuk-catastro-dominio-compartido/  objetos de valor. Sin Spring, sin contexto acotado
+  kamayuk-catastro-esquema/     V1 baseline, V2 cache de normativa, V3 guarda del arancel
+  kamayuk-catastro-plataforma/  el contexto de tenant hasta la transaccion (ARQ-03 §2)
+  kamayuk-catastro-parametros/  el CLIENTE de normativa y su copia local sellada
+  kamayuk-catastro-contribuyentes/  SOLO el puerto al padron de `rentas`, y su cliente HTTP
+  kamayuk-catastro-catastro/    el contexto acotado. 200 clases
+  kamayuk-catastro-aplicacion/  ensambla el artefacto y aloja las barreras
 infrastructure/         el descriptor de despliegue en TypeScript, con yarn
 docs/                   ADR propios, hallazgos de RLS y esta guía de desarrollo
 ```

@@ -22,6 +22,13 @@ import org.jspecify.annotations.Nullable;
  * el cero seria un area declarada, y confundir «no hay» con «declaro cero» esconde un error de
  * captura. La pantalla pinta un guion, que no es un cero.
  *
+ * <p><b>El identificador se llama {@code fichaId} y no {@code id}</b> (C-1, desajuste 1). La fila
+ * lleva DOS identificadores —el de la ficha y el del predio— y llamar {@code id} a uno de los dos
+ * no dice cual: al lado de {@code predioId}, {@code id} es un tecnicismo que solo significa «la
+ * clave de esta fila». El dominio ya lo llama {@code FichaEncontrada.fichaId()}, y el sintoma de
+ * que no coincidieran era MUDO — {@code asLong()} sobre un nodo que falta devuelve 0, asi que toda
+ * ficha llegaba a {@code rentas} con {@code fichaId = 0} y ninguna cifra parecia mal.
+ *
  * <p><b>Las areas viajan tipadas</b> (#607). Las escribe el serializador que {@code
  * ConfiguracionDeJson} registra para {@code AreaM2}, o sea la cifra sola —{@code "360.00"}—, y la
  * unidad la pone la cabecera de la columna. Metida dentro del dato obliga a cada consumidor a
@@ -29,7 +36,7 @@ import org.jspecify.annotations.Nullable;
  * aqui y «360.00» en fiscalizacion.
  */
 public record FichaEncontradaResource(
-        long id,
+        long fichaId,
         long predioId,
         String codRefCatastral,
         String direccion,

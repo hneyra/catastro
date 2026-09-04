@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import kamayuk.catastro.catastro.AcotacionPorPredio;
 import kamayuk.catastro.catastro.aplicacion.ConsultaDeFichas;
 import kamayuk.catastro.catastro.dominio.FichaCatastralRepository;
 import kamayuk.catastro.catastro.dominio.FichaEncontrada;
@@ -24,6 +25,7 @@ import kamayuk.catastro.dominio.AreaM2;
 import kamayuk.catastro.dominio.CodigoReferenciaCatastral;
 import kamayuk.catastro.web.ConfiguracionDeJson;
 import kamayuk.catastro.web.ManejadorDeErrores;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
@@ -208,6 +210,102 @@ class ConsultaControllerTest {
     }
 
     // ------------------------------------------------------------------
+    //  C-1: los desajustes de frontera que este endpoint pagaba
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("C-1 (1) — el identificador de la fila se llama «fichaId», no «id»")
+    void elIdentificadorDeLaFilaSeLlamaFichaId() throws Exception {
+        MvcResult resultado = mvc.perform(get("/catastro/api/v1/catastro/fichas")).andReturn();
+
+        assertThat(resultado.getResponse().getContentAsString())
+                .as(
+                        "la fila lleva DOS identificadores; «id» al lado de «predioId» no dice"
+                                + " cual, y el consumidor que lee «fichaId» recibe un CERO sin que"
+                                + " nada falle")
+                .contains("\"fichaId\":1")
+                .contains("\"predioId\":10")
+                .doesNotContain("\"id\":");
+    }
+
+    @Test
+    @DisplayName("C-1 (4) — «soloPredio» acota la grilla a esos lotes, y no se descarta")
+    void soloPredioAcotaLaGrilla() throws Exception {
+        mvc.perform(
+                        get("/catastro/api/v1/catastro/fichas")
+                                .param("soloPredio", "11")
+                                .param("soloPredio", "12"))
+                .andReturn();
+
+        assertThat(repositorio.filtroRecibido().acotacion())
+                .as(
+                        "hasta C-1 viajaba en la URL y se descartaba: la conciliacion pedia unos"
+                                + " lotes y recibia la pagina del padron entero, con"
+                                + " «totalElementos» del padron entero (#631)")
+                .isEqualTo(AcotacionPorPredio.soloEstos(List.of(11L, 12L)));
+    }
+
+    @Test
+    @DisplayName("C-1 (5) — «exceptoPredio» acota al complemento")
+    void exceptoPredioAcotaAlComplemento() throws Exception {
+        mvc.perform(get("/catastro/api/v1/catastro/fichas").param("exceptoPredio", "13"))
+                .andReturn();
+
+        assertThat(repositorio.filtroRecibido().acotacion())
+                .isEqualTo(AcotacionPorPredio.todosMenosEstos(List.of(13L)));
+    }
+
+    @Test
+    @DisplayName("y sin ninguno de los dos, la grilla no se acota: el padron paginado")
+    void sinAcotacionLaGrillaEsLaDelPadron() throws Exception {
+        mvc.perform(get("/catastro/api/v1/catastro/fichas")).andReturn();
+
+        assertThat(repositorio.filtroRecibido().acotacion())
+                .as("el contraste: si acotara siempre, las dos pruebas de arriba no dirian nada")
+                .isEqualTo(AcotacionPorPredio.ninguna());
+    }
+
+    @Test
+    @DisplayName("los dos a la vez son 422, no una eleccion silenciosa")
+    void losDosALaVezSeRechazan() throws Exception {
+        MvcResult resultado =
+                mvc.perform(
+                                get("/catastro/api/v1/catastro/fichas")
+                                        .param("soloPredio", "11")
+                                        .param("exceptoPredio", "13"))
+                        .andReturn();
+
+        assertThat(resultado.getResponse().getStatus()).isEqualTo(422);
+        assertThat(resultado.getResponse().getContentAsString())
+                .as("quedarse con uno devolveria una grilla plausible que acota por otra cosa")
+                .contains("soloPredio")
+                .contains("exceptoPredio");
+    }
+
+    @Test
+    @DisplayName("C-1 (3) — «fecha» no se declara y se ignora: llega hasta el repositorio")
+    void laFechaDeCorteLlegaHastaElRepositorio() throws Exception {
+        mvc.perform(get("/catastro/api/v1/catastro/fichas").param("fecha", "2026-03-15"))
+                .andReturn();
+
+        assertThat(repositorio.fechaRecibida())
+                .as(
+                        "el registro de P6 decia que este endpoint «declara el parametro y lo"
+                                + " ignora». No lo ignora: pedir marzo devolvia la ficha de hoy"
+                                + " porque el consumidor lo mandaba con OTRO nombre, y entonces se"
+                                + " tomaba el valor por omision del reloj")
+                .isEqualTo(LocalDate.of(2026, 3, 15));
+    }
+
+    @Test
+    @DisplayName("y sin fecha se resuelve con el reloj, que es el contraste de la anterior")
+    void sinFechaSeResuelveConElReloj() throws Exception {
+        mvc.perform(get("/catastro/api/v1/catastro/fichas")).andReturn();
+
+        assertThat(repositorio.fechaRecibida()).isEqualTo(LocalDate.of(2026, 8, 19));
+    }
+
+    // ------------------------------------------------------------------
 
     /** El padron no hace falta para probar el transporte: aqui nadie filtra por titular. */
     private static final class PadronVacio implements DirectorioDeContribuyentes {
@@ -278,13 +376,30 @@ class ConsultaControllerTest {
                         null,
                         null);
 
+        /** Con que criterio y a que fecha se le pregunto. Es lo que mide si un filtro LLEGA. */
+        private @Nullable FiltroDeFichas ultimoFiltro;
+
+        private @Nullable LocalDate ultimaFecha;
+
         @Override
         public Pagina<FichaEncontrada> consultar(
                 FiltroDeFichas filtro,
                 List<Long> titulares,
                 LocalDate fecha,
                 Paginacion paginacion) {
+            this.ultimoFiltro = filtro;
+            this.ultimaFecha = fecha;
             return Pagina.de(List.of(UNA, SIN_CONSTRUIR), paginacion, 2);
+        }
+
+        private FiltroDeFichas filtroRecibido() {
+            return java.util.Objects.requireNonNull(
+                    ultimoFiltro, "el controlador no llego a consultar el repositorio");
+        }
+
+        private LocalDate fechaRecibida() {
+            return java.util.Objects.requireNonNull(
+                    ultimaFecha, "el controlador no llego a consultar el repositorio");
         }
 
         @Override

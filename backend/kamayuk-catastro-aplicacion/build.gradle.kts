@@ -84,6 +84,24 @@ tasks.test {
             })
         .withPathSensitivity(PathSensitivity.RELATIVE)
 
+    // EL CONTRATO DEL CONSUMIDOR VIVE EN OTRO CLON, y sin declararlo esta tarea se queda
+    // UP-TO-DATE cuando cambia. `ContratoConRentasTest` lee
+    // `../../rentas/docs/50-api/contratos-que-consume/catastro.json` —lo que `rentas` espera de
+    // este backend— y ese archivo no esta en ninguna entrada de Gradle: mutarlo daba BUILD
+    // SUCCESSFUL **sin que la prueba corriera**, medido en C-1 con las tres mutaciones que paga
+    // el consumidor. En CI corre fresco y muerde, que es la peor forma de enterarse. Es la
+    // leccion de #192 punto 2, aplicada ahora a la frontera entre repositorios.
+    //
+    // `optional()` porque el clon hermano puede no estar: si falta, la prueba falla con su propio
+    // mensaje —nombrando el archivo y diciendo que el CI del proveedor tiene que hacer checkout
+    // del consumidor—, que dice mas que un fallo de configuracion de Gradle.
+    inputs
+        .files(
+            rootProject.layout.projectDirectory.file(
+                "../../rentas/docs/50-api/contratos-que-consume/catastro.json"))
+        .optional()
+        .withPathSensitivity(PathSensitivity.NONE)
+
     // Las tres entradas de `rentas` —el contrato OpenAPI, el archivo de formas y el censo de
     // respuestas— NO estan aqui, y no es un olvido: `catastro` no tiene contrato derivado.
     // El generador de `rentas` deriva del prototipo del manual (#312) y aqui no hay prototipo del
@@ -98,3 +116,4 @@ tasks.test {
 tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
     archiveFileName.set("sgtm.jar")
 }
+

@@ -68,7 +68,7 @@ public final class FaltaPublicar {
      *
      * <h2>Por que hay dos codigos y no uno</h2>
      *
-     * <p>{@code GET /catastro/tablas/aranceles?anio=2026} nombra un documento —la tabla de
+     * <p>{@code GET /catastro/tablas/aranceles?ejercicio=2026} nombra un documento —la tabla de
      * aranceles sellada de 2026—, y cuando no hay ninguna «no esta» es literalmente lo que pasa.
      * Los 422 de esta familia estan todos detras de una peticion que el servidor <b>intento
      * ejecutar</b>: determinar un predial, abrir un convenio, dictar una REC. Aqui no habia nada
@@ -76,7 +76,7 @@ public final class FaltaPublicar {
      * aqui se pide un calculo»— y que este metodo hace posible sin repetir el ayudante.
      *
      * <p>Y hay un motivo medido para no unificarlos en 422: <b>en esa misma ruta el 422 ya
-     * significa otra cosa</b>. {@code ?anio=1800} construye un {@link
+     * significa otra cosa</b>. {@code ?ejercicio=1800} construye un {@link
      * kamayuk.catastro.dominio.Ejercicio} fuera de rango, sale como {@code
      * IllegalArgumentException} y {@code ManejadorDeErrores} lo traduce a {@code 422 VALIDACION} —
      * un error que quien atiende corrige tecleando un ano de verdad. Mover ahi «el ejercicio no

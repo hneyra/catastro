@@ -16,18 +16,43 @@ import org.junit.jupiter.api.DisplayName;
  * siga pidiendo la vieja; eso solo aparece al integrar». Desde aqui, quitarle un campo a {@code
  * FichaEncontradaResource} pone rojo <b>este</b> build, en el PR que lo quita.
  *
- * <h2>Los desajustes que ya estaban</h2>
+ * <h2>Los siete desajustes que ya estaban, cerrados en C-1</h2>
  *
  * <p>Esta prueba nacio roja, y no por un cambio: las dos fronteras ya estaban rotas y no habia nada
- * que pudiera verlo. {@link #desajustesVivos()} los registra uno a uno, y la lista tiene las dos
- * direcciones cerradas — uno nuevo pone el build rojo, y uno que ya no ocurre tambien—.
+ * que pudiera verlo. {@link #desajustesVivos()} los registraba uno a uno; C-1 los cerro y la lista
+ * quedo <b>vacia</b>, que es donde tiene que estar: con la lista a cero, un desajuste nuevo no
+ * tiene donde esconderse. La lista sigue con las dos direcciones cerradas —uno nuevo pone el build
+ * rojo, y una entrada que ya no ocurre tambien—.
  *
- * <p>Ninguno se arregla aqui, y hay que decir por que: el que se arregle decide de que lado se paga
- * la traduccion, y esa es una decision de las dos partes. El de {@code fichaId} contra {@code id}
- * puede arreglarse en cualquiera de los dos; el de {@code aLaFecha} contra {@code fecha} <b>no</b>,
- * porque no es un nombre: {@code ConsultaController} declara el parametro y lo ignora — la ficha
- * vigente la resuelve con {@code LocalDate.now(reloj)}, asi que preguntar por marzo devuelve la de
- * hoy, que es el defecto de #24 y #366 servido por HTTP.
+ * <p>Cual de los dos lados pago la traduccion se decidio uno a uno, y esta escrito donde se hizo el
+ * cambio. De este lado se pagaron cuatro:
+ *
+ * <ul>
+ *   <li><b>{@code id} pasa a {@code fichaId}</b> en {@link
+ *       kamayuk.catastro.catastro.infraestructura.web.FichaEncontradaResource}: la fila lleva dos
+ *       identificadores y {@code id} al lado de {@code predioId} no dice cual. El sintoma era MUDO
+ *       —{@code asLong()} sobre un nodo que falta devuelve 0—.
+ *   <li><b>{@code soloPredio} y {@code exceptoPredio} se leen</b> en {@code ConsultaController}:
+ *       dejarlos caer devolvia la grilla del padron entero a una conciliacion que pedia unos lotes,
+ *       o sea #631 deshecho por la separacion en repositorios.
+ *   <li><b>{@code ?anio=} pasa a {@code ?ejercicio=}</b> en las tres lecturas de cuadro: lo que
+ *       acota es el ejercicio del conjunto sellado, y en la misma respuesta viaja un {@code
+ *       anioConstruccionDesde} que si es un ano.
+ * </ul>
+ *
+ * <p>Los otros tres los pago {@code rentas}, y el motivo esta en su adaptador: {@code
+ * vigenciaDesde} es texto en el JSON venga de un {@code String} o de un {@code LocalDate}; el
+ * cuadro sellado se lee entero y por eso sale como array y no como sobre paginado; y {@code fecha}
+ * es como esta capa web nombra la fecha de corte en <b>siete</b> endpoints, asi que renombrar uno
+ * dejaria dos nombres para el mismo criterio dentro del proveedor.
+ *
+ * <p><b>Y una premisa del registro de P6 resulto falsa al medirla</b>: decia que {@code
+ * ConsultaController} «declara el parametro {@code fecha} y lo ignora — la ficha vigente la
+ * resuelve con {@code LocalDate.now(reloj)}». No lo ignora: lo pasa a {@code
+ * ConsultaDeFichas.buscar} y de ahi al {@code WHERE f.vigencia_desde <= :fecha} del repositorio. El
+ * efecto que P6 describe —pedir marzo y recibir la ficha de hoy— era real, y su causa era el
+ * nombre: como {@code aLaFecha} no llegaba, se tomaba el valor por omision del reloj. Se cerraba
+ * renombrando, y se renombro.
  */
 @DisplayName("Contrato con rentas (catastro es el proveedor)")
 class ContratoConRentasTest extends ContratoConElConsumidorTestBase {
@@ -43,56 +68,19 @@ class ContratoConRentasTest extends ContratoConElConsumidorTestBase {
     }
 
     /**
-     * Lo que hoy no cuadra, medido y no supuesto. Cada linea es deuda con nombre.
+     * <b>Vacia, y esa es la afirmacion.</b> Lo que {@code rentas} espera de este backend, este
+     * backend lo cumple entero: cada campo que lee, cada parametro que manda.
      *
-     * <p>El texto es exacto porque tiene que serlo: una lista que aceptara «algo parecido» dejaria
-     * entrar un desajuste nuevo del mismo campo, que es justo lo que no puede pasar.
+     * <p>Se deja declarada en vez de borrar el metodo a proposito, por lo mismo que #429 dejo
+     * declarada la lista de hojas pendientes con la lista vacia: lo que permite es una excepcion
+     * <b>temporal y con nombre</b>, y con la lista vacia un desajuste nuevo no tiene donde
+     * esconderse. Anadir una linea aqui vuelve a ser una decision que se ve en el diff.
+     *
+     * <p>El texto de una entrada, si alguna vez vuelve a haberla, es exacto porque tiene que serlo:
+     * una lista que aceptara «algo parecido» dejaria entrar un desajuste nuevo del mismo campo.
      */
     @Override
     protected Set<String> desajustesVivos() {
-        return Set.of(
-                // (1) `FichaEncontradaResource` publica `id` y el adaptador lee `fichaId`.
-                // El sintoma es MUDO: `asLong()` sobre un nodo que falta devuelve 0, asi que
-                // toda ficha llega a `rentas` con `fichaId = 0` y ninguna cifra parece mal.
-                "GET /catastro/fichas: falta el campo «contenido[].fichaId», que el consumidor lee."
-                        + " Este endpoint declara [areaConstruida, areaTerreno, codRefCatastral,"
-                        + " direccion, id, lote, manzana, predioId, tipo, titular, uso, version,"
-                        + " vigenciaDesde].",
-                // (2) `vigenciaDesde` es `String` aqui y el adaptador lo lee con
-                // `LocalDate.parse`. Coinciden por casualidad —el `String` lleva un ISO—, y
-                // por eso entra en la lista en vez de arreglarse a ciegas: cambiarlo a
-                // `LocalDate` cambia lo que Jackson emite para TODOS sus consumidores.
-                "GET /catastro/fichas: el campo «contenido[].vigenciaDesde» es «texto» y el"
-                        + " consumidor lo lee como «fecha».",
-                // (3) El criterio de fecha viaja y se descarta. No es un nombre: el
-                // controlador declara `fecha`, no lo usa, y resuelve con el reloj.
-                "GET /catastro/fichas: el consumidor manda «aLaFecha» y este endpoint no lo lee"
-                        + " (lee [codRefCatastral, conciliadaConRentas, contribuyente, direccion,"
-                        + " fecha, lote, manzana, ordenarPor, pagina, tamano, tipo]). Viaja en la URL y"
-                        + " se descarta en silencio.",
-                // (4) y (5) La acotacion por predio de #631 no llega: la grilla se pide para
-                // unos lotes concretos y vuelve la del padron entero.
-                "GET /catastro/fichas: el consumidor manda «exceptoPredio» y este endpoint no lo"
-                        + " lee (lee [codRefCatastral, conciliadaConRentas, contribuyente, direccion,"
-                        + " fecha, lote, manzana, ordenarPor, pagina, tamano, tipo]). Viaja en la URL y"
-                        + " se descarta en silencio.",
-                "GET /catastro/fichas: el consumidor manda «soloPredio» y este endpoint no lo lee"
-                        + " (lee [codRefCatastral, conciliadaConRentas, contribuyente, direccion,"
-                        + " fecha, lote, manzana, ordenarPor, pagina, tamano, tipo]). Viaja en la URL y"
-                        + " se descarta en silencio.",
-                // (6) El cuadro de valores unitarios devuelve un ARRAY plano y el adaptador
-                // itera `contenido`: la lista sale vacia con un 200 delante, que se lee como
-                // «este ejercicio no tiene cuadro publicado».
-                "GET /catastro/tablas/valores-unitarios: en «(la respuesta)» el consumidor espera"
-                        + " un objeto y este endpoint publica «[{id=entero, partida=texto,"
-                        + " categoria=texto, anioConstruccionDesde=entero,"
-                        + " anioConstruccionHasta=entero, valorM2=texto, documentoFuente=texto}]».",
-                // (7) `?ejercicio=` contra `@RequestParam int anio`, que ademas es
-                // obligatorio: la peticion no llega a 200, sale 400 y el cliente la traduce a
-                // `CatastroInalcanzable` — «catastro no responde» donde lo que pasa es que el
-                // parametro se llama de otra manera.
-                "GET /catastro/tablas/valores-unitarios: el consumidor manda «ejercicio» y este"
-                        + " endpoint no lo lee (lee [anio]). Viaja en la URL y se descarta en"
-                        + " silencio.");
+        return Set.of();
     }
 }

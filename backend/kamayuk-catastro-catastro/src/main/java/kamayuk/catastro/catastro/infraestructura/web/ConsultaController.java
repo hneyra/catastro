@@ -4,9 +4,11 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 import kamayuk.catastro.autorizacion.Privilegio;
 import kamayuk.catastro.autorizacion.RequiereAcceso;
+import kamayuk.catastro.catastro.AcotacionPorPredio;
 import kamayuk.catastro.catastro.aplicacion.ConsultaDeFichas;
 import kamayuk.catastro.catastro.dominio.FiltroDeFichas;
 import kamayuk.catastro.catastro.dominio.TipoFicha;
@@ -38,6 +40,28 @@ import org.springframework.web.util.UriComponentsBuilder;
  * el listado completo daria un resultado plausible y equivocado —quien lo mira creeria estar viendo
  * solo las conciliadas— y esa es la razon por la que el 422 se puso; el redirigir la conserva y
  * ademas contesta.
+ *
+ * <h2>La acotacion por predio, que la sirve esta misma ruta (#631, C-1 desajustes 4 y 5)</h2>
+ *
+ * <p>{@code ?soloPredio=} y {@code ?exceptoPredio=} acotan la grilla a un conjunto de lotes, o a su
+ * complemento. No los teclea nadie: los pone el contexto que compone la consulta —hoy {@code
+ * rentas}, para servir la conciliacion paginando y contando <b>lo filtrado</b>—.
+ *
+ * <p><b>Se leen aqui y no se descartan, y ese es todo el motivo por el que existen.</b> Hasta C-1
+ * viajaban en la URL y este endpoint no los miraba: la conciliacion volvia a componerse en memoria
+ * —catastro devolvia la pagina del padron y rentas descartaba las filas que no cumplian—, de modo
+ * que {@code totalElementos} seguia siendo el del padron entero. Medido sobre Catacaos en #631:
+ * «722 paginas, 14 422 elementos» y <b>cero filas en todas</b>.
+ *
+ * <p>Los dos a la vez se rechazan con 422: {@link AcotacionPorPredio} no puede expresar «solo estos
+ * y ademas todos menos estos», y quedarse con uno de los dos en silencio es exactamente lo que este
+ * endpoint acaba de dejar de hacer.
+ *
+ * <p><b>Lo que no se puede distinguir, dicho</b>: «solo estos, y ninguno» —que no devuelve ni una
+ * fila— llega por la URL igual que «no acotes», porque un parametro repetido cero veces es un
+ * parametro ausente. Por eso el corto-circuito vive en el cliente ({@code FichasDelPadronHttp}) y
+ * no aqui: quitarlo de alli mandaria una peticion para no traer nada, y este endpoint la
+ * contestaria con el padron entero.
  *
  * <p>La ruta de destino es un subcamino de este mismo recurso, {@code
  * /catastro/fichas/conciliacion}, asi que aqui no aparece ninguna ruta de otro modulo: quien la
@@ -74,6 +98,8 @@ public class ConsultaController {
             @RequestParam(required = false) @Nullable String tipo,
             @RequestParam(required = false) @Nullable String conciliadaConRentas,
             @RequestParam(required = false) @Nullable String fecha,
+            @RequestParam(required = false) @Nullable List<Long> soloPredio,
+            @RequestParam(required = false) @Nullable List<Long> exceptoPredio,
             ParametrosDePaginacion paginacion,
             HttpServletRequest peticion) {
 
@@ -84,7 +110,8 @@ public class ConsultaController {
         }
 
         FiltroDeFichas filtro =
-                new FiltroDeFichas(codRefCatastral, contribuyente, manzana, lote, tipoDe(tipo));
+                new FiltroDeFichas(codRefCatastral, contribuyente, manzana, lote, tipoDe(tipo))
+                        .acotadoA(acotacionDe(soloPredio, exceptoPredio));
         LocalDate cuando = fecha == null || fecha.isBlank() ? LocalDate.now(reloj) : parsear(fecha);
 
         return ResponseEntity.ok(
@@ -111,6 +138,30 @@ public class ConsultaController {
             destino.queryParam(parametro.getKey(), (Object[]) parametro.getValue());
         }
         return URI.create(destino.build().encode().toUriString());
+    }
+
+    /**
+     * La acotacion por predio que la peticion trae, o ninguna.
+     *
+     * <p>Los dos parametros juntos son 422 y no una eleccion silenciosa: el rechazo dice cual es el
+     * problema, y quedarse con uno devolveria una grilla plausible que acota por otra cosa.
+     */
+    private static AcotacionPorPredio acotacionDe(
+            @Nullable List<Long> soloPredio, @Nullable List<Long> exceptoPredio) {
+
+        List<Long> incluidos = soloPredio == null ? List.of() : soloPredio;
+        List<Long> excluidos = exceptoPredio == null ? List.of() : exceptoPredio;
+        if (!incluidos.isEmpty() && !excluidos.isEmpty()) {
+            throw new ProblemaDeNegocio(
+                    CodigoDeError.VALIDACION,
+                    "«soloPredio» y «exceptoPredio» no se pueden pedir a la vez: uno acota a un"
+                            + " conjunto de lotes y el otro a su complemento, y no hay ninguna"
+                            + " grilla que sea las dos cosas");
+        }
+        if (!incluidos.isEmpty()) {
+            return AcotacionPorPredio.soloEstos(incluidos);
+        }
+        return AcotacionPorPredio.todosMenosEstos(excluidos);
     }
 
     private static @Nullable TipoFicha tipoDe(@Nullable String tipo) {

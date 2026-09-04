@@ -78,7 +78,7 @@ class CuadrosSinSellarControllerTest {
     @MethodSource("lasTresLecturasDeCuadro")
     @DisplayName("contesta 404 con el discriminador, que dice que ejercicio hay que sellar")
     void elCuadroSinSellarDiceQueFaltaPublicar(String ruta) throws Exception {
-        MvcResult resultado = mvc.perform(get(ruta).param("anio", "2033")).andReturn();
+        MvcResult resultado = mvc.perform(get(ruta).param("ejercicio", "2033")).andReturn();
 
         String cuerpo = resultado.getResponse().getContentAsString();
 
@@ -104,7 +104,7 @@ class CuadrosSinSellarControllerTest {
     @MethodSource("lasTresLecturasDeCuadro")
     @DisplayName("y en la MISMA ruta el 422 ya es otra cosa: un ano que no es un ejercicio")
     void elCuatroVeintidosDeEsaRutaEsUnCampoQueSeCorrigeEnLaPantalla(String ruta) throws Exception {
-        MvcResult resultado = mvc.perform(get(ruta).param("anio", "1800")).andReturn();
+        MvcResult resultado = mvc.perform(get(ruta).param("ejercicio", "1800")).andReturn();
 
         String cuerpo = resultado.getResponse().getContentAsString();
 

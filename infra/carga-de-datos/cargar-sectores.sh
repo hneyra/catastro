@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Carga el catalogo de sectores de una municipalidad contra un ambiente real (#121),
-# corriendo el proceso batch CargarSectores (backend/sgtm-catastro) como un Job de un
+# corriendo el proceso batch CargarSectores (kamayuk-catastro-catastro) como un Job de un
 # solo uso.
 #
 # Copia exacta del patron de cargar-catalogo-vial.sh: no pasa por Pulumi -es una carga
@@ -11,6 +11,13 @@
 # ORDEN: este guion va ANTES que cargar-manzanas.sh. El archivo de manzanas referencia
 # su sector por codigo, y una fila cuyo sector no existe se rechaza.
 #
+#
+# ESTE GUION VIVE EN EL REPOSITORIO DE SU PROCESO, y no es una preferencia (C-6): un guion
+# lanzado contra la imagen de otro sistema arranca la aplicacion, NO CARGA NADA y sale con
+# codigo 0 -medido, sin un solo aviso-. El orden de los diez pasos de la siembra, con su
+# dueno, esta escrito una sola vez en
+# `infrastructure/infra/carga-de-datos/siembra/pasos.tsv`, que es el unico sitio desde el
+# que se ven los tres sistemas a la vez (ADR-0031).
 #   uso: cargar-sectores.sh --ambiente stg|prod --municipalidad-id N --archivo sectores.csv
 #        [--namespace sgtm-stg] [--observacion "..."]
 #

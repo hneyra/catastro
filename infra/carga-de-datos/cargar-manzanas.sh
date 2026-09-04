@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Carga las manzanas de una municipalidad contra un ambiente real (#121), corriendo el
-# proceso batch CargarManzanas (backend/sgtm-catastro) como un Job de un solo uso.
+# proceso batch CargarManzanas (kamayuk-catastro-catastro) como un Job de un solo uso.
 #
 # Copia exacta del patron de cargar-catalogo-vial.sh.
 #
@@ -9,6 +9,13 @@
 # existe se rechaza. Correrlo antes no deja datos a medias: deja un informe con todas las
 # filas rechazadas.
 #
+#
+# ESTE GUION VIVE EN EL REPOSITORIO DE SU PROCESO, y no es una preferencia (C-6): un guion
+# lanzado contra la imagen de otro sistema arranca la aplicacion, NO CARGA NADA y sale con
+# codigo 0 -medido, sin un solo aviso-. El orden de los diez pasos de la siembra, con su
+# dueno, esta escrito una sola vez en
+# `infrastructure/infra/carga-de-datos/siembra/pasos.tsv`, que es el unico sitio desde el
+# que se ven los tres sistemas a la vez (ADR-0031).
 #   uso: cargar-manzanas.sh --ambiente stg|prod --municipalidad-id N --archivo manzanas.csv
 #        [--namespace sgtm-stg] [--observacion "..."]
 #

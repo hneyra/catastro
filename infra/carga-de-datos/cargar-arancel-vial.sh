@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Carga el arancel de terreno por via de un ejercicio contra un ambiente real, corriendo
-# el proceso batch CargarArancelVial (backend/sgtm-catastro) como un Job de un solo uso.
+# el proceso batch CargarArancelVial (kamayuk-catastro-catastro) como un Job de un solo uso.
 #
 # Mismo patron que cargar-catalogo-vial.sh: ConfigMap efimero con el CSV, sin pasar por
 # Pulumi. A diferencia del catalogo vial, esta carga cuelga de un conjunto de parametros
@@ -8,6 +8,13 @@
 # del modulo parametros (ver docs/10-negocio/valores-normativos/aranceles-2026.md S1.4)-.
 # El conjunto-id lo imprime abrir-conjunto-parametros.sh, que es el paso previo a este (#247).
 #
+#
+# ESTE GUION VIVE EN EL REPOSITORIO DE SU PROCESO, y no es una preferencia (C-6): un guion
+# lanzado contra la imagen de otro sistema arranca la aplicacion, NO CARGA NADA y sale con
+# codigo 0 -medido, sin un solo aviso-. El orden de los diez pasos de la siembra, con su
+# dueno, esta escrito una sola vez en
+# `infrastructure/infra/carga-de-datos/siembra/pasos.tsv`, que es el unico sitio desde el
+# que se ven los tres sistemas a la vez (ADR-0031).
 #   uso: cargar-arancel-vial.sh --ambiente stg|prod --municipalidad-id N --conjunto-id N \
 #        --archivo arancel_2026.csv [--namespace sgtm-stg] [--observacion "..."]
 #

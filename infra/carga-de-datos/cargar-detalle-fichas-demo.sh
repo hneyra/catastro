@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Siembra el DETALLE de las fichas ficticias —construcciones por piso, obras complementarias,
 # actividades economicas, bienes comunes con su reparto y grupos de tierra con sus colindantes—
-# corriendo el proceso batch CargarDetalleDeFichasDemostracion (backend/sgtm-catastro) como un
+# corriendo el proceso batch CargarDetalleDeFichasDemostracion (kamayuk-catastro-catastro) como un
 # Job de un solo uso.
 #
 # Misma guarda que cargar-fichas-demo.sh: el proceso pregunta por municipalidad.es_demostracion
@@ -19,6 +19,13 @@
 # ano, material, estado de conservacion, categorias, hectareas, riego—. Lo que sigue bloqueado
 # por D-02a es la VALORIZACION, no describir el predio.
 #
+#
+# ESTE GUION VIVE EN EL REPOSITORIO DE SU PROCESO, y no es una preferencia (C-6): un guion
+# lanzado contra la imagen de otro sistema arranca la aplicacion, NO CARGA NADA y sale con
+# codigo 0 -medido, sin un solo aviso-. El orden de los diez pasos de la siembra, con su
+# dueno, esta escrito una sola vez en
+# `infrastructure/infra/carga-de-datos/siembra/pasos.tsv`, que es el unico sitio desde el
+# que se ven los tres sistemas a la vez (ADR-0031).
 #   uso: cargar-detalle-fichas-demo.sh --ambiente stg|prod --municipalidad-id N \
 #        --archivo ejemplos/detalle-de-fichas.csv [--namespace sgtm-stg] [--observacion "..."]
 #

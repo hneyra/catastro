@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Siembra predios y fichas FICTICIOS en una instalacion de demostracion (#290), corriendo
-# el proceso batch CargarFichasDeDemostracion (backend/sgtm-catastro) como un Job de un
+# el proceso batch CargarFichasDeDemostracion (kamayuk-catastro-catastro) como un Job de un
 # solo uso.
 #
 # Mismo patron que cargar-catalogo-vial.sh, con la misma guarda que
@@ -16,6 +16,13 @@
 # diciendo "sin conjunto sellado". Para el arancel real, cuando D-02a se cierre, esta
 # cargar-arancel-vial.sh, que exige un conjunto de parametros ya abierto.
 #
+#
+# ESTE GUION VIVE EN EL REPOSITORIO DE SU PROCESO, y no es una preferencia (C-6): un guion
+# lanzado contra la imagen de otro sistema arranca la aplicacion, NO CARGA NADA y sale con
+# codigo 0 -medido, sin un solo aviso-. El orden de los diez pasos de la siembra, con su
+# dueno, esta escrito una sola vez en
+# `infrastructure/infra/carga-de-datos/siembra/pasos.tsv`, que es el unico sitio desde el
+# que se ven los tres sistemas a la vez (ADR-0031).
 #   uso: cargar-fichas-demo.sh --ambiente stg|prod --municipalidad-id N \
 #        --archivo ejemplos/fichas.csv [--namespace sgtm-stg] [--observacion "..."]
 #

@@ -56,7 +56,7 @@ class ArchivosDeEjemploTest {
     }
 
     @Test
-    @DisplayName("los seis archivos de la siembra de catastro existen donde el README dice")
+    @DisplayName("los cinco archivos de la siembra de catastro existen donde el README dice")
     void losArchivosExisten() {
         assertThat(ejemplos()).isDirectory();
         for (String nombre :
@@ -65,8 +65,7 @@ class ArchivosDeEjemploTest {
                         "sectores.csv",
                         "manzanas.csv",
                         "fichas.csv",
-                        "detalle-de-fichas.csv",
-                        "transferencias.csv")) {
+                        "detalle-de-fichas.csv")) {
             assertThat(ejemplos().resolve(nombre)).as(nombre).isRegularFile();
         }
         assertThat(ejemplos().getParent().resolve("README.md")).isRegularFile();
@@ -197,8 +196,7 @@ class ArchivosDeEjemploTest {
                         "sectores.csv",
                         "manzanas.csv",
                         "fichas.csv",
-                        "detalle-de-fichas.csv",
-                        "transferencias.csv")) {
+                        "detalle-de-fichas.csv")) {
             List<String> lineas = Files.readAllLines(ejemplos().resolve(nombre));
             for (String linea : lineas) {
                 if (linea.stripLeading().startsWith("#")) {

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Carga los lotes del plano catastral de una municipalidad contra un ambiente real
-# (ADR-0021, #400), corriendo el proceso batch CargarPredios (backend/sgtm-catastro)
+# (ADR-0021, #400), corriendo el proceso batch CargarPredios (kamayuk-catastro-catastro)
 # como un Job de un solo uso.
 #
 # Es el camino por el que una municipalidad de VERDAD puebla su catastro. Antes de esto
@@ -21,6 +21,13 @@
 # Un lote sobre un predio que YA existe no reescribe su direccion ni su ubicacion: solo
 # le pone el poligono. Lo que corrigio alguien en ventanilla no lo pisa un archivo.
 #
+#
+# ESTE GUION VIVE EN EL REPOSITORIO DE SU PROCESO, y no es una preferencia (C-6): un guion
+# lanzado contra la imagen de otro sistema arranca la aplicacion, NO CARGA NADA y sale con
+# codigo 0 -medido, sin un solo aviso-. El orden de los diez pasos de la siembra, con su
+# dueno, esta escrito una sola vez en
+# `infrastructure/infra/carga-de-datos/siembra/pasos.tsv`, que es el unico sitio desde el
+# que se ven los tres sistemas a la vez (ADR-0031).
 #   uso: cargar-predios.sh --ambiente stg|prod --municipalidad-id N --archivo predios.csv
 #        [--namespace sgtm-stg] [--observacion "..."]
 #

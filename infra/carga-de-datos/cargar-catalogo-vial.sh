@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Carga el catalogo vial inicial de una municipalidad contra un ambiente real (#121),
-# corriendo el proceso batch CargarCatalogoVial (backend/sgtm-catastro) como un Job de
+# corriendo el proceso batch CargarCatalogoVial (kamayuk-catastro-catastro) como un Job de
 # un solo uso.
 #
 # No pasa por Pulumi a proposito: es una carga de datos puntual -una vez por
@@ -12,6 +12,13 @@
 # El municipalidad-id se obtiene de municipalidad.id (lo deja implantacion en el log, o
 # se consulta con "SELECT id FROM municipalidad WHERE ubigeo = ...").
 #
+#
+# ESTE GUION VIVE EN EL REPOSITORIO DE SU PROCESO, y no es una preferencia (C-6): un guion
+# lanzado contra la imagen de otro sistema arranca la aplicacion, NO CARGA NADA y sale con
+# codigo 0 -medido, sin un solo aviso-. El orden de los diez pasos de la siembra, con su
+# dueno, esta escrito una sola vez en
+# `infrastructure/infra/carga-de-datos/siembra/pasos.tsv`, que es el unico sitio desde el
+# que se ven los tres sistemas a la vez (ADR-0031).
 #   uso: cargar-catalogo-vial.sh --ambiente stg|prod --municipalidad-id N --archivo vias.csv
 #        [--namespace sgtm-stg] [--observacion "..."]
 #

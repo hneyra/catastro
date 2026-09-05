@@ -50,7 +50,7 @@ import org.springframework.transaction.interceptor.TransactionInterceptor;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * El emisor de C-8, contra PostgreSQL de verdad y conectado como {@code sgtm_app}.
+ * El emisor de C-8, contra PostgreSQL de verdad y conectado como {@code kamayuk_app}.
  *
  * <h2>Y ademas PUBLICA EL LOTE que `rentas` lee</h2>
  *
@@ -127,8 +127,8 @@ class PublicacionDelPadronJdbcTest {
 
         DriverManagerDataSource pool = new DriverManagerDataSource();
         pool.setUrl(base.url());
-        // COMO `sgtm_app` Y NO COMO EL DUENO. Con `FORCE ROW LEVEL SECURITY` el dueno tambien
-        // queda sujeto a la politica, asi que una prueba escrita con `sgtm_owner` no medira el
+        // COMO `kamayuk_app` Y NO COMO EL DUENO. Con `FORCE ROW LEVEL SECURITY` el dueno tambien
+        // queda sujeto a la politica, asi que una prueba escrita con `kamayuk_owner` no medira el
         // aislamiento — pero si mediria privilegios que la aplicacion no tiene (#537, #545).
         pool.setUsername(BaseDeDatosDePrueba.APP);
         pool.setPassword(base.clave(BaseDeDatosDePrueba.APP));

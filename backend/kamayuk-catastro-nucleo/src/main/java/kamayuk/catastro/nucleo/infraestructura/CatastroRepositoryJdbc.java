@@ -555,7 +555,7 @@ public class CatastroRepositoryJdbc extends RepositorioJdbc implements CatastroR
      * <p><b>Aqui esta el hallazgo de #536, y conviene leerlo entero antes de «simplificarlo».</b>
      * La forma obvia de esta condicion es {@code p.geometria && ST_MakeEnvelope(...)::geography}, y
      * medida contra PostgreSQL 16 con PostGIS 3.5, con 30 000 predios y conectado como {@code
-     * sgtm_app}, produce un {@code Seq Scan} de la tabla entera. La misma consulta como
+     * kamayuk_app}, produce un {@code Seq Scan} de la tabla entera. La misma consulta como
      * superusuario —que omite RLS— usa {@code predio_geometria_gix}.
      *
      * <p>El motivo es el hallazgo 3 de DAT-01 §0 trasladado al espacio: PostgreSQL solo promueve

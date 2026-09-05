@@ -7,7 +7,7 @@
 # municipalidad-, no un paso que corra en cada despliegue. Un ConfigMap efimero lleva
 # el CSV al pod (backoffLimit: 0 y el ConfigMap se borra al salir, con exito o sin el);
 # las credenciales son las mismas que ya usa el Deployment de la aplicacion
-# (sgtm_app: via de un tenant es una tabla que ya escribe).
+# (kamayuk_app: via de un tenant es una tabla que ya escribe).
 #
 # El municipalidad-id se obtiene de municipalidad.id (lo deja implantacion en el log, o
 # se consulta con "SELECT id FROM municipalidad WHERE ubigeo = ...").
@@ -102,7 +102,7 @@ spec:
             - name: KAMAYUK_DB_URL
               value: jdbc:postgresql://sgtm-${AMBIENTE}-postgres:5432/sgtm
             - name: KAMAYUK_DB_USUARIO
-              value: sgtm_app
+              value: kamayuk_app
             - name: KAMAYUK_DB_CLAVE
               valueFrom:
                 secretKeyRef:

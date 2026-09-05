@@ -51,7 +51,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <p><b>Dos municipalidades sembradas, y no es un adorno</b>: con una sola duena de toda la tabla,
  * la condicion de la politica selecciona el 100 % de las filas y no acota nada, de modo que el plan
- * medido no seria el que la aplicacion obtiene. Y la conexion es la de {@code sgtm_app}: como
+ * medido no seria el que la aplicacion obtiene. Y la conexion es la de {@code kamayuk_app}: como
  * superusuario —que omite RLS— el indice de expresion <b>si</b> se usaria, y la prueba daria por
  * bueno un plan imposible.
  */

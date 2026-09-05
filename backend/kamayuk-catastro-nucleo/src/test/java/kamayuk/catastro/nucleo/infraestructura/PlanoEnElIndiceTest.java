@@ -63,9 +63,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  * desigualdades como independientes —y son un rectangulo—: le salen 2 815 filas donde hay unas 440.
  * Con dos municipalidades, la condicion de la politica vuelve a valer la mitad y el indice gana.
  *
- * <p>La conexion es la de {@code sgtm_app}, y ahi esta el fondo del asunto: como superusuario —que
- * omite RLS— el indice GiST <b>si</b> se usa, y una prueba escrita sobre esa conexion daria por
- * bueno un plan que la aplicacion nunca obtiene.
+ * <p>La conexion es la de {@code kamayuk_app}, y ahi esta el fondo del asunto: como superusuario
+ * —que omite RLS— el indice GiST <b>si</b> se usa, y una prueba escrita sobre esa conexion daria
+ * por bueno un plan que la aplicacion nunca obtiene.
  */
 @DisplayName("#536 — El marco del plano llega al indice bajo RLS; el operador espacial no")
 class PlanoEnElIndiceTest {

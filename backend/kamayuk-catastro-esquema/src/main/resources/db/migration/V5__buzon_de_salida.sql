@@ -169,8 +169,8 @@ CREATE POLICY catastro_evento_tenant ON catastro_evento FOR ALL TO PUBLIC
 --  salio de aqui, y la anti-entropia lo necesita para explicar una discrepancia.
 -- ----------------------------------------------------------------------------
 
-GRANT INSERT, SELECT, UPDATE ON catastro_evento TO sgtm_app;
-GRANT SELECT                  ON catastro_evento TO sgtm_readonly;
+GRANT INSERT, SELECT, UPDATE ON catastro_evento TO kamayuk_app;
+GRANT SELECT                  ON catastro_evento TO kamayuk_readonly;
 
 -- ----------------------------------------------------------------------------
 --  LA IDENTIDAD DE UNA CORRIDA DE VALUACION
@@ -192,7 +192,7 @@ GRANT SELECT                  ON catastro_evento TO sgtm_readonly;
 
 CREATE SEQUENCE catastro_corrida_seq AS bigint START WITH 1 INCREMENT BY 1;
 
-GRANT USAGE, SELECT ON SEQUENCE catastro_corrida_seq TO sgtm_app;
+GRANT USAGE, SELECT ON SEQUENCE catastro_corrida_seq TO kamayuk_app;
 
 COMMENT ON SEQUENCE catastro_corrida_seq IS
     'La identidad de una corrida de valuacion (C-8). Viaja en el cierre y el receptor la guarda en '

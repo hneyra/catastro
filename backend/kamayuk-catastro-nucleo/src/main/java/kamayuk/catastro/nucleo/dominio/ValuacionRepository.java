@@ -23,7 +23,7 @@ import kamayuk.catastro.parametros.IdentificadorDeConjunto;
  * <h2>Solo el arancel se escribe desde aqui (D-13, ADR-0017)</h2>
  *
  * <p>Los valores unitarios y la depreciacion <b>ya no se guardan por este camino</b>. Desde V55 son
- * catalogos nacionales: {@code sgtm_app} solo los lee, y escribirlos es un acto de {@code
+ * catalogos nacionales: {@code kamayuk_app} solo los lee, y escribirlos es un acto de {@code
  * rol_carga_parametros} desde el proceso de publicacion. Un {@code guardarValorUnitario} en un
  * repositorio de tenant no podria ni compilar la intencion —¿la fila de que municipalidad?—, y esa
  * es precisamente la pregunta que D-13 contesta con «de ninguna».

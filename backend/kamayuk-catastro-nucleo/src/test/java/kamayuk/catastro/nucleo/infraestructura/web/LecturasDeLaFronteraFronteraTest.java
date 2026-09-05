@@ -65,8 +65,8 @@ import tools.jackson.databind.json.JsonMapper;
  * con el reloj del servidor. Estas rutas nacen con la fecha obligatoria para que un olvido sea
  * ruidoso.
  *
- * <p>La conexion es la de {@code sgtm_app}: un superusuario omite RLS incluso con {@code FORCE ROW
- * LEVEL SECURITY}, y con el la municipalidad vecina veria estos predios.
+ * <p>La conexion es la de {@code kamayuk_app}: un superusuario omite RLS incluso con {@code FORCE
+ * ROW LEVEL SECURITY}, y con el la municipalidad vecina veria estos predios.
  */
 @DisplayName("C-5 — Las lecturas de la frontera, de HTTP a PostgreSQL")
 class LecturasDeLaFronteraFronteraTest {
@@ -563,7 +563,9 @@ class LecturasDeLaFronteraFronteraTest {
                 });
     }
 
-    /** Un {@code INSERT … RETURNING id} como {@code sgtm_app}, con el contexto de tenant fijado. */
+    /**
+     * Un {@code INSERT … RETURNING id} como {@code kamayuk_app}, con el contexto de tenant fijado.
+     */
     private static long sembrar(long municipalidadId, String sql, Parametros parametros)
             throws SQLException {
         try (Connection app = base.conexion(BaseDeDatosDePrueba.APP)) {

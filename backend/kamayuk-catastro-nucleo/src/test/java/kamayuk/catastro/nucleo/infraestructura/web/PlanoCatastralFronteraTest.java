@@ -45,7 +45,7 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>Porque lo que hay que demostrar no se puede demostrar de otro modo. La <b>geometria</b> la
  * serializa {@code ST_AsGeoJSON} y ningun doble sabe hacerlo; el <b>marco</b> lo resuelve el motor
  * comparando las columnas que el propio motor deriva del poligono; y el <b>aislamiento</b> lo
- * sostiene la politica RLS, que un doble no tiene. La conexion es la de {@code sgtm_app}: un
+ * sostiene la politica RLS, que un doble no tiene. La conexion es la de {@code kamayuk_app}: un
  * superusuario omite RLS incluso con {@code FORCE ROW LEVEL SECURITY}, asi que una prueba escrita
  * sobre el no verificaria ningun aislamiento.
  *
@@ -652,7 +652,7 @@ class PlanoCatastralFronteraTest {
     /**
      * Un predio con —o sin— su poligono.
      *
-     * <p>Se escribe con SQL directo y no por el caso de uso a proposito: {@code sgtm_app} no
+     * <p>Se escribe con SQL directo y no por el caso de uso a proposito: {@code kamayuk_app} no
      * escribe la geometria por HTTP (ADR-0021), entra por la carga cartografica, y lo que esta
      * prueba mide es la lectura.
      */
@@ -706,7 +706,7 @@ class PlanoCatastralFronteraTest {
     }
 
     private static void vaciarPredios(long municipalidadId) throws SQLException {
-        // Como owner: sgtm_app no tiene DELETE en ninguna tabla (regla 4), y aqui lo que se
+        // Como owner: kamayuk_app no tiene DELETE en ninguna tabla (regla 4), y aqui lo que se
         // limpia es la siembra de una prueba, no un dato del padron.
         //
         // Y CON su contexto de tenant fijado, que es lo que costo la primera corrida: `predio`

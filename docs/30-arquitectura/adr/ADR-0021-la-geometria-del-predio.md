@@ -70,7 +70,7 @@ de una ficha en una tarea de gabinete.
   estará creada y `V61` fallará con `type "geography" does not exist`. Y no lo arregla el
   migrador: `postgis` **no es una extensión *trusted*** —`SELECT trusted FROM
   pg_available_extension_versions WHERE name='postgis'` da `f`—, de modo que crearla
-  exige un superusuario y `sgtm_owner` a propósito no lo es. CI nunca lo ve porque
+  exige un superusuario y `kamayuk_owner` a propósito no lo es. CI nunca lo ve porque
   siempre parte de un volumen vacío, así que sale verde en todas partes y rojo la primera
   vez que alguien despliegue conservando los datos. Para eso está
   [`despliegue/crear-extensiones.sh`](https://github.com/hneyra/infrastructure/blob/main/despliegue/crear-extensiones.sh), que lleva
@@ -81,14 +81,14 @@ de una ficha en una tarea de gabinete.
 - **`spatial_ref_sys` aparece en el esquema `public`.** La crea la extensión y es un catálogo de
   sistemas de coordenadas: no lleva ni puede llevar dato municipal. Entra en `TABLAS_EXENTAS` de la
   prueba de aislamiento, que es donde tiene que verse.
-- **`sgtm_app` no escribe la geometría por HTTP.** Ninguna operación del contrato la recibe: entra
+- **`kamayuk_app` no escribe la geometría por HTTP.** Ninguna operación del contrato la recibe: entra
   por la carga cartográfica, que es un proceso `batch`. Corregir un polígono a mano en una pantalla
   es dibujar, y para eso hace falta un editor que no existe.
 - El índice GiST se paga en cada escritura del predio. Se acepta: sin él, «qué predios caen en esta
   manzana» recorre la tabla entera, que es la única pregunta por la que la columna existe.
 
   > **Medido en #536, y esta frase resultó ser falsa para quien hace esa pregunta.** El índice GiST
-  > **no se usa** cuando quien consulta es `sgtm_app`: `geography_overlaps` no es *leakproof*, así
+  > **no se usa** cuando quien consulta es `kamayuk_app`: `geography_overlaps` no es *leakproof*, así
   > que bajo RLS PostgreSQL no lo promueve por encima de la política y el plan vuelve a ser un
   > `Seq Scan` — con el índice ahí, y usándose sólo si quien mide es un superusuario. Es el hallazgo
   > 3 de [`DAT-01`](https://github.com/hneyra/sgtm/blob/migracion-a-microservicios/docs/40-datos/modelo-logico-fisico.md) §0 con otro operador, y su §0 hallazgo 5

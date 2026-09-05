@@ -70,8 +70,8 @@ import tools.jackson.databind.json.JsonMapper;
  * total pasa de 100 a proposito. Eso se midio en #16; aqui se comprueba el otro lado, que es que
  * pasarse de verdad sigue siendo imposible.
  *
- * <p>La conexion es la de {@code sgtm_app}: un superusuario omite RLS incluso con {@code FORCE ROW
- * LEVEL SECURITY}.
+ * <p>La conexion es la de {@code kamayuk_app}: un superusuario omite RLS incluso con {@code FORCE
+ * ROW LEVEL SECURITY}.
  */
 @DisplayName("RF-005 — Titularidad y ocupacion, de HTTP a PostgreSQL (#490)")
 class TitularidadYOcupacionFronteraTest {

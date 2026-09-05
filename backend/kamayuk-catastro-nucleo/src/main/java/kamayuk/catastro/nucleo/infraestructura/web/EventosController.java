@@ -28,10 +28,10 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <ul>
  *   <li>El receptor de un pago escribe {@code pago_recibido}, y `V8` de `rentas` le da a {@code
- *       sgtm_app} {@code INSERT, SELECT, UPDATE} sobre ella. El proceso que atiende HTTP
+ *       kamayuk_app} {@code INSERT, SELECT, UPDATE} sobre ella. El proceso que atiende HTTP
  *       <b>puede</b> recibir, asi que empujar funciona.
  *   <li>El receptor de estos eventos escribe {@code predio_ref}, {@code ficha_ref}, {@code
- *       valuacion_predio} y {@code valuacion_corrida}, y `V4` y `V5` le dan a {@code sgtm_app}
+ *       valuacion_predio} y {@code valuacion_corrida}, y `V4` y `V5` le dan a {@code kamayuk_app}
  *       <b>solo {@code SELECT}</b>. Quien las escribe es {@code rol_ingestor_catastro}, que no
  *       atiende peticiones. Un endpoint que recibiera empujones tendria que llevar esa credencial
  *       dentro del proceso web — y entonces «la proyeccion es de solo lectura para la aplicacion»

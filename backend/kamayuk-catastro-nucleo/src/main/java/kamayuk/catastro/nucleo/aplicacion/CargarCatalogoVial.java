@@ -28,8 +28,8 @@ import org.springframework.stereotype.Component;
  * <p>Corre en el perfil {@code batch}, igual que {@link
  * kamayuk.catastro.seguridad.aplicacion.ImplantarMunicipalidad} y por la misma razon: es un proceso
  * de arranque de vida corta, sin servidor web, que hace su trabajo y termina. A diferencia de la
- * implantacion, no necesita las credenciales de {@code sgtm_owner} —{@code via} es una tabla de
- * tenant que {@code sgtm_app} ya puede escribir—, asi que la municipalidad tiene que existir de
+ * implantacion, no necesita las credenciales de {@code kamayuk_owner} —{@code via} es una tabla de
+ * tenant que {@code kamayuk_app} ya puede escribir—, asi que la municipalidad tiene que existir de
  * antemano: este proceso no la crea.
  *
  * <p>El perfil {@code batch} no tiene filtros HTTP, asi que los dos contextos que en una peticion

@@ -69,8 +69,8 @@ import tools.jackson.databind.json.JsonMapper;
  * una consulta fuera de transaccion corre sin el {@code SET LOCAL} que RLS exige (#486). Y el
  * <b>aislamiento</b> entre municipalidades lo sostiene la politica de RLS, que un doble no tiene.
  *
- * <p>La conexion es la de {@code sgtm_app}. Un superusuario omite RLS incluso con {@code FORCE ROW
- * LEVEL SECURITY}, asi que una prueba escrita sobre el no verificaria ningun aislamiento.
+ * <p>La conexion es la de {@code kamayuk_app}. Un superusuario omite RLS incluso con {@code FORCE
+ * ROW LEVEL SECURITY}, asi que una prueba escrita sobre el no verificaria ningun aislamiento.
  */
 @DisplayName("RF-001 — El alta del predio, de HTTP a PostgreSQL (#489)")
 class AltaDePredioFronteraTest {

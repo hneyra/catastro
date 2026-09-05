@@ -261,7 +261,8 @@ class ImportarArancelTest {
         TenantContext.fijar(new MunicipalidadId(municipalidadB));
         try {
             assertThat(contarArancelesDe(conjuntoAbierto))
-                    .as("un arancel de A no es visible desde B, verificado como sgtm_app bajo RLS")
+                    .as(
+                            "un arancel de A no es visible desde B, verificado como kamayuk_app bajo RLS")
                     .isZero();
         } finally {
             TenantContext.limpiar();

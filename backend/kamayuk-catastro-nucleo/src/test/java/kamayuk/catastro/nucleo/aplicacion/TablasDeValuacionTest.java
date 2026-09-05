@@ -143,7 +143,7 @@ class TablasDeValuacionTest {
     //     `conjunto_parametro_detalle`. Hoy lo hace `normativa` al componer el snapshot y lo mide
     //     `ComponerSnapshotTest` alli; aqui la copia local YA ES lo que el conjunto compuso.
     //   - «una edicion sellada no admite una fila mas»: el disparador de inmutabilidad de `V9`.
-    //   - «la aplicacion no puede escribir un cuadro nacional»: el REVOKE de `V55` a `sgtm_app`.
+    //   - «la aplicacion no puede escribir un cuadro nacional»: el REVOKE de `V55` a `kamayuk_app`.
     //     Las dos viven en `normativa`, con sus pruebas.
     //   - «cargar contra un conjunto sellado falla»: el disparador `arancel_de_conjunto_sellado_
     //     inmutable` de `V18`, que `V2` RETIRA porque consultaba una tabla que ya no esta. Esa

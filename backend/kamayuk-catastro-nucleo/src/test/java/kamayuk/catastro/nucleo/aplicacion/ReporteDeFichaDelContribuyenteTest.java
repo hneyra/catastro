@@ -235,7 +235,7 @@ class ReporteDeFichaDelContribuyenteTest {
         TenantContext.fijar(new MunicipalidadId(otraMunicipalidad));
 
         assertThat(reporte.de("C-000900", JULIO).orElseThrow().unidades())
-                .as("la prueba corre como sgtm_app, que es a quien la politica RLS aplica")
+                .as("la prueba corre como kamayuk_app, que es a quien la politica RLS aplica")
                 .isEmpty();
     }
 

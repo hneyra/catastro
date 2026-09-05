@@ -26,7 +26,7 @@ import org.springframework.stereotype.Component;
  * codigo,nombre,zona}.
  *
  * <p>Copia exacta del patron de {@link CargarCatalogoVial}: perfil {@code batch} porque es un
- * proceso de arranque de vida corta sin servidor web, credenciales de {@code sgtm_app} —{@code
+ * proceso de arranque de vida corta sin servidor web, credenciales de {@code kamayuk_app} —{@code
  * sector} es una tabla de tenant—, y los dos contextos que en una peticion salen del token fijados
  * aqui a mano, porque el perfil {@code batch} no tiene filtros HTTP.
  *

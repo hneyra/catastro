@@ -49,8 +49,8 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>Ninguna prueba lo veia: las de esta carpeta montan el controlador sobre <b>dobles en
  * memoria</b> de los repositorios, que no saben nada de RLS, y las de {@code aplicacion} llaman al
  * caso de uso ya envuelto en su transaccion. Esta cruza entera, con el proxy construido a partir de
- * la <b>anotacion</b> —como el contenedor— y conectada como {@code sgtm_app}, que es quien sufre la
- * politica: un superusuario la omite y no verificaria nada.
+ * la <b>anotacion</b> —como el contenedor— y conectada como {@code kamayuk_app}, que es quien sufre
+ * la politica: un superusuario la omite y no verificaria nada.
  */
 @DisplayName("RF-016/018 — Las fichas, de HTTP a PostgreSQL (#486)")
 class FichaControllerFronteraTest {

@@ -54,9 +54,9 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>Porque lo que hay que demostrar no se puede demostrar de otro modo. El marco lo <b>calcula el
  * motor</b> agregando las cuatro columnas que el propio motor deriva del poligono ({@code V65}), y
  * el aislamiento lo sostiene la politica RLS, que ningun doble tiene. La conexion es la de {@code
- * sgtm_app}: el superusuario del cluster omite RLS incluso con {@code FORCE ROW LEVEL SECURITY},
+ * kamayuk_app}: el superusuario del cluster omite RLS incluso con {@code FORCE ROW LEVEL SECURITY},
  * asi que una prueba escrita sobre el no verificaria ningun aislamiento — y escribirla con {@code
- * sgtm_owner} tampoco, porque el dueno de la tabla SI queda sujeto a la politica (#537, #545).
+ * kamayuk_owner} tampoco, porque el dueno de la tabla SI queda sujeto a la politica (#537, #545).
  */
 @DisplayName("#612 — El marco de lo levantado, de HTTP a PostgreSQL")
 class MarcoDelPlanoFronteraTest {
@@ -161,11 +161,11 @@ class MarcoDelPlanoFronteraTest {
     // ------------------------------------------------------------------
 
     @Test
-    @DisplayName("la prueba se conecta como sgtm_app, que es lo unico que hace medible el resto")
-    void seConectaComoSgtmApp() {
+    @DisplayName("la prueba se conecta como kamayuk_app, que es lo unico que hace medible el resto")
+    void seConectaComoKamayukApp() {
         assertThat(jdbc.sql("SELECT current_user").query(String.class).single())
                 .as(
-                        "con sgtm_owner las pruebas de aislamiento pasan en verde sin medir nada:"
+                        "con kamayuk_owner las pruebas de aislamiento pasan en verde sin medir nada:"
                                 + " FORCE ROW LEVEL SECURITY sujeta tambien al dueno (#537, #545)")
                 .isEqualTo(BaseDeDatosDePrueba.APP);
     }
@@ -447,8 +447,8 @@ class MarcoDelPlanoFronteraTest {
     /**
      * Un predio con —o sin— su poligono, por SQL directo.
      *
-     * <p>Como en {@code PlanoCatastralFronteraTest}: {@code sgtm_app} no escribe la geometria por
-     * HTTP (ADR-0021), entra por la carga cartografica, y lo que aqui se mide es la lectura.
+     * <p>Como en {@code PlanoCatastralFronteraTest}: {@code kamayuk_app} no escribe la geometria
+     * por HTTP (ADR-0021), entra por la carga cartografica, y lo que aqui se mide es la lectura.
      */
     private static long sembrar(
             long municipalidadId,
@@ -486,7 +486,7 @@ class MarcoDelPlanoFronteraTest {
     }
 
     private static void vaciarPredios(long municipalidadId) throws SQLException {
-        // Como owner —sgtm_app no tiene DELETE en ninguna tabla (regla 4)— y CON su contexto de
+        // Como owner —kamayuk_app no tiene DELETE en ninguna tabla (regla 4)— y CON su contexto de
         // tenant fijado: `predio` declara FORCE ROW LEVEL SECURITY, asi que el dueno tambien queda
         // sujeto a la politica y sin SET LOCAL la sentencia falla con «unrecognized configuration
         // parameter».

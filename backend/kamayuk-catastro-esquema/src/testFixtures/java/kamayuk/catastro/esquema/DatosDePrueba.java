@@ -72,8 +72,8 @@ public final class DatosDePrueba {
      * valores unitarios, la depreciacion y los valores referenciales del MEF—, que dejaron de ser
      * municipales. Se siembran <b>una sola vez para las dos municipalidades</b>, que es exactamente
      * lo que la decision afirma: una copia nacional no puede divergir de si misma. Y se siembran
-     * como {@code rol_carga_parametros}, porque {@code sgtm_app} ya no tiene {@code INSERT} sobre
-     * ellas.
+     * como {@code rol_carga_parametros}, porque {@code kamayuk_app} ya no tiene {@code INSERT}
+     * sobre ellas.
      *
      * @return el identificador del parametro de relleno que las tablas de tenant componen
      */
@@ -136,7 +136,7 @@ public final class DatosDePrueba {
     }
 
     /**
-     * Siembra todas las tablas de tenant como {@code sgtm_app} y con el contexto de la
+     * Siembra todas las tablas de tenant como {@code kamayuk_app} y con el contexto de la
      * municipalidad fijado. Sembrar con el rol de la aplicacion, y no con el owner, verifica de
      * paso que la clausula {@code WITH CHECK} deja pasar lo que debe dejar pasar.
      */

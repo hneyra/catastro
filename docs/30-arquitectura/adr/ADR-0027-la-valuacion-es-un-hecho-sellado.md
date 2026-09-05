@@ -67,7 +67,7 @@ se descubre en ventanilla.
 ### 3. En `rentas` es una proyección de sólo lectura
 
 `valuacion_predio` no la escribe nadie salvo el ingestor de eventos, y eso **lo sostiene el motor**:
-`sgtm_app` no tiene `UPDATE` sobre ella. Es la misma mecanica con la que `V54` protege el estado de
+`kamayuk_app` no tiene `UPDATE` sobre ella. Es la misma mecanica con la que `V54` protege el estado de
 la declaración jurada — un privilegio de columna, no la disciplina del repositorio.
 
 Cada fila lleva su procedencia: de que evento salió, con que secuencia y con que huella.

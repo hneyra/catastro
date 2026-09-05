@@ -62,8 +62,8 @@ import tools.jackson.databind.json.JsonMapper;
  * app.municipalidad_id} y la politica RLS no devuelve vacio —revienta con «invalid input syntax for
  * type bigint: ""», el defecto de #486—.
  *
- * <p>La conexion es la de {@code sgtm_app}. Un superusuario omite RLS incluso con {@code FORCE ROW
- * LEVEL SECURITY}, asi que una prueba escrita sobre el no verificaria ningun aislamiento.
+ * <p>La conexion es la de {@code kamayuk_app}. Un superusuario omite RLS incluso con {@code FORCE
+ * ROW LEVEL SECURITY}, asi que una prueba escrita sobre el no verificaria ningun aislamiento.
  *
  * <p>El proxy transaccional se construye con {@link AnnotationTransactionAttributeSource}, o sea
  * <b>obedeciendo a la anotacion</b> como haria el contenedor: envolver el caso de uso en un {@code

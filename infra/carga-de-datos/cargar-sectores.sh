@@ -6,7 +6,7 @@
 # Copia exacta del patron de cargar-catalogo-vial.sh: no pasa por Pulumi -es una carga
 # puntual, no un paso de cada despliegue-, un ConfigMap efimero lleva el CSV al pod
 # (backoffLimit: 0 y el ConfigMap se borra al salir), y las credenciales son las que ya
-# usa el Deployment (sgtm_app: sector es una tabla de tenant que ya escribe).
+# usa el Deployment (kamayuk_app: sector es una tabla de tenant que ya escribe).
 #
 # ORDEN: este guion va ANTES que cargar-manzanas.sh. El archivo de manzanas referencia
 # su sector por codigo, y una fila cuyo sector no existe se rechaza.
@@ -100,7 +100,7 @@ spec:
             - name: KAMAYUK_DB_URL
               value: jdbc:postgresql://sgtm-${AMBIENTE}-postgres:5432/sgtm
             - name: KAMAYUK_DB_USUARIO
-              value: sgtm_app
+              value: kamayuk_app
             - name: KAMAYUK_DB_CLAVE
               valueFrom:
                 secretKeyRef:

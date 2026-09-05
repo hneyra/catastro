@@ -34,11 +34,11 @@ import org.springframework.transaction.support.TransactionTemplate;
  * <p>Prohibida la base en memoria (CAL-01 §2): H2 no tiene RLS, y sin RLS esta prueba pasaria en
  * verde sin haber verificado lo unico que importa.
  *
- * <p><b>La conexion es de {@code sgtm_app}</b>, no la de superusuario que entrega Testcontainers.
- * Un superusuario omite RLS incluso con {@code FORCE ROW LEVEL SECURITY} (DAT-01 §0, hallazgo 1), y
- * una prueba de aislamiento escrita sobre esa conexion es una prueba que no puede fallar. La
- * primera asercion de esta clase es precisamente que el usuario conectado es el correcto: sin ella,
- * un cambio de fixture podria devolvernos al superusuario y nadie lo notaria.
+ * <p><b>La conexion es de {@code kamayuk_app}</b>, no la de superusuario que entrega
+ * Testcontainers. Un superusuario omite RLS incluso con {@code FORCE ROW LEVEL SECURITY} (DAT-01
+ * §0, hallazgo 1), y una prueba de aislamiento escrita sobre esa conexion es una prueba que no
+ * puede fallar. La primera asercion de esta clase es precisamente que el usuario conectado es el
+ * correcto: sin ella, un cambio de fixture podria devolvernos al superusuario y nadie lo notaria.
  *
  * <p>El camino que se ejercita es el completo y el real: {@code TenantContext} → {@link
  * TenantTransactionManager} → {@code SET LOCAL} → politica RLS → repositorio. No se simula ningun
@@ -99,8 +99,8 @@ class ViaRepositoryJdbcTest {
     }
 
     @Test
-    @DisplayName("la prueba se conecta como sgtm_app, no como superusuario")
-    void seConectaComoSgtmApp() {
+    @DisplayName("la prueba se conecta como kamayuk_app, no como superusuario")
+    void seConectaComoKamayukApp() {
         TenantContext.fijar(new MunicipalidadId(municipalidadA));
 
         String usuario =

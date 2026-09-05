@@ -64,7 +64,7 @@ public final class EscenarioDelPadron {
                         usuario_registro    varchar(60) NOT NULL
                     )
                     """);
-            // Sin DELETE: `AislamientoMultiTenantTest` exige que `sgtm_app` no lo tenga en
+            // Sin DELETE: `AislamientoMultiTenantTest` exige que `kamayuk_app` no lo tenga en
             // ninguna tabla de esta base (RNF-051, regla 4), y la comprobacion mira el catalogo
             // entero, no una lista.
             sentencia.execute("GRANT SELECT, INSERT, UPDATE ON contribuyente_de_prueba TO PUBLIC");

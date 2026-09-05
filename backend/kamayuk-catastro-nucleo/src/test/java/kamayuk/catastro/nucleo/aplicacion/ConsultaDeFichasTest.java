@@ -770,7 +770,7 @@ class ConsultaDeFichasTest {
             TenantContext.fijar(new MunicipalidadId(otraMunicipalidad));
 
             assertThat(buscar(FiltroDeFichas.ninguno()).contenido())
-                    .as("la prueba corre como sgtm_app, que es a quien la politica RLS aplica")
+                    .as("la prueba corre como kamayuk_app, que es a quien la politica RLS aplica")
                     .isEmpty();
             assertThat(consulta.historial(predio, TipoFicha.UNICA))
                     .as("ni el historico, que es la via por la que se escaparia el detalle")

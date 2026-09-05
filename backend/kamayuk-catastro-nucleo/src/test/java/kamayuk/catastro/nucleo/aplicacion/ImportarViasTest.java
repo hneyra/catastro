@@ -217,7 +217,7 @@ class ImportarViasTest {
         TenantContext.fijar(new MunicipalidadId(municipalidadB));
         try {
             assertThat(contarVias("V-AISLADA"))
-                    .as("una via de A no es visible desde B, verificado como sgtm_app bajo RLS")
+                    .as("una via de A no es visible desde B, verificado como kamayuk_app bajo RLS")
                     .isZero();
         } finally {
             TenantContext.limpiar();
@@ -245,8 +245,8 @@ class ImportarViasTest {
     }
 
     /**
-     * Cuenta con la conexion de {@code sgtm_app} bajo el contexto de tenant ya fijado por la prueba
-     * —no la de superusuario—: es la misma barrera que verifica la importacion.
+     * Cuenta con la conexion de {@code kamayuk_app} bajo el contexto de tenant ya fijado por la
+     * prueba —no la de superusuario—: es la misma barrera que verifica la importacion.
      */
     private static long contarVias(String codigo) {
         Long total =

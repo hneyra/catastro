@@ -77,10 +77,10 @@ import tools.jackson.databind.json.JsonMapper;
  * <h2>Que la hace fiel, y no un montaje que pasa siempre</h2>
  *
  * <p>Aqui hay tres cosas reales que ninguna otra prueba del modulo junta: la conexion es la de
- * {@code sgtm_app} —un superusuario omite RLS incluso con {@code FORCE ROW LEVEL SECURITY}, asi que
- * sobre el no se verificaria nada—; el proxy transaccional del caso de uso se construye con {@link
- * AnnotationTransactionAttributeSource}, o sea <b>obedeciendo a la anotacion</b> igual que el
- * contenedor, de modo que quitarle el {@code @Transactional} a {@link
+ * {@code kamayuk_app} —un superusuario omite RLS incluso con {@code FORCE ROW LEVEL SECURITY}, asi
+ * que sobre el no se verificaria nada—; el proxy transaccional del caso de uso se construye con
+ * {@link AnnotationTransactionAttributeSource}, o sea <b>obedeciendo a la anotacion</b> igual que
+ * el contenedor, de modo que quitarle el {@code @Transactional} a {@link
  * ReporteDeFichaDelContribuyente} deja de abrir nada; y el generador de documentos es el de verdad,
  * con el {@link RegimenDeLaInstalacionJdbc} de verdad contra la misma base.
  *

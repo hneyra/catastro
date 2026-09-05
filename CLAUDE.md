@@ -65,9 +65,10 @@ El backend **no compila sin `infrastructure` clonado al lado**: las barreras se 
 comprueba antes y falla diciendo qué `git clone` falta, en vez de dejar reventar a Gradle sobre un
 directorio que no está.
 
-Los paquetes son `kamayuk.catastro.*`; los módulos, `kamayuk-*`. Los **roles de base de datos
-siguen llamándose `sgtm_owner`, `sgtm_app`, `sgtm_readonly` y `rol_carga_parametros`**, y es
-deliberado: son del **clúster**, que los cuatro sistemas comparten. Su base es la única con
+Los paquetes son `kamayuk.catastro.*`; los módulos, `kamayuk-*`. Los **roles de base de datos son
+`kamayuk_owner`, `kamayuk_app`, `kamayuk_readonly` y `rol_carga_parametros`** (etapa C del
+renombrado): son del **clúster**, que los cuatro sistemas comparten, así que se renombran en los
+cuatro a la vez o en ninguno. Su base es la única con
 **PostGIS** y `btree_gist`.
 
 ## Antes de escribir código, leer

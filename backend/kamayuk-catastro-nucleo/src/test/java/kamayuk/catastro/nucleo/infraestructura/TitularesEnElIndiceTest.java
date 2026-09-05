@@ -61,11 +61,11 @@ import org.springframework.transaction.support.TransactionTemplate;
  * Removed by Filter} no distinguiria una cosa de la otra. Con dos, 14 402 descartadas de 28 844
  * dicen exactamente cual de las dos es.
  *
- * <h2>Y la conexion es la de {@code sgtm_app}</h2>
+ * <h2>Y la conexion es la de {@code kamayuk_app}</h2>
  *
- * <p>No la del superusuario, que omite RLS, ni la de {@code sgtm_owner}, que con {@code FORCE ROW
- * LEVEL SECURITY} tambien queda sujeto a la politica pero es dueno de las tablas (#537, #545). El
- * plan que importa es el que obtiene la aplicacion.
+ * <p>No la del superusuario, que omite RLS, ni la de {@code kamayuk_owner}, que con {@code FORCE
+ * ROW LEVEL SECURITY} tambien queda sujeto a la politica pero es dueno de las tablas (#537, #545).
+ * El plan que importa es el que obtiene la aplicacion.
  */
 @DisplayName("#561 — El predio es condicion del indice de titularidad, no filtro")
 class TitularesEnElIndiceTest {
@@ -347,8 +347,8 @@ class TitularesEnElIndiceTest {
      *
      * <p>Se siembra con SQL directo: lo que aqui se mide es el plan, no el camino de escritura, y
      * meter 28 869 predios por sus casos de uso tardaria mas que la prueba entera. La conexion es
-     * la de {@code sgtm_app} con su contexto fijado, asi que las filas entran por donde entrarian
-     * de verdad, con la politica RLS comprobando cada una.
+     * la de {@code kamayuk_app} con su contexto fijado, asi que las filas entran por donde
+     * entrarian de verdad, con la politica RLS comprobando cada una.
      */
     private static void sembrarVolumen() throws SQLException {
         if (sembrado) {

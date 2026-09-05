@@ -50,8 +50,12 @@ class ModulosTest {
                         "carga",
                         "documentos",
                         "web",
-                        // El unico contexto acotado de este sistema.
-                        "catastro",
+                        // El unico contexto acotado de este sistema. Se llama `nucleo` desde R-N:
+                        // «kamayuk-catastro-catastro» repetia el nombre del sistema y la direccion
+                        // pidio quitarlo. El identificador que Modulith detecta es el ULTIMO
+                        // segmento del paquete, asi que renombrar el paquete lo renombra aqui — y
+                        // esta lista es lo que lo puso en rojo al hacerlo.
+                        "nucleo",
                         // Y sus dos puertas de salida: el padron de `rentas` y la normativa
                         // cacheada. Los dos son modulos para Modulith aunque sean puertos, y eso
                         // es lo que hace comprobable que `catastro` no toque un tipo interno

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Carga el arancel de terreno por via de un ejercicio contra un ambiente real, corriendo
-# el proceso batch CargarArancelVial (kamayuk-catastro-catastro) como un Job de un solo uso.
+# el proceso batch CargarArancelVial (kamayuk-catastro-nucleo) como un Job de un solo uso.
 #
 # Mismo patron que cargar-catalogo-vial.sh: ConfigMap efimero con el CSV, sin pasar por
 # Pulumi. A diferencia del catalogo vial, esta carga cuelga de un conjunto de parametros

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Carga el catalogo vial inicial de una municipalidad contra un ambiente real (#121),
-# corriendo el proceso batch CargarCatalogoVial (kamayuk-catastro-catastro) como un Job de
+# corriendo el proceso batch CargarCatalogoVial (kamayuk-catastro-nucleo) como un Job de
 # un solo uso.
 #
 # No pasa por Pulumi a proposito: es una carga de datos puntual -una vez por

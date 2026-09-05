@@ -85,8 +85,7 @@ class ProhibicionesEnElCodigoFuenteTest extends ProhibicionesEnElCodigoFuenteTes
         // direcciones.
         Path descripcion =
                 raizDelBackend()
-                        .resolve(
-                                "kamayuk-catastro-catastro/src/main/java/kamayuk/catastro/catastro")
+                        .resolve("kamayuk-catastro-nucleo/src/main/java/kamayuk/catastro/nucleo")
                         .resolve("aplicacion/ActualizarFichaCatastral.java");
 
         assertThat(descripcion)

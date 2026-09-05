@@ -54,7 +54,7 @@ backend/                Gradle. Java 25, Spring Boot 4 cuando llegue el negocio
   kamayuk-catastro-plataforma/  el contexto de tenant hasta la transaccion (ARQ-03 §2)
   kamayuk-catastro-parametros/  el CLIENTE de normativa y su copia local sellada
   kamayuk-catastro-contribuyentes/  SOLO el puerto al padron de `rentas`, y su cliente HTTP
-  kamayuk-catastro-catastro/    el contexto acotado. 200 clases
+  kamayuk-catastro-nucleo/      el contexto acotado. 200 clases. Se llamaba `catastro` (R-N)
   kamayuk-catastro-aplicacion/  ensambla el artefacto y aloja las barreras
 infrastructure/         el descriptor de despliegue en TypeScript, con yarn
 docs/                   ADR propios, hallazgos de RLS y esta guía de desarrollo

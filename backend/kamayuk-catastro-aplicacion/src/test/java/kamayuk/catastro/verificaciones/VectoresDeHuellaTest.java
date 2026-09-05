@@ -1,7 +1,7 @@
 package kamayuk.catastro.verificaciones;
 
 import java.util.List;
-import kamayuk.catastro.catastro.dominio.HuellaDelLote;
+import kamayuk.catastro.nucleo.dominio.HuellaDelLote;
 import kamayuk.comun.verificaciones.contrato.VectoresDeHuellaTestBase;
 import org.junit.jupiter.api.DisplayName;
 

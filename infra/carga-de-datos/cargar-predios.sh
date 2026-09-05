@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Carga los lotes del plano catastral de una municipalidad contra un ambiente real
-# (ADR-0021, #400), corriendo el proceso batch CargarPredios (kamayuk-catastro-catastro)
+# (ADR-0021, #400), corriendo el proceso batch CargarPredios (kamayuk-catastro-nucleo)
 # como un Job de un solo uso.
 #
 # Es el camino por el que una municipalidad de VERDAD puebla su catastro. Antes de esto

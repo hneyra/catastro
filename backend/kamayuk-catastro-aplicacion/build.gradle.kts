@@ -26,7 +26,7 @@ dependencies {
 
     // El unico contexto acotado de este sistema, con sus dos puertos de salida.
     implementation(project(":kamayuk-catastro-contribuyentes"))
-    implementation(project(":kamayuk-catastro-catastro"))
+    implementation(project(":kamayuk-catastro-nucleo"))
     implementation(project(":kamayuk-catastro-parametros"))
 
     implementation("org.springframework.boot:spring-boot-starter-web")

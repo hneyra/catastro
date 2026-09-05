@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Carga el catalogo de sectores de una municipalidad contra un ambiente real (#121),
-# corriendo el proceso batch CargarSectores (kamayuk-catastro-catastro) como un Job de un
+# corriendo el proceso batch CargarSectores (kamayuk-catastro-nucleo) como un Job de un
 # solo uso.
 #
 # Copia exacta del patron de cargar-catalogo-vial.sh: no pasa por Pulumi -es una carga

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Carga las manzanas de una municipalidad contra un ambiente real (#121), corriendo el
-# proceso batch CargarManzanas (kamayuk-catastro-catastro) como un Job de un solo uso.
+# proceso batch CargarManzanas (kamayuk-catastro-nucleo) como un Job de un solo uso.
 #
 # Copia exacta del patron de cargar-catalogo-vial.sh.
 #

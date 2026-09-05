@@ -18,8 +18,8 @@ import kamayuk.comun.verificaciones.ConfiguracionDeLasVerificaciones;
  *
  * <p>{@code sgtm} es el monolito: los cuatro sistemas futuros conviven en el, y sus 132 tablas
  * estan en la misma base. Declarar «este repositorio es rentas» acusaria a {@code
- * kamayuk-catastro-catastro} de leer sus propias tablas; declarar «es catastro» dejaria pasar todo
- * lo demas. Lo que hay es un reparto por modulo Gradle —GOB-05 §1— y eso es {@link
+ * kamayuk-catastro-nucleo} de leer sus propias tablas; declarar «es catastro» dejaria pasar todo lo
+ * demas. Lo que hay es un reparto por modulo Gradle —GOB-05 §1— y eso es {@link
  * #sistemaDelArchivo(String)}.
  *
  * <p>Es lo que hace que {@code NINGUN_SQL_CRUZA_LA_FRONTERA_DE_SISTEMA} sirva <b>antes</b> del
@@ -41,7 +41,7 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
     private static final Map<String, String> SISTEMA_DEL_MODULO =
             Map.ofEntries(
                     Map.entry("kamayuk-catastro-contribuyentes", "rentas"),
-                    Map.entry("kamayuk-catastro-catastro", "catastro"),
+                    Map.entry("kamayuk-catastro-nucleo", "catastro"),
                     Map.entry("kamayuk-catastro-rentas", "rentas"),
                     Map.entry("kamayuk-catastro-parametros", "normativa"),
                     Map.entry("kamayuk-catastro-fiscalizacion", "rentas"),
@@ -274,6 +274,11 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
     }
 
     @Override
+    public Set<String> modulosDelReparto() {
+        return SISTEMA_DEL_MODULO.keySet();
+    }
+
+    @Override
     public Map<String, String> sistemaDeCadaTabla() {
         Map<String, String> reparto = new HashMap<>();
         DE_RENTAS.forEach(t -> reparto.put(t, "rentas"));
@@ -350,7 +355,11 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
         return Set.of(
                 "kamayuk.catastro.compartido",
                 "kamayuk.catastro.plataforma.tenant",
-                "kamayuk.catastro.dominio");
+                "kamayuk.catastro.dominio",
+                // El contexto acotado principal, anadido en R-N: sin el, renombrar el paquete del
+                // modulo mas grande del sistema no ponia roja esta guarda —se conformaba con que
+                // estuvieran los tres de infraestructura—. `caja` ya lo declaraba desde P5D.
+                "kamayuk.catastro.nucleo.dominio");
     }
 
     @Override
@@ -358,20 +367,20 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
         return Set.of(
                 // La ficha que sustenta un acta y la que sustenta una declaracion (#45, #49).
                 // Devuelven identificador y area: ni un metodo que escriba.
-                ".catastro.LectorDeFichas",
+                ".nucleo.LectorDeFichas",
                 // El uso y las caracteristicas del predio a una fecha (#49).
-                ".catastro.LectorDeCaracteristicas",
-                ".catastro.CaracteristicasDelPredio",
+                ".nucleo.LectorDeCaracteristicas",
+                ".nucleo.CaracteristicasDelPredio",
                 // Quien es titular de un predio a una fecha, por lote, para poner el nombre en la
                 // fila de omisos (#545).
-                ".catastro.TitularesDelPredio",
-                ".catastro.TitularDelPredio",
+                ".nucleo.TitularesDelPredio",
+                ".nucleo.TitularDelPredio",
                 // Lo que la transferencia DEVOLVIO. Es un registro de resultado, no una puerta: no
                 // tiene un metodo que escriba, y lo lee tambien quien dibuja el papel.
-                ".catastro.VersionTransferida",
+                ".nucleo.VersionTransferida",
                 // Y su excepcion: atraparla no es escribir. La captura la capa web, que traduce a
                 // 422 «el predio no tiene ficha vigente».
-                ".catastro.TransferenciaDeFiscalizacion$SinFichaQueVersionar",
+                ".nucleo.TransferenciaDeFiscalizacion$SinFichaQueVersionar",
                 // Si un predio declaro en un ejercicio, por lote (RF-055).
                 ".rentas.DeclaracionesDelEjercicio",
                 ".rentas.DeclaracionDelEjercicio",
@@ -395,7 +404,7 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
                 // Lo unico que escribe es su propia fila de ACCESO, y esa observacion no la puede
                 // dar el usuario porque nadie escribe un motivo para mirar una grilla.
                 ".rentas.aplicacion.ConsultaDeConciliacion.noConciliadas("
-                        + "kamayuk.catastro.catastro.BusquedaDeFichas, kamayuk.catastro.dominio.Ejercicio,"
+                        + "kamayuk.catastro.nucleo.BusquedaDeFichas, kamayuk.catastro.dominio.Ejercicio,"
                         + " java.time.LocalDate, kamayuk.catastro.compartido.Paginacion)",
                 // El titular de un predio, resuelto al clic (ADR-0015 §2.4, #366). Misma forma.
                 ".rentas.aplicacion.ConsultaDeTitulares.resolver(long, java.time.LocalDate)",
@@ -423,9 +432,9 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
                 // Y marcar entregado es un ACUSE DE RECIBO de otro sistema. Exigir aqui una
                 // observacion produciria exactamente lo que el javadoc de la regla advierte: una
                 // cadena fija que satisface la comprobacion y vacia de sentido la auditoria.
-                ".catastro.aplicacion.PublicarUnHecho.publicar("
-                        + "kamayuk.catastro.catastro.dominio.HechoDeCatastro)",
-                ".catastro.aplicacion.EntregaDeEventos.marcarEntregados("
+                ".nucleo.aplicacion.PublicarUnHecho.publicar("
+                        + "kamayuk.catastro.nucleo.dominio.HechoDeCatastro)",
+                ".nucleo.aplicacion.EntregaDeEventos.marcarEntregados("
                         + "java.util.List, java.time.Instant)");
     }
 }

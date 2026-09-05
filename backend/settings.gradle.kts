@@ -63,10 +63,12 @@ include("kamayuk-catastro-parametros")
 // pregunta el nombre de un titular.
 include("kamayuk-catastro-contribuyentes")
 
-// El contexto acotado. Se llama igual que el sistema porque `catastro` es las dos cosas: el
-// repositorio y el unico contexto que contiene, igual que `kamayuk-normativa-parametros` es el
-// unico de `normativa`.
-include("kamayuk-catastro-catastro")
+// El contexto acotado: `catastro` es las dos cosas, el repositorio y el unico contexto que
+// contiene, igual que `kamayuk-normativa-parametros` es el unico de `normativa`. Por eso se
+// llamaba `kamayuk-catastro-catastro`, y por eso se llama `nucleo` desde R-N (2026-09-05): la
+// direccion pidio quitar la repeticion. El patron `kamayuk-<sistema>-<contexto>` queda intacto;
+// lo que cambia es el nombre del contexto.
+include("kamayuk-catastro-nucleo")
 
 // La copia local de usuarios, grupos y permisos, y su siembra (D-N5). No es un contexto
 // acotado: es el lector que autoriza y el sembrador que implanta. Las pantallas de

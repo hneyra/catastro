@@ -29,7 +29,7 @@ import org.junit.jupiter.api.DisplayName;
  *
  * <ul>
  *   <li><b>{@code id} pasa a {@code fichaId}</b> en {@link
- *       kamayuk.catastro.catastro.infraestructura.web.FichaEncontradaResource}: la fila lleva dos
+ *       kamayuk.catastro.nucleo.infraestructura.web.FichaEncontradaResource}: la fila lleva dos
  *       identificadores y {@code id} al lado de {@code predioId} no dice cual. El sintoma era MUDO
  *       —{@code asLong()} sobre un nodo que falta devuelve 0—.
  *   <li><b>{@code soloPredio} y {@code exceptoPredio} se leen</b> en {@code ConsultaController}:

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Siembra el DETALLE de las fichas ficticias —construcciones por piso, obras complementarias,
 # actividades economicas, bienes comunes con su reparto y grupos de tierra con sus colindantes—
-# corriendo el proceso batch CargarDetalleDeFichasDemostracion (kamayuk-catastro-catastro) como un
+# corriendo el proceso batch CargarDetalleDeFichasDemostracion (kamayuk-catastro-nucleo) como un
 # Job de un solo uso.
 #
 # Misma guarda que cargar-fichas-demo.sh: el proceso pregunta por municipalidad.es_demostracion

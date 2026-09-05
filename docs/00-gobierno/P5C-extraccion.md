@@ -141,6 +141,8 @@ todo el árbol, que produce:
 `kamayuk.catastro.catastro` es redundante y es lo que la consistencia produce: en `normativa` el
 contexto es `kamayuk.normativa.parametros`, y aquí el sistema y su único contexto se llaman igual.
 
+> **R-N (2026-09-05) renombró los tres.** `kamayuk-rentas-rentas`, `kamayuk-catastro-catastro` y `kamayuk-caja-caja` son hoy `kamayuk-<sistema>-nucleo`, con su paquete `kamayuk.<sistema>.nucleo`. Lo de arriba se deja como se escribió —es lo que se decidió entonces— y el porqué del cambio está en `infrastructure/docs/00-gobierno/R-N-los-tres-modulos-repetidos.md`.
+
 **La comprobación es un `git grep` que no encuentra nada:**
 
 ```

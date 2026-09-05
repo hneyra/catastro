@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Siembra predios y fichas FICTICIOS en una instalacion de demostracion (#290), corriendo
-# el proceso batch CargarFichasDeDemostracion (kamayuk-catastro-catastro) como un Job de un
+# el proceso batch CargarFichasDeDemostracion (kamayuk-catastro-nucleo) como un Job de un
 # solo uso.
 #
 # Mismo patron que cargar-catalogo-vial.sh, con la misma guarda que

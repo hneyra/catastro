@@ -170,7 +170,7 @@ un despliegue.
 Las dos ocurren **dentro de una `@Transactional` de `rentas` que confirma otras escrituras después
 de ellas**:
 
-- `RegistrarTransferencia.transferirPredio` (`kamayuk-rentas-rentas`) hace, en este orden: leer la
+- `RegistrarTransferencia.transferirPredio` (`kamayuk-rentas-nucleo`) hace, en este orden: leer la
   cuota vigente, **transferirla en `catastro`**, insertar la fila de `transferencia` y auditar.
 - `TransferirARentas.transferir` (`kamayuk-rentas-fiscalizacion`) hace, en este orden: **(1)**
   inscribir lo hallado en el padrón, **(2)** emitir la resolución de determinación *con la versión

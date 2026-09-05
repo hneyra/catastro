@@ -581,6 +581,60 @@ public final class DatosDePrueba {
                 muni,
                 EJERCICIO,
                 "10.0.0.1");
+        sembrarBuzonDeSalida(app, muni, sufijo);
+    }
+
+    /**
+     * Un hecho en el buzon de salida de C-8, para que el aislamiento de {@code catastro_evento} se
+     * pueda medir.
+     *
+     * <p>La prueba de aislamiento no comprueba solo que A no vea filas de B: comprueba
+     * <b>ademas</b> que A vea las suyas, y sin una fila sembrada las dos cosas darian cero y se
+     * leerian igual.
+     *
+     * <p>El {@code evento_id} lleva el sufijo de la municipalidad dentro: dos municipalidades con
+     * el mismo uuid seria una fuga que la clave unica —que es POR municipalidad— dejaria pasar sin
+     * ruido.
+     *
+     * <p>Nace ENTREGADO y no PENDIENTE, y eso tambien lo decidio ejecutar: con la fila pendiente,
+     * toda prueba que lea el buzon de salida —el publicador, el controlador del feed— se encuentra
+     * dentro un hecho de mentira que ella no produjo. Entregado, la fila sigue estando para que el
+     * aislamiento se pueda medir y no aparece en ninguna lectura de lo pendiente.
+     *
+     * <p>Es un cierre de corrida y no una proyeccion de predio, y eso lo decidio el propio motor:
+     * con {@code PREDIO_PROYECTADO} y {@code predio_id} nulo, {@code catastro_evento_predio_ck}
+     * rechazo la siembra en las cuatro clases que la usan — la primera vez que ese CHECK vio una
+     * fila. Un cierre no habla de ningun predio, asi que aqui no hay que inventar uno.
+     */
+    private static void sembrarBuzonDeSalida(Connection app, long muni, String sufijo)
+            throws SQLException {
+        // La huella es de mentira y no dice nada de nadie: lo que esta fila mide es la politica
+        // RLS de la tabla, no que el contenido signifique algo.
+        String huella = "0".repeat(64);
+        ejecutar(
+                app,
+                "INSERT INTO catastro_evento (municipalidad_id, evento_id, tipo, predio_id,"
+                        + " ejercicio, cuerpo, huella, estado, creado_en, entregado_en)"
+                        + " VALUES (?, CAST(? AS uuid), 'CORRIDA_CERRADA', NULL, ?,"
+                        + "         CAST(? AS jsonb), ?, 'ENTREGADO', now(), now())",
+                muni,
+                uuidDeterminista(sufijo),
+                EJERCICIO,
+                "{\"prueba\": \"aislamiento\"}",
+                huella);
+    }
+
+    /**
+     * Un uuid estable derivado del sufijo de la municipalidad, para no depender del azar en una
+     * siembra que se compara entre dos.
+     */
+    private static String uuidDeterminista(String sufijo) {
+        return java.util
+                .UUID
+                .nameUUIDFromBytes(
+                        ("catastro-evento-" + sufijo)
+                                .getBytes(java.nio.charset.StandardCharsets.UTF_8))
+                .toString();
     }
 
     /**

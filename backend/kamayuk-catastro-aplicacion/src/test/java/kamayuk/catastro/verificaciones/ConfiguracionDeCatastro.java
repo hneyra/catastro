@@ -312,7 +312,14 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
                 // llega al cliente» —la bitacora la publica verbatim— sino que ahi el area no es
                 // un campo tipado sino una instantanea de texto libre, y se escribe SIN la unidad
                 // para que diga lo mismo que el resto (#607).
-                "ActualizarFichaCatastral");
+                "ActualizarFichaCatastral",
+                // El componedor de hechos del buzon de salida (C-8). Misma forma que las dos de
+                // arriba y el mismo motivo que la lista declara: el area se compone a mano SOLO
+                // para la huella del hecho, que es un resumen criptografico y no pasa por ningun
+                // serializador. El JSON del evento SI lo escribe `ConfiguracionDeJson`, con el
+                // `AreaM2` tipado. Y escribe la cifra sola: con la unidad dentro, la huella
+                // dejaria de poder compararse contra nada que hable de la misma area.
+                "ComponedorDeHechos");
     }
 
     /**
@@ -403,6 +410,22 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
                 // no lo fuera no se guardaria. Exigir una observacion aqui produciria la cadena
                 // fija que el javadoc de la regla advierte.
                 ".parametros.aplicacion.DescargaDeNormativa.asegurarDescargado("
-                        + "long, java.lang.String)");
+                        + "long, java.lang.String)",
+                // El buzon de salida (C-8, ADR-0026 §3). Las dos escrituras son de la MISMA
+                // clase: escribir un hecho ya ocurrido y anotar que se entrego.
+                //
+                // Publicar un hecho NO modifica ningun dato del padron: copia al buzon lo que la
+                // ficha, el predio y la titularidad ya dicen —y en el caso de la valuacion,
+                // produce un hecho derivado de ellos—. La fuente queda intacta, y quien la
+                // modifico dio su observacion en el acto que la modifico. Ademas lo dispara un
+                // proceso por lotes: no hay ningun usuario delante que pueda dar un «por que».
+                //
+                // Y marcar entregado es un ACUSE DE RECIBO de otro sistema. Exigir aqui una
+                // observacion produciria exactamente lo que el javadoc de la regla advierte: una
+                // cadena fija que satisface la comprobacion y vacia de sentido la auditoria.
+                ".catastro.aplicacion.PublicarUnHecho.publicar("
+                        + "kamayuk.catastro.catastro.dominio.HechoDeCatastro)",
+                ".catastro.aplicacion.EntregaDeEventos.marcarEntregados("
+                        + "java.util.List, java.time.Instant)");
     }
 }

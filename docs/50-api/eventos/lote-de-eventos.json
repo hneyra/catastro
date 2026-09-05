@@ -1,0 +1,50 @@
+{
+  "eventos" : [ {
+    "eventoId" : "28952a97-bcf1-80bf-bb37-f8425dc7a30c",
+    "secuencia" : 9,
+    "tipo" : "PREDIO_PROYECTADO",
+    "predioId" : 2,
+    "ejercicio" : null,
+    "cuerpo" : "{\"estado\": \"ACTIVO\", \"fichas\": [{\"uso\": \"CASA_HABITACION\", \"tipo\": \"UNICA\", \"fichaId\": 5, \"version\": 1, \"areaTerreno\": \"120.00\", \"vigenciaDesde\": \"2026-01-01\", \"vigenciaHasta\": null}, {\"uso\": \"COMERCIO\", \"tipo\": \"ECONOMICA\", \"fichaId\": 6, \"version\": 1, \"areaTerreno\": \"120.00\", \"vigenciaDesde\": \"2026-01-01\", \"vigenciaHasta\": null}, {\"uso\": \"MULTIFAMILIAR\", \"tipo\": \"BIENES_COMUNES\", \"fichaId\": 7, \"version\": 1, \"areaTerreno\": \"120.00\", \"vigenciaDesde\": \"2026-01-01\", \"vigenciaHasta\": null}, {\"uso\": \"AGRICOLA\", \"tipo\": \"RURAL\", \"fichaId\": 8, \"version\": 1, \"areaTerreno\": \"120.00\", \"vigenciaDesde\": \"2026-01-01\", \"vigenciaHasta\": null}], \"predioId\": 2, \"direccion\": \"Jr. Union PB\", \"sectorCodigo\": \"S-PB\", \"codigoRefCatastral\": \"200601010150010101056\"}",
+    "huella" : "d200b1988e503601eb7fdcd8cf93e544fa45b7d8e3c64b890541216dbd4b2454",
+    "emitidoEn" : "2026-09-05T00:46:37.489280Z"
+  }, {
+    "eventoId" : "dfdd1955-8b68-8525-b7ec-38434beb851c",
+    "secuencia" : 10,
+    "tipo" : "PREDIO_PROYECTADO",
+    "predioId" : 3,
+    "ejercicio" : null,
+    "cuerpo" : "{\"estado\": \"ACTIVO\", \"fichas\": [{\"uso\": \"COMERCIO\", \"tipo\": \"UNICA\", \"fichaId\": 9, \"version\": 1, \"areaTerreno\": \"240.00\", \"vigenciaDesde\": \"2026-01-01\", \"vigenciaHasta\": null}], \"predioId\": 3, \"direccion\": \"Jr. Union 2\", \"sectorCodigo\": \"S-PB\", \"codigoRefCatastral\": \"202202000000000002\"}",
+    "huella" : "e3add75e38cee9b48108c780f95732e7d6c68b67539a053f1537779d6a2b20bd",
+    "emitidoEn" : "2026-09-05T00:46:37.492555Z"
+  }, {
+    "eventoId" : "72024c96-cc82-88ec-acb1-f9762e1c032f",
+    "secuencia" : 11,
+    "tipo" : "VALUACION_PUBLICADA",
+    "predioId" : 2,
+    "ejercicio" : 2026,
+    "cuerpo" : "{\"motivo\": \"El «% actualizacion» sigue sin fuente identificada (D-11, NEG-05 §0.1). Es un incremento sobre el autovaluo de TODO el padron —su valor neutro es cero, no uno (#437)— y no se inventa: mientras no se publique, este sistema no valoriza ningun predio\", \"predioId\": 2, \"ejercicio\": 2026, \"titulares\": [{\"cuota\": \"100.0000\", \"condicion\": \"PROPIETARIO_UNICO\", \"contribuyenteId\": 900001}], \"conjuntoId\": 2, \"valorObras\": null, \"fechaDeCorte\": \"2026-01-01\", \"valorTerreno\": null, \"llaveQueFalta\": \"PORCENTAJE_DE_ACTUALIZACION\", \"reglasVersion\": \"sin-valorizacion-v1\", \"valorDelPredio\": null, \"reglasAplicadas\": \"\", \"fichaCatastralId\": 5, \"valorConstruccion\": null}",
+    "huella" : "1516d47cbec9484ea98f8bb11d170fc040437bf0677eb0c94d898ae469ccc832",
+    "emitidoEn" : "2026-09-05T00:46:37.502921Z"
+  }, {
+    "eventoId" : "5862d39e-4ed5-868a-9fd6-b50406337611",
+    "secuencia" : 12,
+    "tipo" : "VALUACION_PUBLICADA",
+    "predioId" : 3,
+    "ejercicio" : 2026,
+    "cuerpo" : "{\"motivo\": \"El «% actualizacion» sigue sin fuente identificada (D-11, NEG-05 §0.1). Es un incremento sobre el autovaluo de TODO el padron —su valor neutro es cero, no uno (#437)— y no se inventa: mientras no se publique, este sistema no valoriza ningun predio\", \"predioId\": 3, \"ejercicio\": 2026, \"titulares\": [{\"cuota\": \"100.0000\", \"condicion\": \"PROPIETARIO_UNICO\", \"contribuyenteId\": 900002}], \"conjuntoId\": 2, \"valorObras\": null, \"fechaDeCorte\": \"2026-01-01\", \"valorTerreno\": null, \"llaveQueFalta\": \"PORCENTAJE_DE_ACTUALIZACION\", \"reglasVersion\": \"sin-valorizacion-v1\", \"valorDelPredio\": null, \"reglasAplicadas\": \"\", \"fichaCatastralId\": 9, \"valorConstruccion\": null}",
+    "huella" : "ca258f7ed3edff6fadb46094c199a72ec6e01f9f8ba3ee078d06ee4f43236aea",
+    "emitidoEn" : "2026-09-05T00:46:37.505687Z"
+  }, {
+    "eventoId" : "e442d15c-766b-8661-afb4-025c3e7b291d",
+    "secuencia" : 13,
+    "tipo" : "CORRIDA_CERRADA",
+    "predioId" : null,
+    "ejercicio" : 2026,
+    "cuerpo" : "{\"conteo\": 2, \"huella\": \"c38a250a4fba09afb4ca2f90a344e3a94591de914e7308bd6c61ea7ae17ec088\", \"cerradaEn\": \"2026-03-01T10:00:00Z\", \"corridaId\": 3, \"ejercicio\": 2026, \"conjuntoId\": 2, \"fechaDeCorte\": \"2026-01-01\", \"reglasVersion\": \"sin-valorizacion-v1\"}",
+    "huella" : "c1cda6c8b46d94d0a942411b1d3bdd50fff17da99ecdafecc62ac8c5d1e67c77",
+    "emitidoEn" : "2026-09-05T00:46:37.510688Z"
+  } ],
+  "pendientesQueQuedan" : 0,
+  "aLaFecha" : "2026-03-01T11:00:00Z"
+}

@@ -53,14 +53,20 @@ class ProhibicionesEnElCodigoFuenteTest extends ProhibicionesEnElCodigoFuenteTes
                 .isEmpty();
         assertThat(new ConfiguracionDeCatastro().componenElAreaAManoConMotivo())
                 .as(
-                        "las dos de hoy: el modelo del papel de la ficha y la descripcion de"
-                                + " auditoria del versionado. La columna JSON de la bitacora SI"
-                                + " sale por HTTP —la publica verbatim—, asi que el motivo de la"
-                                + " segunda no es «no llega al cliente» sino que ahi el area no es"
-                                + " un campo tipado sino texto libre, y se escribe sin la unidad"
-                                + " para que diga lo mismo que el resto")
+                        "las tres de hoy: el modelo del papel de la ficha, la descripcion de"
+                                + " auditoria del versionado y el componedor de hechos del buzon"
+                                + " (C-8). La columna JSON de la bitacora SI sale por HTTP —la"
+                                + " publica verbatim—, asi que el motivo de la segunda no es «no"
+                                + " llega al cliente» sino que ahi el area no es un campo tipado"
+                                + " sino texto libre; y el de la tercera es que ahi el area se"
+                                + " compone SOLO para la huella del hecho, que es un resumen"
+                                + " criptografico y no pasa por ningun serializador — el JSON del"
+                                + " evento lo escribe ConfiguracionDeJson con el AreaM2 tipado."
+                                + " Las tres escriben la cifra sola")
                 .containsExactlyInAnyOrder(
-                        "ModeloDeLaFichaDelContribuyente", "ActualizarFichaCatastral");
+                        "ModeloDeLaFichaDelContribuyente",
+                        "ActualizarFichaCatastral",
+                        "ComponedorDeHechos");
     }
 
     @Test

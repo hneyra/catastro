@@ -7,7 +7,7 @@
 // `contribuyente`, que es de `rentas`, y el escaner de frontera lo diria.
 
 plugins {
-    id("sgtm.modulo")
+    id("kamayuk.modulo")
 }
 
 dependencies {

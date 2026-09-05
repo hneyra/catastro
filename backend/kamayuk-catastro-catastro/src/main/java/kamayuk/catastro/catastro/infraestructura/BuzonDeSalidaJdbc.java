@@ -1,5 +1,6 @@
 package kamayuk.catastro.catastro.infraestructura;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -17,12 +18,27 @@ import org.springframework.stereotype.Repository;
  *
  * <p><b>Ni una llamada de red.</b> Escribe una fila y nada mas, en la transaccion de quien publica.
  * Quien entrega es otro proceso.
+ *
+ * <p><b>La hora de emision sale del reloj inyectado, no de {@code now()} de la base</b>, por el
+ * mismo motivo que {@code AuditoriaJdbc} y por uno propio. El de siempre: quien publica —{@link
+ * kamayuk.catastro.catastro.aplicacion.PublicacionDelPadron}— ya recibe su {@code Clock}, asi que
+ * con {@code now()} la corrida y sus eventos quedaban fechados por dos relojes distintos, y eso no
+ * se ve hasta que no coinciden. El propio: esa hora <b>sale publicada</b> —es el {@code emitidoEn}
+ * de {@code EventoResource}— y con ella {@code docs/50-api/eventos/lote-de-eventos.json}, el lote
+ * que {@code rentas} lee, se reescribia en cada corrida del banco de pruebas. Su unico diff eran
+ * los cinco {@code emitidoEn}, de modo que {@code git status} salia sucio siempre y un cambio de
+ * verdad en la forma del evento —que es justo lo que ese archivo existe para enseñar— llegaba
+ * mezclado con cinco instantes que no significan nada.
  */
 @Repository
 public class BuzonDeSalidaJdbc extends RepositorioJdbc implements BuzonDeSalida {
 
-    public BuzonDeSalidaJdbc(JdbcClient jdbc) {
+    private final Clock reloj;
+
+    public BuzonDeSalidaJdbc(JdbcClient jdbc, Clock reloj) {
         super(jdbc);
+        this.reloj =
+                java.util.Objects.requireNonNull(reloj, "El buzon de salida necesita su reloj");
     }
 
     /**
@@ -46,12 +62,13 @@ public class BuzonDeSalidaJdbc extends RepositorioJdbc implements BuzonDeSalida 
                                                              predio_id, ejercicio, cuerpo, huella,
                                                              estado, creado_en)
                                 VALUES (%s, :evento, :tipo, :predio, :ejercicio,
-                                        CAST(:cuerpo AS jsonb), :huella, 'PENDIENTE', now())
+                                        CAST(:cuerpo AS jsonb), :huella, 'PENDIENTE', :creadoEn)
                                 ON CONFLICT (municipalidad_id, evento_id) DO NOTHING
                                 RETURNING id
                                 """
                                         .formatted(MUNICIPALIDAD_ACTUAL))
                         .param("evento", hecho.eventoId())
+                        .param("creadoEn", java.time.OffsetDateTime.now(reloj))
                         .param("tipo", hecho.tipo().name())
                         .param("predio", hecho.predioId())
                         .param("ejercicio", hecho.ejercicio())

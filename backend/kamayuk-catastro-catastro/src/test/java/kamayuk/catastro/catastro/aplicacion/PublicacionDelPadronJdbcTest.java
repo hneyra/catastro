@@ -137,7 +137,7 @@ class PublicacionDelPadronJdbcTest {
         JdbcClient jdbc = JdbcClient.create(pool);
         JsonMapper json = mapa();
 
-        buzon = new BuzonDeSalidaJdbc(jdbc);
+        buzon = new BuzonDeSalidaJdbc(jdbc, Clock.fixed(RELOJ, ZoneOffset.UTC));
         // La cadena de produccion entera: el lector resuelve el conjunto contra `normativa` —aqui
         // el fixture que lo sirve desde las tablas del escenario— y lee el resto de la cache local
         // de `V3`. La descarga va en NULO: el conjunto ya esta cacheado por la fixture, asi que
@@ -175,8 +175,6 @@ class PublicacionDelPadronJdbcTest {
     void limpiarContexto() {
         TenantContext.limpiar();
     }
-
-    // ------------------------------------------------------------------
 
     @Test
     @Order(1)
@@ -320,9 +318,30 @@ class PublicacionDelPadronJdbcTest {
                 .contains("PREDIO_PROYECTADO")
                 .contains("VALUACION_PUBLICADA")
                 .contains("CORRIDA_CERRADA");
+        assertThat(instantesDe(lote))
+                .as(
+                        "y los «emitidoEn» son TODOS el reloj fijo de esta prueba (C-12). Con el"
+                                + " now() de la base que el buzon usaba, este archivo se reescribia en"
+                                + " cada corrida del banco —su unico diff eran esos cinco instantes—,"
+                                + " de modo que git status salia sucio siempre y tapaba el cambio de"
+                                + " forma del evento que el archivo existe para enseñar. El lote: %s",
+                        lote)
+                .isNotEmpty()
+                .containsOnly(RELOJ.toString());
     }
 
     // ------------------------------------------------------------------
+
+    /** Los instantes que el lote publica, uno por evento. */
+    private static List<String> instantesDe(String lote) {
+        List<String> instantes = new ArrayList<>();
+        java.util.regex.Matcher marca =
+                java.util.regex.Pattern.compile("\"emitidoEn\"\\s*:\\s*\"([^\"]+)\"").matcher(lote);
+        while (marca.find()) {
+            instantes.add(marca.group(1));
+        }
+        return instantes;
+    }
 
     /**
      * Un SEGUNDO predio en la municipalidad del lote, y hace falta por un motivo medido.

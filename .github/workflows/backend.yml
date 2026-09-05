@@ -62,6 +62,10 @@ jobs:
       #                                       hermano y **se niega a saltarse**: una prueba de
       #                                       contrato que no encuentra su contrato y pasa en verde
       #                                       es peor que ninguna.
+      #   infra/carga-de-datos/ejemplos       el padron de demostracion contra el que
+      #                                       `ArchivosDeEjemploTest` cruza los titulares de
+      #                                       `fichas.csv` (P5C). Tampoco estaba, y no se veia
+      #                                       porque el paso de aislamiento moria antes (C-21).
       #   docs/50-api/anti-entropia           los vectores de oro de la huella. Los publica `rentas`
       #                                       y este repositorio los REPRODUCE con su propia
       #                                       implementacion (`VectoresDeHuellaTest`); si dejan de
@@ -88,6 +92,7 @@ jobs:
           sparse-checkout: |
             docs/50-api/contratos-que-consume
             docs/50-api/anti-entropia
+            infra/carga-de-datos/ejemplos
           sparse-checkout-cone-mode: false
 
       # ADR-0001 fija Java 25. Se comprueba en vez de suponerse: si alguien cambiara la propiedad,

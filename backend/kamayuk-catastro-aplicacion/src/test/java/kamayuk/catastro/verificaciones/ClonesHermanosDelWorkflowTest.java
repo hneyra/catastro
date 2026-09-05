@@ -42,7 +42,7 @@ import org.junit.jupiter.api.Test;
  * usara al correr. Una lista escrita a mano seria el segundo sitio donde olvidarse de un
  * directorio, que es el defecto que esto cierra.
  */
-@DisplayName("C-12 — El workflow trae lo que las pruebas leen del clon hermano")
+@DisplayName("C-22 — El workflow trae lo que las pruebas leen del clon hermano")
 class ClonesHermanosDelWorkflowTest {
 
     /** Las dos bases que leen del clon de otro repositorio, con el metodo que da su archivo. */

@@ -39,6 +39,10 @@ const ENTORNO: EntornoDelDescriptor = {
   nombreConVersion: (base) => `${base}-0eee58e43e04`,
   plataforma: {
     namespace: "sgtm-stg",
+    // El anfitrion del motor, ya cruzando el namespace (C-17, punto 1). Los cuatro descriptores
+    // escribian `postgres:5432` a mano, que es el nombre del `compose.yaml` local: en Kubernetes
+    // no existe ningun `Service` que se llame asi.
+    motor: "sgtm-stg-postgres.sgtm-stg:5432",
     emisor: "https://stg.kamayuk.example/keycloak/realms/sgtm",
     jwks: "http://sgtm-stg-identidad.sgtm-stg:8080/keycloak/realms/sgtm/protocol/openid-connect/certs",
   },
@@ -233,5 +237,54 @@ describe("C-14 §3 — el publicador del padron, desplegado", () => {
     // Y el ejercicio NO: con el, el publicador corre ademas la valuacion, que es un acto de un
     // ejercicio y no se dispara desde una tarea programada que nadie pidio.
     expect(declara(c, "KAMAYUK_CATASTRO_PUBLICACION_EJERCICIO")).toBe(false);
+  });
+});
+
+describe("C-17 — que el despliegue pase de verdad", () => {
+  /**
+   * El anfitrion del motor **se pide**, y este descriptor no escribe ninguno.
+   *
+   * Es la mutacion que este criterio existe para cazar: hasta C-17 la constante decia
+   * `jdbc:postgresql://postgres:5432/...`, y en Kubernetes no hay ningun `Service` llamado
+   * `postgres` —ese nombre viene del `compose.yaml` local—. Medido en el clúster:
+   * `UnknownHostException` en los ocho Jobs de los cuatro sistemas y en sus `Deployment`.
+   */
+  it("toda URL de base sale del anfitrion que entrega el entorno", () => {
+    const urls = contenedoresDe([
+      ...catastro.despliegue(ENTORNO),
+      ...catastro.migracion(ENTORNO),
+      ...catastro.implantacion(ENTORNO),
+      ...catastro.lotes(ENTORNO),
+    ]).flatMap((c) => (c.env ?? []).map((v) => v.value ?? ""))
+      .filter((v) => v.startsWith("jdbc:"));
+
+    expect(urls.length, "ninguna variable lleva una URL de base: ¿se dejo de leer?").toBeGreaterThan(0);
+    for (const url of urls) {
+      expect(url).toBe(`jdbc:postgresql://${ENTORNO.plataforma.motor}/catastro`);
+    }
+  });
+
+  /**
+   * DNS, sin el cual las demas reglas de egreso no sirven de nada.
+   *
+   * Una politica de egreso convierte a los pods que selecciona en «solo lo declarado», y todo lo
+   * que estas reglas nombran —el motor, la identidad, los sistemas hermanos— se alcanza por el
+   * nombre de un `Service`. Resolverlo es una consulta a CoreDNS, en `kube-system`. Con la regla
+   * anadida a mano sobre el clúster, las ocho tareas de los cuatro sistemas pasaron de `Failed` a
+   * `Complete` (C-17, punto 3).
+   */
+  it("abre DNS hacia kube-system, en UDP y en TCP", () => {
+    const reglas = catastro.egreso(ENTORNO).flatMap((p) => p.spec.egress ?? []);
+    const dns = reglas.filter((r) =>
+      (r.to ?? []).some(
+        (d) => d.namespaceSelector?.matchLabels?.["kubernetes.io/metadata.name"] === "kube-system",
+      ),
+    );
+
+    expect(dns, "sin DNS ninguna de las demas reglas de egreso puede resolver un nombre").toHaveLength(1);
+    expect(
+      (dns[0]?.ports ?? []).map((p) => `${p.protocol}/${p.port}`).sort(),
+      "TCP tambien: una respuesta que no cabe en un datagrama se reintenta por TCP",
+    ).toEqual(["TCP/53", "UDP/53"]);
   });
 });

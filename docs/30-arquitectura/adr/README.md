@@ -15,6 +15,10 @@ historial de por que se hizo algo vale mas que la coherencia del documento.
 | [0021](ADR-0021-la-geometria-del-predio.md) | La base modela la geometría del predio | Aceptado |
 | [0022](ADR-0022-el-visor-del-plano-catastral.md) | El visor del plano catastral | Aceptado |
 | [0027](ADR-0027-la-valuacion-es-un-hecho-sellado.md) | La valuación es un hecho sellado del ejercicio, no un estado del predio | Propuesto |
+| [0034](ADR-0034-el-marco-y-el-operador-espacial.md) | Toda tabla de tenant con geometría lleva su marco, y el operador espacial no entra en el SQL de aplicación | Propuesto |
+| [0035](ADR-0035-el-hallazgo-es-una-entidad.md) | El hallazgo catastral es una entidad con acto y evidencia, no un informe | Propuesto |
+| [0036](ADR-0036-dos-codigos-y-no-uno.md) | El Código Único Catastral del SNCP es una identidad distinta del código de referencia municipal | Propuesto |
+| [0037](ADR-0037-dos-carriles-de-mapa.md) | Dos carriles de mapa: lo publicado se tesela, lo vivo se sirve | Propuesto |
 
 ## Los que enlaza, y no copia
 
@@ -37,6 +41,7 @@ copia seria un segundo ADR el dia que alguien edite uno de los dos.
 | [0029](https://github.com/hneyra/infrastructure/blob/main/docs/30-arquitectura/adr/ADR-0029-cuatro-sistemas-separados.md) | Cuatro sistemas separados: `catastro`, `rentas`, `normativa` y `caja` | `infrastructure` | por que hay cuatro sistemas |
 | [0030](https://github.com/hneyra/infrastructure/blob/main/docs/30-arquitectura/adr/ADR-0030-cuatro-interfaces-una-sesion.md) | Cuatro interfaces, una sesión, y las librerias comunes que impiden que sean cuatro productos | `infrastructure` | su frontend |
 | [0032](https://github.com/hneyra/infrastructure/blob/main/docs/30-arquitectura/adr/ADR-0032-el-esquema-nace-en-baseline.md) | El esquema de cada sistema nace en un baseline; la historia se queda en `sgtm` | `infrastructure` | su baseline |
+| [0033](https://github.com/hneyra/infrastructure/blob/main/docs/30-arquitectura/adr/ADR-0033-cinco-sistemas-el-territorio-y-la-calle.md) | Cinco sistemas: `catastro` absorbe el territorio y `seguridad` se separa | `infrastructure` | por que los seis modulos del territorio viven aqui |
 
 El reparto entero, con su criterio, esta en [GOB-05 §4](https://github.com/hneyra/sgtm/blob/migracion-a-microservicios/docs/00-gobierno/inventario-del-corte.md).
 

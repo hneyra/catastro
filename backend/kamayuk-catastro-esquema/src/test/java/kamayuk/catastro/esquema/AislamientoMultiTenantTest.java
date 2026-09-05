@@ -349,6 +349,63 @@ class AislamientoMultiTenantTest {
         }
 
         @Test
+        @DisplayName("una consulta POR MARCO tampoco devuelve filas de B (ADR-0034)")
+        void laConsultaPorMarcoNoDevuelveFilasDeB() throws SQLException {
+            // El camino que ADR-0034 obliga a usar es NUEVO, y el aislamiento hay que ejercerlo
+            // por el camino que se usa: la prueba de arriba cuenta filas con un `SELECT count(*)`
+            // sin filtro, que no pasa por `marco_*` ni por su indice.
+            //
+            // Y no es una comprobacion de cortesia: el filtro por marco es cuatro desigualdades
+            // sobre columnas GENERADAS, que es exactamente la forma que el motor puede resolver
+            // ANTES de la politica cuando la funcion es leakproof —y `float8le` lo es—. Que se
+            // evalue antes es lo que hace que el indice sirva (ese es el arreglo); que aun asi la
+            // politica se aplique es lo que hay que comprobar aqui, porque las dos cosas juntas
+            // son la unica razon por la que el arreglo es aceptable.
+            String marcoQueAbarcaElMundo =
+                    "SELECT count(*) FROM frente_predio"
+                            + " WHERE marco_oeste <= 180 AND marco_este >= -180"
+                            + "   AND marco_sur <= 90 AND marco_norte >= -90";
+
+            try (Connection app = base.conexion(BaseDeDatosDePrueba.APP)) {
+                ContextoDeTenant.fijar(app, municipalidadA);
+                long deA = contar(app, marcoQueAbarcaElMundo);
+                app.rollback();
+
+                ContextoDeTenant.fijar(app, municipalidadB);
+                long deB = contar(app, marcoQueAbarcaElMundo);
+                app.rollback();
+
+                ContextoDeTenant.fijar(app, municipalidadA);
+                long total = contar(app, "SELECT count(*) FROM frente_predio");
+                long fugadas =
+                        contar(
+                                app,
+                                marcoQueAbarcaElMundo
+                                        + " AND municipalidad_id = "
+                                        + municipalidadB);
+                app.rollback();
+
+                assertThat(deA)
+                        .as("con el contexto de A, el marco tiene que devolver los frentes de A")
+                        .isPositive()
+                        .as(
+                                "y exactamente los suyos: el rectangulo abarca el planeta, asi que"
+                                        + " todo lo que sobre son filas de otra municipalidad")
+                        .isEqualTo(total);
+                assertThat(deB)
+                        .as("y con el de B, los de B: si fuera cero, el contraste no diria nada")
+                        .isPositive();
+                assertThat(fugadas)
+                        .as(
+                                "fuga por el camino nuevo: el marco es leakproof y se evalua ANTES"
+                                        + " que la politica, que es lo que hace que el indice sirva;"
+                                        + " esta cifra es lo que comprueba que evaluarse antes no"
+                                        + " significa evaluarse EN VEZ DE")
+                        .isZero();
+            }
+        }
+
+        @Test
         @DisplayName("un INSERT con municipalidad_id de B falla por WITH CHECK")
         void insertarConMunicipalidadAjenaFalla() {
             String estado =

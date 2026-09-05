@@ -353,6 +353,29 @@ public final class DatosDePrueba {
                 muni,
                 fichaId);
 
+        // El frente del predio (V6). Es la PRIMERA geometria que siembran estas fixtures, y por
+        // eso lleva coordenadas de verdad: la prueba del marco de ADR-0034 filtra por un
+        // rectangulo, y con la geometria nula las cuatro columnas generadas salen nulas y el
+        // filtro no devolveria nada — o sea que pasaria en verde sin haber comprobado el
+        // aislamiento del camino nuevo.
+        //
+        // Cada municipalidad cae en un GRADO distinto de longitud (`desplazamiento`), asi que sus
+        // frentes no se solapan ni por casualidad: si el filtro por marco tuviera una fuga, la
+        // prueba veria filas de la otra y no un empate ambiguo.
+        ejecutar(
+                app,
+                "INSERT INTO frente_predio (municipalidad_id, predio_id, via_id, geometria,"
+                        + " longitud_m, es_principal, numeracion, observacion, usuario_registro)"
+                        + " VALUES (?, ?, ?,"
+                        + "         ST_GeogFromText('SRID=4326;LINESTRING(' || ? || ' -4.90, '"
+                        + "                          || ? || ' -4.9002)'),"
+                        + "         18.50, true, '101', 'frente inicial de prueba', 'prueba')",
+                muni,
+                predioId,
+                viaId,
+                desplazamientoDe(sufijo) + " ",
+                desplazamientoDe(sufijo) + " ");
+
         // Los otros tres tipos de ficha (#19). Van sobre el mismo predio a proposito: el indice
         // parcial admite una vigente de cada tipo, y sembrarlas juntas lo comprueba de paso.
         long economica =
@@ -479,7 +502,25 @@ public final class DatosDePrueba {
         return predioId;
     }
 
-    /** Codigo de referencia catastral de relleno; la longitud exacta es D-10. */
+    /**
+     * La longitud en que caen los frentes de este tenant, para que dos municipalidades no compartan
+     * rectangulo.
+     *
+     * <p>Un grado de longitud por sufijo: separa los marcos lo bastante como para que una fuga se
+     * vea como filas de la otra municipalidad y no como un empate que hay que interpretar. El
+     * entorno es Sullana, asi que se parte de -80.
+     */
+    private static String desplazamientoDe(String sufijo) {
+        return "-8" + (Math.floorMod(sufijo.hashCode(), 9) + 1) + ".0";
+    }
+
+    /**
+     * Codigo de referencia catastral de relleno.
+     *
+     * <p>Su longitud ya no es una ambiguedad: ADR-0036 declara este codigo <b>municipal y de largo
+     * configurable por municipalidad</b>, y saca de el la identidad del SNCP, que es la que tiene
+     * doce posiciones fijas (`predio.cuc`, V6).
+     */
     private static String codigoCatastral(String sufijo) {
         String digitos = Integer.toString(Math.abs(sufijo.hashCode() % 100) + 10);
         return ("2006010101500101010" + digitos + "000000").substring(0, 21);

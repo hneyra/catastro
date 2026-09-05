@@ -47,13 +47,23 @@ GRANT USAGE           ON SCHEMA public TO sgtm_app, sgtm_readonly, rol_carga_par
 -- usa necesita que ya existan. Instalar una extension es provisionar el ambiente,
 -- no versionar el esquema.
 --
---   pg_trgm   busqueda de contribuyentes por aproximacion de nombre (RF-014).
---             Sin ella, un nombre mal escrito en ventanilla no encuentra a nadie
---             y se da de alta al mismo contribuyente por segunda vez.
---   unaccent  para que «PEÑA» y «PENA» sean el mismo nombre.
+--   unaccent  para que «PEÑA» y «PENA» sean el mismo nombre. La usa la funcion
+--             `nombre_normalizado(text)` del catalogo vial (V1, V4).
 --
--- Las dos son trusted desde PostgreSQL 13, asi que en un ambiente donde
--- sgtm_owner sea dueño de la base tampoco harian falta privilegios especiales.
+-- Es trusted desde PostgreSQL 13, asi que en un ambiente donde sgtm_owner sea
+-- dueño de la base tampoco harian falta privilegios especiales.
+--
+-- **pg_trgm SALIO de aqui en C-13**, y conviene decir por que en vez de dejar la
+-- linea: la busqueda por aproximacion de nombre es del PADRON de contribuyentes
+-- (RF-014), que es de `rentas`. Ninguna migracion de este esquema llama a
+-- `similarity()`, `word_similarity()` ni `show_trgm()`, ni indexa con
+-- `gin_trgm_ops` o `gist_trgm_ops` — medido, y vigilado en las dos direcciones
+-- por `extensiones-de-las-migraciones.ts` de `infrastructure`: el dia que una
+-- migracion de aqui la use, esa guarda se pone roja nombrandola.
+--
+-- Venia del archivo que P3 copio del monolito, y que P5D si podo en `caja` y P5E
+-- en `rentas`. Retirarla no toca ningun ambiente ya provisionado —aqui no hay
+-- ningun DROP EXTENSION—: lo que cambia es que una base NUEVA no la recibe.
 --   postgis   la geometria del predio (ADR-0021, V61). A diferencia de las dos
 --             anteriores NO es trusted, asi que hace falta un superusuario: no
 --             hay forma de que la instale la migracion, que corre como
@@ -69,7 +79,6 @@ GRANT USAGE           ON SCHEMA public TO sgtm_app, sgtm_readonly, rol_carga_par
 --             BASE, y `sgtm_owner` no es su dueño: intentarlo desde la migracion
 --             da «permission denied to create extension "btree_gist"». Medido
 --             ejecutando, no supuesto.
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE EXTENSION IF NOT EXISTS unaccent;
 CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE EXTENSION IF NOT EXISTS btree_gist;

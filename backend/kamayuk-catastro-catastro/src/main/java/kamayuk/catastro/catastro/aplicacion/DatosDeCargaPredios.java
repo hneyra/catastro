@@ -18,16 +18,16 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param usuarioDelProceso con que nombre firma la auditoria lo que hace este proceso
  * @param observacion el «por que» de la carga (regla 10, ADR-0008)
  */
-@ConfigurationProperties("sgtm.carga-predios")
+@ConfigurationProperties("kamayuk.carga-predios")
 public record DatosDeCargaPredios(
         long municipalidadId, String archivo, String usuarioDelProceso, String observacion) {
 
     public DatosDeCargaPredios {
         if (municipalidadId < 1) {
             throw new IllegalArgumentException(
-                    "Falta sgtm.carga-predios.municipalidad-id, o no es un identificador valido");
+                    "Falta kamayuk.carga-predios.municipalidad-id, o no es un identificador valido");
         }
-        archivo = exigir(archivo, "sgtm.carga-predios.archivo");
+        archivo = exigir(archivo, "kamayuk.carga-predios.archivo");
         usuarioDelProceso =
                 usuarioDelProceso == null || usuarioDelProceso.isBlank()
                         ? "carga-predios"

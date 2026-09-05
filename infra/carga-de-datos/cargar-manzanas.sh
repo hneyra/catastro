@@ -95,22 +95,22 @@ spec:
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: batch
-            - name: SGTM_DB_URL
+            - name: KAMAYUK_DB_URL
               value: jdbc:postgresql://sgtm-${AMBIENTE}-postgres:5432/sgtm
-            - name: SGTM_DB_USUARIO
+            - name: KAMAYUK_DB_USUARIO
               value: sgtm_app
-            - name: SGTM_DB_CLAVE
+            - name: KAMAYUK_DB_CLAVE
               valueFrom:
                 secretKeyRef:
                   name: sgtm-${AMBIENTE}-postgres-app
                   key: clave-app
-            - name: SGTM_CARGAMANZANAS_MUNICIPALIDADID
+            - name: KAMAYUK_CARGAMANZANAS_MUNICIPALIDADID
               value: "$MUNICIPALIDAD_ID"
-            - name: SGTM_CARGAMANZANAS_ARCHIVO
+            - name: KAMAYUK_CARGAMANZANAS_ARCHIVO
               value: /datos/manzanas.csv
-            - name: SGTM_CARGAMANZANAS_USUARIODELPROCESO
+            - name: KAMAYUK_CARGAMANZANAS_USUARIODELPROCESO
               value: carga-manzanas
-            - name: SGTM_CARGAMANZANAS_OBSERVACION
+            - name: KAMAYUK_CARGAMANZANAS_OBSERVACION
               value: "$OBSERVACION"
           volumeMounts:
             - name: datos

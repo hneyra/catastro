@@ -108,22 +108,22 @@ spec:
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: batch
-            - name: SGTM_DB_URL
+            - name: KAMAYUK_DB_URL
               value: jdbc:postgresql://sgtm-${AMBIENTE}-postgres:5432/sgtm
-            - name: SGTM_DB_USUARIO
+            - name: KAMAYUK_DB_USUARIO
               value: sgtm_app
-            - name: SGTM_DB_CLAVE
+            - name: KAMAYUK_DB_CLAVE
               valueFrom:
                 secretKeyRef:
                   name: sgtm-${AMBIENTE}-postgres-app
                   key: clave-app
-            - name: SGTM_CARGAPREDIOS_MUNICIPALIDADID
+            - name: KAMAYUK_CARGAPREDIOS_MUNICIPALIDADID
               value: "$MUNICIPALIDAD_ID"
-            - name: SGTM_CARGAPREDIOS_ARCHIVO
+            - name: KAMAYUK_CARGAPREDIOS_ARCHIVO
               value: /datos/predios.csv
-            - name: SGTM_CARGAPREDIOS_USUARIODELPROCESO
+            - name: KAMAYUK_CARGAPREDIOS_USUARIODELPROCESO
               value: carga-predios
-            - name: SGTM_CARGAPREDIOS_OBSERVACION
+            - name: KAMAYUK_CARGAPREDIOS_OBSERVACION
               value: "$OBSERVACION"
           volumeMounts:
             - name: datos

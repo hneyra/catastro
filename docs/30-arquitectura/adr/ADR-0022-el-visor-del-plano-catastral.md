@@ -122,7 +122,7 @@ saber dibujar.
   desde el mismo servidor que todo lo demás; las teselas de OpenStreetMap sólo dicen qué hay
   alrededor. Si no cargan —una municipalidad sin salida a internet, que es lo corriente—, **el plano
   se dibuja igual** y la pantalla lo dice. El origen de las teselas es configurable
-  (`VITE_SGTM_TESELAS`) para que una instalación pueda apuntar a su propio servidor, y la atribución
+  (`VITE_KAMAYUK_TESELAS`) para que una instalación pueda apuntar a su propio servidor, y la atribución
   de OpenStreetMap se muestra siempre, que es su licencia.
 
 ### 5. Qué capa es cada capa, y **cuál no se pinta**

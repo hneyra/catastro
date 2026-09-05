@@ -125,7 +125,7 @@ tasks.test {
 // java-library, y cual de los dos acaba en el contenedor dependeria del orden
 // alfabetico.
 tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
-    archiveFileName.set("sgtm.jar")
+    archiveFileName.set("catastro.jar")
 }
 
 

@@ -43,7 +43,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @Profile("batch")
-@ConditionalOnProperty("sgtm.carga-sectores.archivo")
+@ConditionalOnProperty("kamayuk.carga-sectores.archivo")
 @EnableConfigurationProperties(DatosDeCargaSectores.class)
 public class CargarSectores implements ApplicationRunner {
 

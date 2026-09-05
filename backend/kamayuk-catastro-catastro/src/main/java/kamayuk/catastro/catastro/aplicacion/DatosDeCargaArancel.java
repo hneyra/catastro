@@ -21,7 +21,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param usuarioDelProceso con que nombre firma la auditoria lo que hace este proceso
  * @param observacion el «por que» de la carga (regla 10, ADR-0008)
  */
-@ConfigurationProperties("sgtm.carga-arancel")
+@ConfigurationProperties("kamayuk.carga-arancel")
 public record DatosDeCargaArancel(
         long municipalidadId,
         long conjuntoId,
@@ -32,14 +32,14 @@ public record DatosDeCargaArancel(
     public DatosDeCargaArancel {
         if (municipalidadId < 1) {
             throw new IllegalArgumentException(
-                    "Falta sgtm.carga-arancel.municipalidad-id, o no es un identificador valido");
+                    "Falta kamayuk.carga-arancel.municipalidad-id, o no es un identificador valido");
         }
         if (conjuntoId < 1) {
             throw new IllegalArgumentException(
-                    "Falta sgtm.carga-arancel.conjunto-id, o no es un identificador valido. Lo abre"
+                    "Falta kamayuk.carga-arancel.conjunto-id, o no es un identificador valido. Lo abre"
                             + " AbrirConjuntoDeParametros antes de correr esta carga");
         }
-        archivo = exigir(archivo, "sgtm.carga-arancel.archivo");
+        archivo = exigir(archivo, "kamayuk.carga-arancel.archivo");
         usuarioDelProceso =
                 usuarioDelProceso == null || usuarioDelProceso.isBlank()
                         ? "carga-arancel"

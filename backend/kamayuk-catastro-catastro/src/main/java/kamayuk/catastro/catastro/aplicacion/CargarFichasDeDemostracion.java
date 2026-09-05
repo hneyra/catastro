@@ -43,7 +43,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @Profile("batch")
-@ConditionalOnProperty("sgtm.carga-fichas-demo.archivo")
+@ConditionalOnProperty("kamayuk.carga-fichas-demo.archivo")
 @EnableConfigurationProperties(DatosDeCargaFichasDemo.class)
 public class CargarFichasDeDemostracion implements ApplicationRunner {
 

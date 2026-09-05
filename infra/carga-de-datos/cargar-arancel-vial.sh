@@ -103,24 +103,24 @@ spec:
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: batch
-            - name: SGTM_DB_URL
+            - name: KAMAYUK_DB_URL
               value: jdbc:postgresql://sgtm-${AMBIENTE}-postgres:5432/sgtm
-            - name: SGTM_DB_USUARIO
+            - name: KAMAYUK_DB_USUARIO
               value: sgtm_app
-            - name: SGTM_DB_CLAVE
+            - name: KAMAYUK_DB_CLAVE
               valueFrom:
                 secretKeyRef:
                   name: sgtm-${AMBIENTE}-postgres-app
                   key: clave-app
-            - name: SGTM_CARGAARANCEL_MUNICIPALIDADID
+            - name: KAMAYUK_CARGAARANCEL_MUNICIPALIDADID
               value: "$MUNICIPALIDAD_ID"
-            - name: SGTM_CARGAARANCEL_CONJUNTOID
+            - name: KAMAYUK_CARGAARANCEL_CONJUNTOID
               value: "$CONJUNTO_ID"
-            - name: SGTM_CARGAARANCEL_ARCHIVO
+            - name: KAMAYUK_CARGAARANCEL_ARCHIVO
               value: /datos/arancel.csv
-            - name: SGTM_CARGAARANCEL_USUARIODELPROCESO
+            - name: KAMAYUK_CARGAARANCEL_USUARIODELPROCESO
               value: carga-arancel
-            - name: SGTM_CARGAARANCEL_OBSERVACION
+            - name: KAMAYUK_CARGAARANCEL_OBSERVACION
               value: "$OBSERVACION"
           volumeMounts:
             - name: datos

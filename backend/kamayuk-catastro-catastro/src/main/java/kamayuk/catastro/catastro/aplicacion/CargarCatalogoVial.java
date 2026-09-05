@@ -41,7 +41,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @Profile("batch")
-@ConditionalOnProperty("sgtm.carga-vial.archivo")
+@ConditionalOnProperty("kamayuk.carga-vial.archivo")
 @EnableConfigurationProperties(DatosDeCargaVial.class)
 public class CargarCatalogoVial implements ApplicationRunner {
 

@@ -60,7 +60,7 @@ tabla **tiene** y se para en rojo diciendo cuántas faltan.
 ## Lo que este repositorio tenía y no era suyo
 
 `cargar-transferencias-demo.sh` estaba aquí y **el cargador que lo atiende vive en `rentas`**
-(`CargarTransferenciasDeDemostracion`, encendido por `sgtm.carga-transferencias-demo.archivo`).
+(`CargarTransferenciasDeDemostracion`, encendido por `kamayuk.carga-transferencias-demo.archivo`).
 Lanzado desde aquí arrancaba la aplicación de `catastro`, **no ejecutaba ni una línea de carga** y
 salía con código 0 — sin un aviso, sin una fila rechazada, sin nada. Medido, y por eso se fue a
 `rentas` con su CSV. Que no vuelva a pasar lo comprueba `siembra-de-la-demostracion.test.ts` de

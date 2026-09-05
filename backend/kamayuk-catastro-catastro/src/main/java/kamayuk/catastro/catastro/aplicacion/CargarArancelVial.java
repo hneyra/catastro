@@ -39,7 +39,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @Profile("batch")
-@ConditionalOnProperty("sgtm.carga-arancel.archivo")
+@ConditionalOnProperty("kamayuk.carga-arancel.archivo")
 @EnableConfigurationProperties(DatosDeCargaArancel.class)
 public class CargarArancelVial implements ApplicationRunner {
 

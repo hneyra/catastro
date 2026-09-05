@@ -56,6 +56,12 @@ class ModulosTest {
                         // segmento del paquete, asi que renombrar el paquete lo renombra aqui — y
                         // esta lista es lo que lo puso en rojo al hacerlo.
                         "nucleo",
+                        // Y el segundo, con #5: la gestion del riesgo de desastres del predio.
+                        // No depende de `nucleo` -lo unico que necesita del predio es su poligono,
+                        // y ese cruce se resuelve dentro de una sola sentencia SQL-, asi que lo que
+                        // esta linea comprueba es que Modulith lo DETECTA: un contexto que no se
+                        // detecta no lo revisa `verify()`.
+                        "grd",
                         // Y sus dos puertas de salida: el padron de `rentas` y la normativa
                         // cacheada. Los dos son modulos para Modulith aunque sean puertos, y eso
                         // es lo que hace comprobable que `catastro` no toque un tipo interno

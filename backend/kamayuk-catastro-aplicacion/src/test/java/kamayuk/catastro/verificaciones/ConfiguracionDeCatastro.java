@@ -42,6 +42,8 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
             Map.ofEntries(
                     Map.entry("kamayuk-catastro-contribuyentes", "rentas"),
                     Map.entry("kamayuk-catastro-nucleo", "catastro"),
+                    // #5: el segundo contexto acotado de este sistema.
+                    Map.entry("kamayuk-catastro-grd", "catastro"),
                     Map.entry("kamayuk-catastro-rentas", "rentas"),
                     Map.entry("kamayuk-catastro-parametros", "normativa"),
                     Map.entry("kamayuk-catastro-fiscalizacion", "rentas"),
@@ -174,6 +176,7 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
                     "bien_comun",
                     "colindante_rural",
                     "construccion",
+                    "faja_marginal",
                     "ficha_catastral",
                     // V6: el frente del predio. Se nombra aunque este sistema no la tenga —y por
                     // eso
@@ -181,6 +184,9 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
                     // regla 11 DEJA DE MIRAR un cruce contra ella, en verde (la leccion de R-N).
                     "frente_predio",
                     "inquilino",
+                    // #5: el certificado ITSE del predio. No se borra: entra ademas en
+                    // TablasDelSgtm.PROTEGIDAS.
+                    "itse",
                     "manzana",
                     "otra_instalacion",
                     "participacion_comun",
@@ -188,7 +194,8 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
                     "sector",
                     "tierra_rural",
                     "titularidad",
-                    "via");
+                    "via",
+                    "zona_riesgo");
 
     private static final Set<String> DE_NORMATIVA =
             Set.of(
@@ -364,7 +371,12 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
                 // El contexto acotado principal, anadido en R-N: sin el, renombrar el paquete del
                 // modulo mas grande del sistema no ponia roja esta guarda —se conformaba con que
                 // estuvieran los tres de infraestructura—. `caja` ya lo declaraba desde P5D.
-                "kamayuk.catastro.nucleo.dominio");
+                "kamayuk.catastro.nucleo.dominio",
+                // Y el segundo contexto acotado, con #5: sin esta linea, renombrar o vaciar el
+                // paquete de dominio de `grd` no pondria roja ninguna guarda -las reglas acotadas a
+                // `..dominio..` seguirian encontrando las clases del OTRO contexto y pasarian en
+                // verde-.
+                "kamayuk.catastro.grd.dominio");
     }
 
     @Override

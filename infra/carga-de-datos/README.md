@@ -23,8 +23,18 @@ inexistente se rechaza sola** — no revienta la carga. Dentro de `catastro` el 
 | 6 | `cargar-fichas-demo.sh` | `ejemplos/fichas.csv` | vías, sectores, manzanas **y el padrón de `rentas`** |
 | 7 | `cargar-detalle-fichas-demo.sh` | `ejemplos/detalle-de-fichas.csv` | las fichas |
 
-`cargar-predios.sh` y `cargar-arancel-vial.sh` no siembran datos de demostración: el primero importa
-un catastro real desde un GeoPackage (ADR-0021) y el segundo el arancel del MEF.
+`cargar-predios.sh`, `cargar-arancel-vial.sh` y `cargar-riesgo.sh` no siembran datos de
+demostración: el primero importa un catastro real desde un GeoPackage (ADR-0021), el segundo el
+arancel del MEF y el tercero la carta de peligro de CENEPRED y la faja marginal de la ANA (#5). Los
+tres cargan **actos de terceros sobre el territorio de esa municipalidad**, no datos inventados, así
+que ninguno exige `es_demostracion` — exigirlo dejaría a una instalación de verdad sin forma de
+poblarlos, que es el hueco que #430 encontró para `area` y `caja`.
+
+`ejemplos/riesgo.csv` es la excepción de esa frase y conviene saberlo: **sus polígonos sí son
+inventados**, porque hoy no hay ni un polígono de predio cargado en ninguna instalación y no había
+con qué cruzarlos. Está para que el analizador se ejerza contra filas de verdad y para que quien
+monte una instalación vea la forma exacta que su SIG tiene que producir. **No es un paso de la
+siembra** y `pasos.tsv` no lo nombra: `sembrar-demostracion.sh` no lo corre.
 
 **Los números 4, 5, 8, 9 y 10 no están aquí, y ése es el punto.** El orden completo —los diez pasos,
 con su dueño— vive en **un solo sitio**, y no es este repositorio:

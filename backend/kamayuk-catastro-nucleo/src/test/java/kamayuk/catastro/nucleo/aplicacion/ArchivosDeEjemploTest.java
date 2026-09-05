@@ -56,7 +56,7 @@ class ArchivosDeEjemploTest {
     }
 
     @Test
-    @DisplayName("los cinco archivos de la siembra de catastro existen donde el README dice")
+    @DisplayName("los seis archivos de ejemplo de catastro existen donde el README dice")
     void losArchivosExisten() {
         assertThat(ejemplos()).isDirectory();
         for (String nombre :
@@ -65,7 +65,13 @@ class ArchivosDeEjemploTest {
                         "sectores.csv",
                         "manzanas.csv",
                         "fichas.csv",
-                        "detalle-de-fichas.csv")) {
+                        "detalle-de-fichas.csv",
+                        // #4. NO es de la siembra de demostracion —como `cargar-predios.sh`, su
+                        // cargador escribe en municipalidades de verdad—, pero el archivo esta y
+                        // que ESTE se comprueba desde aqui igual que los otros cinco. Analizarlo
+                        // con su analizador es de `ArchivosDeEjemploDeUrbanoTest`, que vive en
+                        // `kamayuk-catastro-urbano` porque este modulo no ve ni una clase suya.
+                        "zonificacion.csv")) {
             assertThat(ejemplos().resolve(nombre)).as(nombre).isRegularFile();
         }
         assertThat(ejemplos().getParent().resolve("README.md")).isRegularFile();
@@ -196,7 +202,8 @@ class ArchivosDeEjemploTest {
                         "sectores.csv",
                         "manzanas.csv",
                         "fichas.csv",
-                        "detalle-de-fichas.csv")) {
+                        "detalle-de-fichas.csv",
+                        "zonificacion.csv")) {
             List<String> lineas = Files.readAllLines(ejemplos().resolve(nombre));
             for (String linea : lineas) {
                 if (linea.stripLeading().startsWith("#")) {

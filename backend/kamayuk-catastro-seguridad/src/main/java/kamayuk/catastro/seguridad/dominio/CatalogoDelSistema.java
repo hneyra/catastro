@@ -67,6 +67,11 @@ public final class CatalogoDelSistema {
                             "valores_unitarios",
                             "Valores unitarios de edificacion"),
                     new Opcion("CATASTRO", "Catastro", "depreciacion", "Tabla de depreciacion"),
+                    // #4 — la zonificacion. Es la opcion que declara `ZonificacionController`
+                    // con `@RequiereAcceso`, y `CatalogoDelSistemaTest` exige que las dos listas
+                    // sean el mismo conjunto: sin esta fila, el guardia negaria una pantalla a la
+                    // que nadie podria dar permiso (RF-122).
+                    new Opcion("CATASTRO", "Catastro", "zonificacion", "Zonificacion urbana"),
                     new Opcion(
                             "CONSULTAS",
                             "Consultas",

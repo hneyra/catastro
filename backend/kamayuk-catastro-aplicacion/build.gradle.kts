@@ -28,6 +28,7 @@ dependencies {
     implementation(project(":kamayuk-catastro-contribuyentes"))
     implementation(project(":kamayuk-catastro-nucleo"))
     implementation(project(":kamayuk-catastro-parametros"))
+    implementation(project(":kamayuk-catastro-urbano"))
 
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.modulith:spring-modulith-starter-core")

@@ -70,6 +70,12 @@ include("kamayuk-catastro-contribuyentes")
 // lo que cambia es el nombre del contexto.
 include("kamayuk-catastro-nucleo")
 
+// El contexto acotado del urbanismo (#4): la zonificacion vigente, sus parametros
+// urbanisticos, la seccion normativa de las vias y las habilitaciones urbanas. Publica LA
+// ZONA a la que cae un predio; quien es compatible con que es dato de `rentas`
+// (`ciiu.zonificacion_compatible`), que es la frontera de ADR-0024.
+include("kamayuk-catastro-urbano")
+
 // La copia local de usuarios, grupos y permisos, y su siembra (D-N5). No es un contexto
 // acotado: es el lector que autoriza y el sembrador que implanta. Las pantallas de
 // administracion de seguridad viven en `rentas` (ADR-0030 §3).

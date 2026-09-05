@@ -42,6 +42,7 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
             Map.ofEntries(
                     Map.entry("kamayuk-catastro-contribuyentes", "rentas"),
                     Map.entry("kamayuk-catastro-nucleo", "catastro"),
+                    Map.entry("kamayuk-catastro-urbano", "catastro"),
                     Map.entry("kamayuk-catastro-rentas", "rentas"),
                     Map.entry("kamayuk-catastro-parametros", "normativa"),
                     Map.entry("kamayuk-catastro-fiscalizacion", "rentas"),
@@ -174,6 +175,11 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
                     "bien_comun",
                     "colindante_rural",
                     "construccion",
+                    // V7 (#4): la zonificacion. Se nombran las cuatro aunque este sistema sea el
+                    // dueno —y por eso mismo—: sin la entrada, el reparto las da por «replicadas»
+                    // y el escaner de la regla 11 DEJA DE MIRAR un cruce contra ellas, en verde
+                    // (la leccion de R-N).
+                    "habilitacion_urbana",
                     "ficha_catastral",
                     // V6: el frente del predio. Se nombra aunque este sistema no la tenga —y por
                     // eso
@@ -183,12 +189,15 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
                     "inquilino",
                     "manzana",
                     "otra_instalacion",
+                    "parametro_urbanistico",
                     "participacion_comun",
                     "predio",
+                    "seccion_via",
                     "sector",
                     "tierra_rural",
                     "titularidad",
-                    "via");
+                    "via",
+                    "zonificacion");
 
     private static final Set<String> DE_NORMATIVA =
             Set.of(
@@ -364,7 +373,10 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
                 // El contexto acotado principal, anadido en R-N: sin el, renombrar el paquete del
                 // modulo mas grande del sistema no ponia roja esta guarda —se conformaba con que
                 // estuvieran los tres de infraestructura—. `caja` ya lo declaraba desde P5D.
-                "kamayuk.catastro.nucleo.dominio");
+                "kamayuk.catastro.nucleo.dominio",
+                // El contexto acotado de #4, por lo mismo: sin nombrarlo, renombrar o vaciar su
+                // paquete de dominio no pondria roja ninguna guarda.
+                "kamayuk.catastro.urbano.dominio");
     }
 
     @Override

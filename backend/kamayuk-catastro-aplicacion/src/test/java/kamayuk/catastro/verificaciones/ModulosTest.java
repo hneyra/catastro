@@ -56,6 +56,11 @@ class ModulosTest {
                         // segmento del paquete, asi que renombrar el paquete lo renombra aqui — y
                         // esta lista es lo que lo puso en rojo al hacerlo.
                         "nucleo",
+                        // El contexto acotado del urbanismo (#4). Es el segundo de este sistema:
+                        // publica la zona a la que cae un predio, y no toca ninguna tabla del
+                        // padron por Java —solo por SQL, en la misma sentencia que el marco, que
+                        // es lo que ADR-0034 regla 2 obliga—.
+                        "urbano",
                         // Y sus dos puertas de salida: el padron de `rentas` y la normativa
                         // cacheada. Los dos son modulos para Modulith aunque sean puertos, y eso
                         // es lo que hace comprobable que `catastro` no toque un tipo interno

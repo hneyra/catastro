@@ -676,8 +676,21 @@ if (sondeadas !== sondas.length || comprobadas === 0) {
 // ---------------------------------------------------------------------------
 
 if (sinMedir.length > 0) {
-  console.error(`\nEsta comprobacion NO MIDIO lo que existe para medir:\n`);
+  // Lo que SI se pudo medir se dice igual, y esto no es cosmetica. Dos de las tres
+  // afirmaciones de este arnes —`.gitignore` contra `.dockerignore`, y lo que el
+  // `Dockerfile` copia— no necesitan Docker, y sin esto se perdian enteras en cuanto
+  // faltaba: quien no tiene Docker recibia CERO senal de una comprobacion que podia
+  // darle dos tercios. Callar un defecto que si se vio, porque otra cosa no se pudo
+  // ver, es la forma de silencio que este arnes existe para impedir.
+  if (fallos.length > 0) {
+    console.error(`\n${fallos.length} defecto(s) que SI se pudieron medir:\n`);
+    for (const f of fallos) console.error(`  ${f}\n`);
+  }
+  console.error(`\nY ademas, esta comprobacion NO MIDIO lo que existe para medir:\n`);
   for (const q of sinMedir) console.error(`  ${q}\n`);
+  // Sale con 2 y no con 1 a proposito, aunque haya defectos: «no se pudo medir» tiene
+  // que seguir distinguiendose de «se midio y esta mal», que es lo que decide si el
+  // rojo se arregla mirando el codigo o mirando el entorno.
   process.exit(2);
 }
 

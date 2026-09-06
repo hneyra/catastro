@@ -1,0 +1,47 @@
+/* Los colores del artboard `CatastroV6.dc.html`, tal cual los declara su guion
+   (lineas 907-937). NO son los de la paleta «Juris PE» del precedente
+   `sgtm/frontend`: es otra, y mezclarlas produce una interfaz que se parece a
+   las dos y no es ninguna. */
+:root {
+  /* Accion y jerarquia */
+  --azul: #005284;
+  --azul-osc: #00365a;
+  --azul-suave: #e4f4fd;
+  --acento: #52bdef;
+
+  /* Lineas y bordes */
+  --linea: #d6dee4;
+  --linea-2: #e3e9ee;
+  --borde-campo: #c3cfd9;
+
+  /* Tinta */
+  --tinta: #16232c;
+  --tinta-2: #3a4a55;
+  --tinta-3: #5a6b78;
+  /* El gris de los rotulos apagados y de los marcadores de posicion. El
+     artboard lo escribe suelto —no lo nombra— en `::placeholder`, en el chevron
+     del acordeon y en la aspa de la pestana inactiva. */
+  --tinta-4: #93a3af;
+
+  /* Superficies */
+  --sup: #f7fbfe;
+  --fondo: #f2f6f9;
+  --blanco: #ffffff;
+
+  /* Sobre el azul oscuro de la barra global */
+  --sobre-azul: #9fc6df;
+
+  /* Insignias: relleno y tinta, en pareja. Se cambian a la vez o no se cambian:
+     el relleno solo no dice nada y la tinta sola deja de leerse. */
+  --ok-fondo: #dcefe3;
+  --ok-tinta: #1f5b39;
+  --warn-fondo: #fff4d9;
+  --warn-tinta: #7a5200;
+  --bad-fondo: #fbe4e0;
+  --bad-tinta: #8f2a17;
+  --info-fondo: #e4f4fd;
+  --info-tinta: #004670;
+
+  /* El punto rojo del contador de avisos. */
+  --contador: #c0492f;
+}

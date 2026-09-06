@@ -1,0 +1,46 @@
+/* Source Sans 3, AUTO-HOSPEDADA.
+   ==============================
+
+   El artboard la trae con un `<link>` a `fonts.googleapis.com`. Aqui no: una
+   interfaz municipal no puede depender de una CDN externa para leerse — ni de
+   que el municipio tenga salida a internet, ni de que Google siga sirviendo esa
+   URL, ni de lo que la peticion le cuenta a un tercero sobre quien usa el
+   sistema. Los dos archivos viven en `src/ds/fuentes/` y Vite les pone huella al
+   compilar.
+
+   **Un archivo por subconjunto, no uno por peso, y esta medido.** El CSS que
+   Google sirve declara 21 bloques `@font-face` —tres pesos por cada uno de sus
+   siete subconjuntos— y apunta a solo **7 URLs distintas**: Source Sans 3 es una
+   fuente VARIABLE, y el mismo woff2 sirve el 400, el 600 y el 700. Bajarse tres
+   copias del mismo archivo por subconjunto —comprobado con `md5`: los tres
+   `latin` dan `fb6579a3…` y los tres `latin-ext` dan `60938528…`— seria pagar
+   tres veces la misma descarga. Por eso el rango de peso se declara `400 700` en
+   un solo bloque.
+
+   Se traen `latin` y `latin-ext` y no los siete: el castellano cabe en los dos,
+   y los otros cinco —cirilico, griego, vietnamita— son 300 KB que nadie iba a
+   pintar. */
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('../fuentes/source-sans-3-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('../fuentes/source-sans-3-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+:root {
+  --fuente: 'Source Sans 3', system-ui, sans-serif;
+  --texto-base: 15px;
+}

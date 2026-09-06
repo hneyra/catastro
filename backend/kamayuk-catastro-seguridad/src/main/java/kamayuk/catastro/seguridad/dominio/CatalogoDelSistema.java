@@ -72,8 +72,9 @@ public final class CatalogoDelSistema {
                     // sean el mismo conjunto: sin esta fila, el guardia negaria una pantalla a la
                     // que nadie podria dar permiso (RF-122).
                     new Opcion("CATASTRO", "Catastro", "zonificacion", "Zonificacion urbana"),
-                    // #5. Es la UNICA opcion de esta lista que no esta transcrita del catalogo
-                    // del manual, y se dice: el SGTM de Sullana no sabe lo que es una zona de
+                    // #5. Es una de las dos opciones de esta lista que no estan transcritas del
+                    // catalogo del manual —la otra es `fiscalizacion_catastral`, de #6—, y se dice:
+                    // el SGTM de Sullana no sabe lo que es una zona de
                     // riesgo ni un ITSE, asi que no hay de donde copiarla. El codigo se elige aqui
                     // y el nombre tambien; lo que no se elige es que exista, porque el endpoint la
                     // declara y `CatalogoDelSistemaTest` compara los dos conjuntos: sin esta fila
@@ -83,6 +84,16 @@ public final class CatalogoDelSistema {
                             "Catastro",
                             "gestion_del_riesgo",
                             "Gestion del riesgo de desastres del predio"),
+                    // Con #6 (ADR-0035). Es UNA opcion y no cinco: el recorrido —campania,
+                    // candidatos, las dos compuertas, evidencia y acta— lo hace la misma area con
+                    // los mismos permisos, y lo que separa quien puede hacer que dentro de el es el
+                    // PRIVILEGIO (lectura para la cola, modificacion para las compuertas, ejecucion
+                    // para la deteccion), no una opcion de menu por paso.
+                    new Opcion(
+                            "CATASTRO",
+                            "Catastro",
+                            "fiscalizacion_catastral",
+                            "Fiscalizacion catastral: hallazgos y actas"),
                     new Opcion(
                             "CONSULTAS",
                             "Consultas",

@@ -56,17 +56,19 @@ class ModulosTest {
                         // segmento del paquete, asi que renombrar el paquete lo renombra aqui — y
                         // esta lista es lo que lo puso en rojo al hacerlo.
                         "nucleo",
-                        // El contexto acotado del urbanismo (#4). Es el segundo de este sistema:
-                        // publica la zona a la que cae un predio, y no toca ninguna tabla del
-                        // padron por Java —solo por SQL, en la misma sentencia que el marco, que
-                        // es lo que ADR-0034 regla 2 obliga—.
+                        // El contexto acotado del urbanismo (#4). Publica la zona a la que cae
+                        // un predio, y no toca ninguna tabla del padron por Java —solo por SQL, en
+                        // la misma sentencia que el marco, que es lo que ADR-0034 regla 2 obliga—.
                         "urbano",
-                        // Y el tercero, con #5: la gestion del riesgo de desastres del predio.
-                        // No depende de `nucleo` -lo unico que necesita del predio es su poligono,
-                        // y ese cruce se resuelve dentro de una sola sentencia SQL-, asi que lo que
-                        // esta linea comprueba es que Modulith lo DETECTA: un contexto que no se
-                        // detecta no lo revisa `verify()`.
+                        // La gestion del riesgo de desastres del predio (#5). No depende de
+                        // `nucleo` -lo unico que necesita del predio es su poligono, y ese cruce se
+                        // resuelve dentro de una sola sentencia SQL-, asi que lo que esta linea
+                        // comprueba es que Modulith lo DETECTA: un contexto que no se detecta no lo
+                        // revisa `verify()`.
                         "grd",
+                        // El hallazgo catastral (ADR-0035, #6). No es la fiscalizacion TRIBUTARIA,
+                        // que vive entera en `rentas`.
+                        "fiscalizacion",
                         // Y sus dos puertas de salida: el padron de `rentas` y la normativa
                         // cacheada. Los dos son modulos para Modulith aunque sean puertos, y eso
                         // es lo que hace comprobable que `catastro` no toque un tipo interno

@@ -12,6 +12,7 @@ import {
   Dato,
   Insignia,
   Lectura,
+  motivoCorto,
   Rejilla,
   Seccion,
   Selector,
@@ -274,9 +275,17 @@ function cabeEntero<T>(r: RespuestaPaginada<T>): boolean {
   return r.contenido.length >= total;
 }
 
-/** Lo que se dice de una lectura que no llego: su motivo, sin ninguna cifra. */
+/**
+ * Lo que se dice de una lectura que no llego: su motivo, sin ninguna cifra.
+ *
+ * Delega en `motivoCorto` del sistema de diseno y **no compone la frase aqui**:
+ * los titulos de los doce codigos viven en un solo sitio, junto al `Fallo` que
+ * los usa. Decia solo `error.mensaje`, y medido con el mismo mensaje un 500, un
+ * 403 y un 422 con `parametroQueFalta` salian **byte a byte iguales** en las
+ * siete superficies de esta pantalla que lo llaman.
+ */
 function motivoDelFallo(error: ErrorDeApi): string {
-  return error.mensaje;
+  return motivoCorto(error);
 }
 
 /* ══════════ Panel ══════════════════════════════════════════════════════ */

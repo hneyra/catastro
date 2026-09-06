@@ -493,6 +493,42 @@ const titulosDeError: Record<CodigoDeError, string> = {
   SIN_RESPUESTA: 'No hubo respuesta del servidor',
 };
 
+/**
+ * El motivo en UNA LINEA, para donde no cabe el aviso entero.
+ *
+ * Las cuatro tarjetas del panel y las tres filas de la cola de trabajo tienen
+ * sitio para una frase y no para un `Fallo`, y por eso decian solo
+ * `error.mensaje`. **Medido**: con el mismo `mensaje`, un 500 con incidencia, un
+ * 403 y un 422 con `parametroQueFalta` salian **byte a byte iguales** en las
+ * siete superficies — o sea que la distincion que `cliente.ts` se toma el trabajo
+ * de hacer no llegaba a ninguna de ellas, y quien mira no podia saber si llamar a
+ * quien atiende o si lo que falta es sellar un conjunto en «normativa», que es la
+ * condicion permanente de este sistema.
+ *
+ * Lo que cabe en una linea es el TITULO del codigo —que es lo que separa «se
+ * rompio algo» de «no tiene permiso»— y, cuando falta una cifra normativa, que
+ * **no se arregla aqui**. Lo que no cabe —`detalles`, `incidencia` y el boton de
+ * reintentar— sigue necesitando el `Fallo`.
+ *
+ * `tituloDeError` va aparte para que quien solo quiera el rotulo no tenga que
+ * partir esta frase: la primera version del alta hacia
+ * `motivoCorto(error).split(':')[0]`, que funciona **solo mientras ningun titulo
+ * lleve dos puntos** —una dependencia tacita entre dos archivos que nada vigila y
+ * que partiria el rotulo por la mitad sin decirlo—.
+ */
+export function tituloDeError(codigo: CodigoDeError): string {
+  return titulosDeError[codigo];
+}
+
+export function motivoCorto(error: ErrorDeApi): string {
+  const titulo = tituloDeError(error.codigo);
+  const falta = error.parametroQueFalta;
+  if (falta === undefined) return `${titulo}: ${error.mensaje}`;
+  return falta.llave
+    ? `${titulo}: falta publicar «${falta.llave}» del ejercicio ${falta.ejercicio}. Se sella en «normativa», no aqui.`
+    : `${titulo}: falta sellar el conjunto de parametros del ejercicio ${falta.ejercicio}. Se sella en «normativa», no aqui.`;
+}
+
 /** Lo que la pantalla dice mientras espera a que alguien escriba el sujeto. */
 /**
  * Que ruta del backend sirve esta pantalla, y que le falta al backend.

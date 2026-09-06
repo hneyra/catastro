@@ -18,10 +18,13 @@ yarn verificar  # solo los tipos
 yarn lint       # las prohibiciones de eslint.config.mjs
 yarn reglas     # cada prohibición muerde sobre su muestra que la viola
 yarn rutas      # lo que esta interfaz dice del backend sigue siendo verdad:
-                # sus rutas, sus accesos y los campos por los que ofrece ordenar
+                # sus rutas, sus accesos, los campos por los que ofrece ordenar,
+                # los ocho tramos del código catastral contra la
+                # `ComposicionCatastral` del backend, y los campos del cuerpo
+                # del alta contra su `record`
 yarn datos      # en `src/datos/` no hay ni una cifra, solo rotulos y motivos
 yarn node       # `.nvmrc` y `engines` dicen lo mismo, y vite lo admite
-yarn mirar      # recorre los 16 destinos y sus 10 vistas en Chromium y guarda
+yarn mirar      # recorre los 16 destinos y sus 13 vistas en Chromium y guarda
                 # una captura de cada uno en .capturas/; falla ante un error de
                 # consola o si el <main> se queda en blanco —que es como falla
                 # de verdad una pantalla a medio hacer: en silencio—
@@ -47,6 +50,7 @@ src/
     parametros.ts   los tipos, campo por campo, de los `record` del backend
     useRecurso.ts   una lectura con sus cuatro estados
   datos/          Los RÓTULOS: columnas, motivos y enumerados. Ni una cifra
+    catastro.ts   los del módulo · alta.ts   los seis pasos del asistente
   simulado/       La pieza que desaparece (ADR-0010)
     proxy.ts      sustituye `fetch` y devuelve `Response` de verdad
     servidas.ts   lo que el backend YA sirve. Nace vacía y crece hasta las 64
@@ -60,6 +64,7 @@ src/
     tokens/       colores, tipografía y medidas, con sus valores literales
     fuentes/      Source Sans 3, auto-hospedada
   modulos/<k>/    Un módulo por carpeta
+    catastro/AltaDeFicha.tsx   el asistente de seis pasos: la ÚNICA escritura
 verificaciones/   Los ocho arneses, sus vistas y las muestras que violan cada regla
 ```
 
@@ -104,6 +109,42 @@ volver a formatearlos es como se pierde un decimal, y lo prohíbe ESLint.
   ningún endpoint de «quién soy». El menú de sesión lo dice en vez de fingir tres opciones.
 - **No decide si un giro es compatible con una zona**, ni calcula ningún tributo, ni determina
   ningún arbitrio con el frente lineal. Es la frontera de ADR-0024.
+
+## El alta de una ficha, que es la única escritura
+
+Se abre desde la acción primaria de la lista de Predios y vive dentro de ella
+—`#/catastro/predios/nuevo?paso=terreno`—, como en el artboard. Tres decisiones
+que hay que saber antes de tocarla:
+
+**El código se compone en un solo sitio.** `COMPOSICION_DEL_CODIGO`, en
+`src/api/catastro.ts`, declara los ocho tramos con su largo, y de ahí salen los
+campos, sus `maxlength`, sus `aria-label` y la concatenación con relleno de
+ceros. **No hay ningún `23` por la pantalla**: ADR-0036 dice que el largo lo
+decide el tenant. Los ocho tramos de aquí y los **diez** de
+`ComposicionCatastral.DEL_MANUAL` son la misma composición con distinto grano
+—el artboard teclea el ubigeo entero en un campo de seis y el backend lo reparte
+en tres de dos, que es lo que devuelve `CodigoReferenciaCatastral.ubigeo()`—, y
+`yarn rutas` comprueba que el reparto cuadra tramo a tramo.
+
+**Los seis pasos se portan enteros y no todos sus campos viajan.** El artboard
+dibuja **cuarenta y ocho** campos y `FichaController.PeticionDeAlta` admite menos
+de la mitad. Y el modo de fallo no es un error: el cuerpo es una **lista blanca**,
+así que un campo que el `record` no tenga **se descarta en silencio** y el
+servidor contesta que la ficha se creó. Por eso cada campo declara `viaja` con el
+nombre del campo del contrato que llena, o `null` con su motivo medido; la
+pantalla lo marca, el resumen de «lo que se va a registrar» se compone
+**recorriendo la petición ya armada** —no una lista escrita al lado—, y ningún
+campo que no viaja puede bloquear el alta.
+
+**Los tres desenlaces se tratan por separado, porque son tres trabajos.** **422**
+se arregla en el asistente y el servidor nombra el campo, que aquí se señala
+diciendo en qué paso está. **409** dice que el código ya está inscrito: mientras
+el código tecleado siga siendo el que el servidor rechazó, el primario no está
+disponible y su `title` lo dice. **404** dice que la vía, el sector o la manzana
+no existen, y eso se arregla en Territorio. El artboard sabe el duplicado antes
+de preguntar —lo compara con una constante suya— y aquí no se puede: el padrón es
+del servidor, y comprobarlo desde la pantalla sería una lectura que no vale para
+el instante siguiente.
 
 ## Los estados de una pantalla, y no solo sus destinos
 

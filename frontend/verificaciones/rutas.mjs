@@ -18,7 +18,19 @@
  *      **nombra los que ningun `CatalogoDelSistema` declara**, en vez de
  *      callarlos: una lista escrita a mano que nadie contrasta es el segundo
  *      sitio donde el catalogo puede estar mal.
- *   3. **Todo campo de ordenacion que la interfaz OFRECE esta en la lista blanca
+ *   3. **Los ocho tramos del codigo de referencia catastral cuadran con la
+ *      `ComposicionCatastral` del backend**, tramo a tramo. El artboard teclea el
+ *      ubigeo entero en un campo de seis y el backend lo reparte en tres de dos:
+ *      no son dos composiciones sino la misma con distinto grano, y un tramo de
+ *      mas o de menos compondria un codigo **plausible** que no casa con ningun
+ *      predio — que es justo el modo de fallo que `componer` existe para evitar,
+ *      y que ninguna prueba de tipos puede ver.
+ *   4. **Todo campo de `PeticionDeAlta` existe en el `record` del backend.** El
+ *      cuerpo del alta es una **lista blanca**: lo que no esta en el `record` se
+ *      descarta **aunque llegue en el JSON**, y el servidor contesta que la ficha
+ *      se creo igual. O sea que un campo mal escrito aqui no da error en ningun
+ *      sitio: el dato simplemente no esta.
+ *   5. **Todo campo de ordenacion que la interfaz OFRECE esta en la lista blanca
  *      del backend.** No es cosmetica: `ordenarPor` no lo valida Spring sino
  *      `OrdenSeguro`, que lanza **422 `ORDEN_NO_ADMITIDO`** con cualquier campo
  *      que no declare. Un desplegable con una columna de mas no ordena raro: deja
@@ -194,6 +206,50 @@ function aCamelCase(columna) {
   return resultado;
 }
 
+/**
+ * Los tramos de `ComposicionCatastral.DEL_MANUAL`, en su orden.
+ *
+ * Se leen del bloque de esa constante y no del archivo entero: la clase tambien
+ * documenta otras composiciones en su javadoc, y una lectura ancha se traeria
+ * los ejemplos.
+ */
+async function composicionDelBackend(archivos) {
+  const camino = archivos.find((f) => f.endsWith('/ComposicionCatastral.java'));
+  if (!camino) return null;
+  const texto = await readFile(camino, 'utf8');
+  const bloque = texto.match(/DEL_MANUAL\s*=([\s\S]*?);/);
+  if (!bloque) return null;
+  return [...bloque[1].matchAll(/new Tramo\("([a-z]+)",\s*(\d+)\)/g)].map((c) => ({
+    nombre: c[1],
+    digitos: Number(c[2]),
+  }));
+}
+
+/**
+ * Los componentes del `record` `PeticionDeAlta`, en su orden.
+ *
+ * Se lee el `record` y no la clase entera —`FichaController` declara mas de uno—
+ * y se descartan las anotaciones y los tipos: lo que se compara es el NOMBRE,
+ * que es lo unico que viaja por el cable.
+ */
+async function camposDelAltaEnElBackend(archivos) {
+  const camino = archivos.find((f) => f.endsWith('/FichaController.java'));
+  if (!camino) return null;
+  const texto = await readFile(camino, 'utf8');
+  const bloque = texto.match(/record PeticionDeAlta\(([\s\S]*?)\)\s*\{\}/);
+  if (!bloque) return null;
+  /* Los comentarios se quitan ANTES de partir por comas, y esto se midio: el
+     `record` lleva dentro «// Su titular, si ya se conoce», cuya coma partia el
+     ultimo campo en dos y hacia que `titular` se contara DOS veces. Con la
+     comparacion en un solo sentido eso no ponia nada en rojo —solo inflaba la
+     cuenta—, que es como una guarda empieza a medir mal sin decirlo. */
+  return bloque[1]
+    .replace(/\/\/[^\n]*/g, '')
+    .split(',')
+    .map((trozo) => trozo.trim().split(/\s+/).pop())
+    .filter((nombre) => /^[a-z][A-Za-z]*$/.test(nombre ?? ''));
+}
+
 /** Los codigos que `CatalogoDelSistema.opciones()` declara. */
 async function opcionesDelCatalogo(archivos) {
   const camino = archivos.find((f) => f.endsWith('/CatalogoDelSistema.java'));
@@ -216,8 +272,13 @@ const accesosBackend = await accesosDelBackend(archivos);
 const catalogo = await opcionesDelCatalogo(archivos);
 const declaradas = await rutasDeclaradas();
 const { ACCESOS, MODULOS } = await accesosDeclarados();
-const { ORDENES } = await leerModulo('src/api/catastro.ts', '.registro-ordenes');
+const { ORDENES, COMPOSICION_DEL_CODIGO, CAMPOS_DEL_ALTA } = await leerModulo(
+  'src/api/catastro.ts',
+  '.registro-ordenes',
+);
 const listasDeOrden = await listasBlancasDeOrden(archivos);
+const composicion = await composicionDelBackend(archivos);
+const camposDelAlta = await camposDelAltaEnElBackend(archivos);
 
 const fallos = [];
 const sinParametros = (r) => r.replace(/\{\w+\}/g, '{}');
@@ -254,7 +315,76 @@ for (const acceso of ACCESOS) {
   }
 }
 
-/* 3. Los campos de ordenacion que la interfaz ofrece. */
+/* 3. Los ocho tramos del codigo contra la composicion del backend. */
+let tramosComprobados = 0;
+if (composicion === null || composicion.length === 0) {
+  fallos.push(
+    'No se pudo leer «ComposicionCatastral.DEL_MANUAL» del backend, asi que los ocho tramos del codigo\n' +
+      '      no se compararon con nada: esta parte se estaria cumpliendo sola. Falla en vez de saltarsela.',
+  );
+} else {
+  const porNombre = new Map(composicion.map((t) => [t.nombre, t.digitos]));
+  const cubiertos = new Set();
+  for (const tramo of COMPOSICION_DEL_CODIGO.tramos) {
+    tramosComprobados++;
+    let suma = 0;
+    for (const nombre of tramo.cubre) {
+      if (!porNombre.has(nombre)) {
+        fallos.push(
+          `el tramo «${tramo.k}» del codigo dice cubrir «${nombre}», que «${COMPOSICION_DEL_CODIGO.constante}»\n` +
+            `      no tiene. Los que tiene son ${composicion.map((t) => t.nombre).join(', ')}.\n` +
+            '      Un tramo que no existe compone un codigo plausible desalineado, que no casa con ningun predio.',
+        );
+        continue;
+      }
+      if (cubiertos.has(nombre)) {
+        fallos.push(`el tramo «${nombre}» del backend lo cubren DOS campos del codigo: se contaria dos veces.`);
+      }
+      cubiertos.add(nombre);
+      suma += porNombre.get(nombre);
+    }
+    if (suma !== tramo.digitos) {
+      fallos.push(
+        `el tramo «${tramo.k}» del codigo declara ${tramo.digitos} digito(s) y los del backend que cubre\n` +
+          `      —${tramo.cubre.join(', ')}— suman ${suma}.\n` +
+          '      Con la longitud mal, `componer` rellena de ceros por el sitio equivocado y el codigo sale\n' +
+          '      desalineado: sigue siendo de digitos y del largo correcto, asi que nada lo rechaza.',
+      );
+    }
+  }
+  for (const tramo of composicion) {
+    if (!cubiertos.has(tramo.nombre)) {
+      fallos.push(
+        `el tramo «${tramo.nombre}» de «${COMPOSICION_DEL_CODIGO.constante}» no lo teclea ningun campo del\n` +
+          '      codigo: sus digitos se rellenarian con ceros sin que nadie pueda escribirlos.',
+      );
+    }
+  }
+}
+
+/* 4. Los campos del cuerpo del alta contra el `record` del backend. */
+let camposDelAltaComprobados = 0;
+if (camposDelAlta === null || camposDelAlta.length === 0) {
+  fallos.push(
+    'No se pudo leer el `record` «FichaController.PeticionDeAlta», asi que los campos del alta no se\n' +
+      '      compararon con nada. Falla en vez de saltarselo: es una lista blanca, y un campo que el `record`\n' +
+      '      no tenga se descarta EN SILENCIO con la ficha creada igual.',
+  );
+} else {
+  const delBackendAlta = new Set(camposDelAlta);
+  for (const campo of CAMPOS_DEL_ALTA) {
+    camposDelAltaComprobados++;
+    if (delBackendAlta.has(campo)) continue;
+    fallos.push(
+      `«${campo}» no es un campo de «FichaController.PeticionDeAlta».\n` +
+        `      El «record» admite: ${camposDelAlta.join(', ')}.\n` +
+        '      El cuerpo es una lista blanca: lo que no esta se descarta aunque llegue en el JSON, y el\n' +
+        '      servidor contesta que la ficha se creo. El dato no acaba en ningun sitio y nada lo dice.',
+    );
+  }
+}
+
+/* 5. Los campos de ordenacion que la interfaz ofrece. */
 let camposComprobados = 0;
 for (const [listado, orden] of Object.entries(ORDENES)) {
   const columnas = listasDeOrden.get(orden.constante);
@@ -284,6 +414,12 @@ if (camposComprobados === 0) {
   );
 }
 
+/* Y los campos que el cuerpo del alta admite y esta interfaz NO manda. No es un
+   fallo —el artboard no dibuja ningun paso que los recoja— y tampoco se calla:
+   es la mitad del contrato que esta pantalla deja sin llenar. */
+const sinMandar =
+  camposDelAlta === null ? [] : camposDelAlta.filter((c) => !CAMPOS_DEL_ALTA.includes(c)).sort();
+
 /* Lo que NO es un fallo pero hay que decir: los accesos que existen y que ningun
    catalogo declara. No se callan — es el segundo sitio donde el catalogo puede
    estar mal, y callarlo es como se descubre dos veces el mismo hallazgo. */
@@ -293,7 +429,9 @@ console.log(
   `${declaradas.length} rutas declaradas contra ${delBackend.size} del backend · ` +
     `${ACCESOS.length} accesos contra ${accesosBackend.size} · ` +
     `${catalogo === null ? '?' : catalogo.size} opciones en el catalogo · ` +
-    `${camposComprobados} campos de orden contra ${listasDeOrden.size} listas blancas`,
+    `${camposComprobados} campos de orden contra ${listasDeOrden.size} listas blancas · ` +
+    `${tramosComprobados} tramos del codigo contra ${composicion === null ? '?' : composicion.length} · ` +
+    `${camposDelAltaComprobados} campos del alta contra ${camposDelAlta === null ? '?' : camposDelAlta.length}`,
 );
 
 if (huerfanos.length) {
@@ -312,9 +450,24 @@ if (huerfanos.length) {
   );
 }
 
+if (sinMandar.length) {
+  console.log(
+    `\nAVISO — ${sinMandar.length} campo(s) que «PeticionDeAlta» admite y que esta interfaz no manda:\n`,
+  );
+  for (const c of sinMandar) console.log(`  · ${c}`);
+  console.log(
+    '\n  No es un fallo: el artboard no dibuja ningun paso que los recoja, y mandar un bloque de detalle\n' +
+      '  que no es el de la clase de ficha es 422. Se nombran para que el hueco se vea, en vez de que la\n' +
+      '  cuenta de arriba parezca completa.',
+  );
+}
+
 if (fallos.length) {
   console.error(`\n${fallos.length} desajuste(s) con el backend:\n`);
   for (const f of fallos) console.error('  - ' + f + '\n');
   process.exit(1);
 }
-console.log('\ntoda ruta declarada existe en el backend, todo acceso tambien, y ningun orden ofrecido da 422');
+console.log(
+  '\ntoda ruta declarada existe en el backend, todo acceso tambien, ningun orden ofrecido da 422,\n' +
+    'los ocho tramos del codigo cubren la composicion del backend y todo campo del alta esta en su `record`',
+);

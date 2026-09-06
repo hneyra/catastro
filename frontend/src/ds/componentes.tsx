@@ -502,10 +502,20 @@ const titulosDeError: Partial<Record<string, string>> = {
  */
 export function Servida({
   lee,
+  escribe,
   falta,
 }: {
   /** Las rutas del contrato que esta pantalla lee, como las declara `src/api`. */
   lee: readonly string[];
+  /**
+   * Y las que ESCRIBE, cuando la pantalla escribe.
+   *
+   * Van aparte y con su verbo porque no son lo mismo: una lectura que no llega
+   * deja la pantalla sin datos, y una escritura que no llega deja al usuario sin
+   * saber si guardo. Ensenarlas con el mismo «GET» delante diria que esta
+   * pantalla solo consulta, que es justo lo contrario.
+   */
+  escribe?: readonly string[];
   /** Lo que el backend no publica, y por eso esta pantalla no lo dibuja. */
   falta?: ReactNode;
 }) {
@@ -534,6 +544,20 @@ export function Servida({
           </span>
         ))}
       </p>
+      {escribe && escribe.length > 0 ? (
+        <p style={{ margin: '6px 0 0' }}>
+          {escribe.length === 1 ? 'La escribe' : 'La escriben'}{' '}
+          {escribe.map((ruta, i) => (
+            <span key={ruta}>
+              {i > 0 ? ' · ' : ''}
+              <code style={{ fontSize: 12, color: 'var(--tinta-2)' }}>
+                POST {RAIZ}
+                {ruta}
+              </code>
+            </span>
+          ))}
+        </p>
+      ) : null}
       {falta ? <p style={{ margin: '6px 0 0' }}>{falta}</p> : null}
     </div>
   );

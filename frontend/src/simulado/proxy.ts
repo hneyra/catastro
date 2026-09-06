@@ -55,7 +55,15 @@ const LATENCIA_MINIMA_MS = 120;
 const LATENCIA_MAXIMA_MS = 320;
 
 type Parametros = Record<string, string>;
-type Contexto = { parametros: Parametros; consulta: URLSearchParams };
+/**
+ * `cuerpo` es lo que la peticion mando, y solo lo traen las escrituras.
+ *
+ * Hace falta desde #34: las cuatro altas de ficha se distinguen entre si por lo
+ * que lleva el cuerpo, y sin el las tres respuestas que el backend YA TIENE
+ * ESCRITAS —el 409 del codigo repetido, el 404 de la referencia que no existe y
+ * el 201— serian indistinguibles. Sigue sin persistir nada.
+ */
+type Contexto = { parametros: Parametros; consulta: URLSearchParams; cuerpo: unknown };
 type Respuesta = { estado: number; cuerpo: unknown };
 type Manejador = (contexto: Contexto) => Respuesta;
 
@@ -110,6 +118,96 @@ function predioDe(contexto: Contexto, clave = 'predioId'): D.FilaDelPadron | und
   const id = Number(contexto.parametros[clave] ?? contexto.consulta.get(clave) ?? '');
   return D.PADRON.find((p) => p.predioId === id);
 }
+
+/**
+ * Las cuatro altas de ficha, y **que se simula de cada una**.
+ *
+ * <h2>No valida, no persiste, y aun asi contesta tres cosas distintas</h2>
+ *
+ * La cuarta decision de ADR-0010 dice que este proxy no finge lo que no sabe:
+ * no filtra, no ordena, no pagina, no valida y no persiste. Lo unico que decide
+ * es **cual de las respuestas que el backend YA TIENE ESCRITAS toca**, y el alta
+ * tiene tres que se deciden con datos que este proxy ya tiene:
+ *
+ *   · **409** si el codigo de referencia catastral ya es de un predio del
+ *     padron. Es `DuplicateKeyException` en el backend, y es el desenlace que la
+ *     pantalla necesita poder ejercer: sin el, el aviso del codigo duplicado
+ *     —que es la mitad del AC-2— no se dibujaria nunca.
+ *   · **404** si el sector o la manzana que el codigo nombra no estan en el
+ *     territorio simulado. Es `InscribirFicha.ReferenciaInexistente`.
+ *   · **422** si falta la observacion. Es `DeclaracionDeFicha.observacionDe`, o
+ *     sea RNF-052, y es la unica validacion que se reproduce porque es la unica
+ *     que no depende de ningun dato: es una regla del sistema entero.
+ *
+ * Todo lo demas contesta **la ficha creada, sin guardar nada**. La siguiente
+ * lectura del padron no la trae, y eso es correcto: fingir que si obligaria a
+ * este archivo a tener memoria, que es exactamente lo que ADR-0010 le prohibe.
+ */
+function altaDeFicha(tipo: string): Manejador {
+  return (c) => {
+    const cuerpo = (c.cuerpo ?? {}) as Record<string, unknown>;
+    const codigo = typeof cuerpo.codRefCatastral === 'string' ? cuerpo.codRefCatastral : '';
+    const observacion = typeof cuerpo.observacion === 'string' ? cuerpo.observacion.trim() : '';
+    const sector = typeof cuerpo.codigoDeSector === 'string' ? cuerpo.codigoDeSector : null;
+    const manzana = typeof cuerpo.codigoDeManzana === 'string' ? cuerpo.codigoDeManzana : null;
+
+    if (observacion === '') {
+      return problema(
+        'VALIDACION',
+        422,
+        'Toda modificacion exige la observacion del usuario: sin ella no se guarda',
+      );
+    }
+    const yaEsta = D.PADRON.find((p) => p.codRefCatastral === codigo);
+    if (yaEsta) {
+      return problema(
+        'CONFLICTO',
+        409,
+        `Ya existe un predio con el codigo de referencia catastral '${codigo}' en esta municipalidad`,
+      );
+    }
+    if (sector !== null && !D.SECTORES.some((s) => s.codigo === sector)) {
+      return problema('NO_ENCONTRADO', 404, `No existe el sector '${sector}'`);
+    }
+    if (manzana !== null && !D.MANZANAS.some((m) => m.codigo === manzana && m.sectorCodigo === sector)) {
+      return problema('NO_ENCONTRADO', 404, `No existe la manzana '${manzana}' del sector '${sector ?? ''}'`);
+    }
+
+    /* La ficha creada, con la forma de `FichaResource` y **sin guardar nada**.
+       El `predioId` es el que seguiria al ultimo del padron: es lo unico que se
+       inventa, y se inventa porque el backend lo devuelve y la pantalla lo usa
+       para abrir el predio recien creado. */
+    return {
+      estado: 201,
+      cuerpo: {
+        id: D.PADRON.length + 1,
+        predioId: D.PADRON.length + 1,
+        tipo,
+        version: 1,
+        areaTerreno: typeof cuerpo.areaTerreno === 'string' ? cuerpo.areaTerreno : null,
+        uso: typeof cuerpo.uso === 'string' ? cuerpo.uso : null,
+        frontis: null,
+        condicionPropiedad: null,
+        tipoEdificacion: null,
+        vigenciaDesde: typeof cuerpo.vigenciaDesde === 'string' ? cuerpo.vigenciaDesde : D.HOY,
+        vigenciaHasta: null,
+        vigente: true,
+        origen: typeof cuerpo.origen === 'string' ? cuerpo.origen : 'DECLARACION_JURADA',
+        documentoOrigen: typeof cuerpo.documentoOrigen === 'string' ? cuerpo.documentoOrigen : null,
+        observacion,
+        denominacion: typeof cuerpo.denominacion === 'string' ? cuerpo.denominacion : null,
+        construcciones: [],
+      },
+    };
+  };
+}
+
+const ALTAS_DE_FICHA: readonly { metodo: string; ruta: string; responder: Manejador }[] = [
+  { metodo: 'POST', ruta: '/catastro/fichas/urbana', responder: altaDeFicha('UNICA') },
+  { metodo: 'POST', ruta: '/catastro/fichas/economica', responder: altaDeFicha('ECONOMICA') },
+  { metodo: 'POST', ruta: '/catastro/fichas/bienes-comunes', responder: altaDeFicha('BIENES_COMUNES') },
+  { metodo: 'POST', ruta: '/catastro/fichas/rural', responder: altaDeFicha('RURAL') },
+];
 
 /**
  * La tabla de operaciones.
@@ -218,6 +316,9 @@ const TABLA: readonly { metodo: string; ruta: string; responder: Manejador }[] =
       });
     },
   },
+
+  /* ── El alta de una ficha (#34): las cuatro rutas ───────────────────── */
+  ...ALTAS_DE_FICHA,
 
   /* ── Territorio ─────────────────────────────────────────────────────── */
   { metodo: 'GET', ruta: '/catastro/sectores', responder: () => pagina(D.SECTORES) },
@@ -482,6 +583,16 @@ export const RUTAS_SIMULADAS: readonly { metodo: string; ruta: string }[] = TABL
   ruta: t.ruta,
 }));
 
+/** Lo que la peticion mando, si mando algo y es JSON. */
+function leerCuerpo(cuerpo: BodyInit | null | undefined): unknown {
+  if (typeof cuerpo !== 'string') return null;
+  try {
+    return JSON.parse(cuerpo) as unknown;
+  } catch {
+    return null;
+  }
+}
+
 function json(cuerpo: unknown, estado: number): Response {
   return new Response(JSON.stringify(cuerpo), {
     status: estado,
@@ -573,7 +684,11 @@ export function instalarProxyDeDatos({
       entradaDeLaTabla.nombres.forEach((nombre, i) => {
         parametros[nombre] = decodeURIComponent(casa[i + 1]!);
       });
-      const { estado, cuerpo } = entradaDeLaTabla.responder({ parametros, consulta: url.searchParams });
+      const { estado, cuerpo } = entradaDeLaTabla.responder({
+        parametros,
+        consulta: url.searchParams,
+        cuerpo: leerCuerpo(opciones?.body),
+      });
       return json(cuerpo, estado);
     }
 

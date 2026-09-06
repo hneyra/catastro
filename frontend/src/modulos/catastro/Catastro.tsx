@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import type { PantallaProps } from '../../App';
+import { AltaDeFicha } from './AltaDeFicha';
 import * as api from '../../api/catastro';
 import type { ErrorDeApi, RespuestaPaginada } from '../../api/cliente';
-import { useRecurso } from '../../api/useRecurso';
+import { useRebote, useRecurso } from '../../api/useRecurso';
 import type { Recurso } from '../../api/useRecurso';
 import {
   Aviso,
@@ -25,6 +26,7 @@ import {
 import type { Tono } from '../../ds/componentes';
 import { Icono } from '../../ds/Icono';
 import { ICO } from '../../ds/iconos';
+import { ALTA, PASOS } from '../../datos/alta';
 import {
   CHIPS_DE_PREDIOS,
   COLAS,
@@ -680,14 +682,14 @@ export function Panel({ ejercicio, onIr }: PantallaProps) {
 const TAMANO_DE_PAGINA = 25;
 
 /** El rebote del buscador: se pide cuando quien teclea para, no en cada letra. */
-function useRebote(valor: string, ms = 320): string {
-  const [reposado, setReposado] = useState(valor);
-  useEffect(() => {
-    const reloj = setTimeout(() => setReposado(valor), ms);
-    return () => clearTimeout(reloj);
-  }, [valor, ms]);
-  return reposado;
-}
+/**
+ * El sujeto que abre el asistente de alta.
+ *
+ * Es una palabra y no un identificador porque no hay ninguno todavia: el predio
+ * no existe hasta que el servidor lo crea. `elegido` solo admite digitos, asi
+ * que este valor no puede confundirse con un predio del padron.
+ */
+const SUJETO_DEL_ALTA = 'nuevo';
 
 function chipActivo(filtros: Record<string, string>): string {
   const encontrado = CHIPS_DE_PREDIOS.find(
@@ -705,6 +707,12 @@ export function Predios({ ruta, onSujeto, onFiltros, onIr }: PantallaProps) {
   const pagina = /^\d+$/.test(ruta.filtros.pagina ?? '') ? Number(ruta.filtros.pagina) : 0;
   const vista = ruta.filtros.ver ?? VISTAS_DEL_PREDIO[0].k;
   const elegido = /^\d+$/.test(ruta.sujeto) ? Number(ruta.sujeto) : null;
+  /* El alta es un ESTADO de esta pantalla, como en el artboard: el asistente
+     ocupa el panel de detalle y la lista se queda al lado. Vive en la ruta
+     —`#/catastro/predios/nuevo?paso=terreno`— para que se pueda enlazar y para
+     que una recarga no devuelva al primer paso. */
+  const esNuevo = ruta.sujeto === SUJETO_DEL_ALTA;
+  const pasoDelAlta = ruta.filtros.paso ?? PASOS[0].id;
 
   /* El texto reposado se lleva a la ruta: asi la busqueda es enlazable y volver
      «atras» no obliga a pulsar una vez por caracter (va por `replaceState`). */
@@ -814,6 +822,30 @@ export function Predios({ ruta, onSujeto, onFiltros, onIr }: PantallaProps) {
                 </button>
               ) : null}
             </div>
+            <button
+              type="button"
+              onClick={() => onSujeto(SUJETO_DEL_ALTA)}
+              className="hov-azul"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 7,
+                width: '100%',
+                marginTop: 9,
+                border: 0,
+                borderRadius: 6,
+                padding: '9px 15px',
+                background: 'var(--azul)',
+                color: '#fff',
+                fontSize: 13.5,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              <Icono d={ICO.mas} tam={15} grosor={2.2} />
+              {PREDIOS.registrar}
+            </button>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 9 }}>
               {CHIPS_DE_PREDIOS.map((c) => {
                 const on = c.k === chip;
@@ -1021,7 +1053,20 @@ export function Predios({ ruta, onSujeto, onFiltros, onIr }: PantallaProps) {
         </ListaMaestra>
 
         <Detalle>
-          {predio === null ? (
+          {esNuevo ? (
+            <AltaDeFicha
+              paso={pasoDelAlta}
+              onPaso={(id) => fijar({ paso: id })}
+              onDescartar={() => onSujeto('')}
+              onRegistrada={(ficha) => {
+                /* Se abre el predio recien creado, que es lo que el artboard
+                   hace al registrar. La lista NO se refresca sola aqui: la
+                   recarga la trae el cambio de sujeto, y el listado vuelve a
+                   pedirse porque su llave incluye los filtros de la ruta. */
+                onIr('catastro', 'predios', { ver: VISTAS_DEL_PREDIO[1].k }, String(ficha.predioId));
+              }}
+            />
+          ) : predio === null ? (
             <div style={{ flex: 1, display: 'grid', placeItems: 'center', padding: 32 }}>
               <div style={{ maxWidth: '46ch', textAlign: 'center' }}>
                 <p style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
@@ -1049,8 +1094,15 @@ export function Predios({ ruta, onSujeto, onFiltros, onIr }: PantallaProps) {
       </Split>
       <PieDeSangre>
         <Servida
-          lee={[api.RUTAS.predios, api.RUTAS.fichas, api.RUTAS.frentes]}
-          falta={`${MOTIVOS.ordenAcotado} ${MOTIVOS.filtrosLosAplicaElServidor} ${MOTIVOS.sinAutovaluo}`}
+          lee={esNuevo ? [api.RUTAS.vias] : [api.RUTAS.predios, api.RUTAS.fichas, api.RUTAS.frentes]}
+          /* Las CUATRO, porque el alta va a una u otra segun la clase de ficha
+             que se elija en el primer paso, y cada una exige su propio permiso. */
+          escribe={esNuevo ? api.TIPOS_DE_FICHA.map((t) => api.RUTA_DEL_ALTA[t]) : undefined}
+          falta={
+            esNuevo
+              ? ALTA.noViajanNota
+              : `${MOTIVOS.ordenAcotado} ${MOTIVOS.filtrosLosAplicaElServidor} ${MOTIVOS.sinAutovaluo}`
+          }
         />
       </PieDeSangre>
     </div>

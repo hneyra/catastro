@@ -38,10 +38,19 @@ export const PREDIO_CON_POLIGONO = 1;
 /** El ejercicio del que hablan los cuadros de abajo. */
 export const EJERCICIO = 2026;
 
+/**
+ * La fecha con la que contestan las lecturas «a la fecha».
+ *
+ * Es una constante y no `new Date()` a proposito: el proxy no tiene reloj, y una
+ * respuesta que cambia sola convierte cualquier captura del arnes en una que no
+ * se puede volver a producir.
+ */
+export const HOY = '2026-09-06';
+
 /* ── Zonificacion (urbano) ──────────────────────────────────────────────── */
 
 export const ZONA = {
-  aLaFecha: '2026-09-06',
+  aLaFecha: HOY,
   codigo: 'RDM',
   nombre: 'Residencial de densidad media',
   plan: 'PDU-2026-DEMO',
@@ -60,7 +69,7 @@ export const ZONA = {
 /* ── Riesgo e ITSE (grd) ────────────────────────────────────────────────── */
 
 export const RIESGO = {
-  aLaFecha: '2026-09-06',
+  aLaFecha: HOY,
   hayRiesgoNoMitigable: false,
   zonas: [
     {
@@ -98,7 +107,7 @@ export const RIESGO = {
  * que tiene poligono.
  */
 export const ITSE = {
-  aLaFecha: '2026-09-06',
+  aLaFecha: HOY,
   vigentes: [
     {
       id: 1,

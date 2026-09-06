@@ -83,3 +83,20 @@ export function useRecurso<T>(
 
   return { datos, cargando, error, enEspera: !activo, reintentar };
 }
+
+/**
+ * El mismo texto, pero reposado: no cambia hasta que se deja de teclear.
+ *
+ * Vive aqui y no en una pantalla porque lo usan dos —la busqueda del padron y
+ * la de la via del catalogo—, y porque decide **cuando** se pide, que es de lo
+ * que va este archivo. Copiado en cada pantalla, la segunda copia acaba con otro
+ * retardo y dos busquedas que se sienten distintas sin que nadie lo decidiera.
+ */
+export function useRebote(valor: string, ms = 320): string {
+  const [reposado, setReposado] = useState(valor);
+  useEffect(() => {
+    const reloj = setTimeout(() => setReposado(valor), ms);
+    return () => clearTimeout(reloj);
+  }, [valor, ms]);
+  return reposado;
+}

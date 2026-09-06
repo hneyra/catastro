@@ -39,6 +39,13 @@
   --warn-tinta: #7a5200;
   --bad-fondo: #fbe4e0;
   --bad-tinta: #8f2a17;
+  /* Los dos bordes de un campo que reclama algo. El artboard los escribe
+     sueltos —`#C08A00` en el tramo del codigo que aun no esta completo,
+     `#A8321E` en `IN_MAL`, el estilo del campo obligatorio vacio— y no comparten
+     valor con las tintas de arriba: un borde tiene que verse contra el blanco
+     del campo, y la tinta de la insignia se lee contra su relleno. */
+  --warn-borde: #c08a00;
+  --bad-borde: #a8321e;
   --info-fondo: #e4f4fd;
   --info-tinta: #004670;
 

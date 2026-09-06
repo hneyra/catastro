@@ -16,6 +16,17 @@ de cuyo manual sale la especificación funcional—.
 | `fichas.csv` | 23 predios con su primera ficha y su titular | **Ficticio**: predios inventados | `cargar-fichas-demo.sh` | 6 |
 | `detalle-de-fichas.csv` | lo que hay **dentro** de 22 de esas fichas, que quedan versionadas | **Ficticio** | `cargar-detalle-fichas-demo.sh` | 7 |
 
+Y uno más que **no es de la siembra**, con #5:
+
+| Archivo | Qué contiene | Naturaleza | Se carga con | Paso |
+|---|---|---|---|---|
+| `riesgo.csv` | 4 zonas de peligro y 2 fajas marginales, en dos capas | **Ficticio**, y por un motivo que se puede medir: hoy no hay ni un polígono de predio cargado, así que no había con qué cruzarlas | `cargar-riesgo.sh` | ninguno |
+
+`riesgo.csv` no tiene número de paso porque **no lo tiene**: `pasos.tsv` no lo nombra y
+`sembrar-demostracion.sh` no lo corre. Su cargador (`CargarRiesgo`) no pregunta por
+`es_demostracion` —una carta de peligro es un acto de CENEPRED, no un dato inventado— y por eso
+está aquí sólo como **muestra del formato**, no como parte de la demostración.
+
 Los tres primeros son datos de estructura y valen para una municipalidad real: sus cargadores
 (`CargarCatalogoVial`, `CargarSectores`, `CargarManzanas`) no preguntan nada sobre el régimen de
 la instalación.

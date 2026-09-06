@@ -146,11 +146,19 @@ class ClonesHermanosDelWorkflowTest {
                 .isNotEmpty();
     }
 
-    /** El directorio del clon de este repositorio: el primer ancestro con un `.git`. */
+    /**
+     * El directorio del clon de este repositorio: el primer ancestro con un `.git`.
+     *
+     * <p><b>{@code Files.exists} y no {@code Files.isDirectory}</b>, y no es indiferente: en un
+     * <i>worktree</i> de git —{@code git worktree add}, que es como se trabajan tres ramas del
+     * mismo repositorio a la vez— {@code .git} <b>no es un directorio sino un archivo</b> con una
+     * linea {@code gitdir: ...} dentro. Con {@code isDirectory} el recorrido pasa de largo por la
+     * raiz de verdad, sube hasta {@code /} y esta prueba muere con «No se encontro la raiz del
+     * clon». O sea: la guarda no se puede correr, que es peor que un rojo porque no habla de lo que
+     * vigila.
+     */
     private static Path raizDelClon() {
         Path actual = Path.of("").toAbsolutePath();
-        // `Files.exists` y no `Files.isDirectory`: en un *worktree* de git el `.git` de la raiz
-        // es un ARCHIVO con «gitdir: ...» dentro. Ver el mismo cambio en CatalogoDelSistemaTest.
         while (actual != null && !Files.exists(actual.resolve(".git"))) {
             actual = actual.getParent();
         }

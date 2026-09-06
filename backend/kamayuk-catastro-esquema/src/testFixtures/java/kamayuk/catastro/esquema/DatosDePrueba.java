@@ -376,6 +376,64 @@ public final class DatosDePrueba {
                 desplazamientoDe(sufijo) + " ",
                 desplazamientoDe(sufijo) + " ");
 
+        sembrarUrbano(app, muni, sufijo, viaId, predioId);
+        // La gestion del riesgo (#5): una zona de peligro, una faja marginal y un ITSE.
+        //
+        // Se siembran aqui —y no en la prueba que las usa— por lo mismo que el frente: la prueba
+        // de aislamiento recorre TODAS las tablas de tenant y exige que la municipalidad A vea
+        // filas suyas. Sobre una tabla vacia, «no se ve nada de B» es cierto y no prueba nada, y
+        // esa es la forma exacta en que una tabla nueva entra sin que nadie compruebe su politica.
+        //
+        // Los dos poligonos van sobre el MISMO desplazamiento que el frente, asi que cada
+        // municipalidad tiene los suyos en un grado distinto de longitud: si el filtro por marco
+        // tuviera una fuga, la prueba veria filas de la otra y no un empate ambiguo.
+        ejecutar(
+                app,
+                "INSERT INTO zona_riesgo (municipalidad_id, codigo, fenomeno, nivel, mitigable,"
+                        + " fuente, documento_origen, vigencia_desde, geometria, observacion,"
+                        + " usuario_registro)"
+                        + " VALUES (?, ?, 'INUNDACION', 'MUY_ALTO', false, 'CENEPRED',"
+                        + "         'CARTA-DE-PRUEBA', DATE '2025-01-01',"
+                        + "         ST_GeogFromText('SRID=4326;MULTIPOLYGON(((' || ? || ' -4.90,'"
+                        + "                          || ? || ' -4.91, ' || ? || ' -4.91, '"
+                        + "                          || ? || ' -4.90, ' || ? || ' -4.90)))'),"
+                        + "         'zona de riesgo de prueba', 'prueba')",
+                muni,
+                "ZR-" + sufijo,
+                desplazamientoDe(sufijo) + " ",
+                desplazamientoDe(sufijo) + " ",
+                desplazamientoDe(sufijo) + "1 ",
+                desplazamientoDe(sufijo) + "1 ",
+                desplazamientoDe(sufijo) + " ");
+        ejecutar(
+                app,
+                "INSERT INTO faja_marginal (municipalidad_id, codigo, cuerpo_agua, ancho_m,"
+                        + " fuente, documento_origen, vigencia_desde, geometria, observacion,"
+                        + " usuario_registro)"
+                        + " VALUES (?, ?, 'Rio de prueba', 25.00, 'ANA', 'RD-DE-PRUEBA',"
+                        + "         DATE '2023-01-01',"
+                        + "         ST_GeogFromText('SRID=4326;MULTIPOLYGON(((' || ? || ' -4.92,'"
+                        + "                          || ? || ' -4.93, ' || ? || ' -4.93, '"
+                        + "                          || ? || ' -4.92, ' || ? || ' -4.92)))'),"
+                        + "         'faja marginal de prueba', 'prueba')",
+                muni,
+                "FM-" + sufijo,
+                desplazamientoDe(sufijo) + " ",
+                desplazamientoDe(sufijo) + " ",
+                desplazamientoDe(sufijo) + "1 ",
+                desplazamientoDe(sufijo) + "1 ",
+                desplazamientoDe(sufijo) + " ");
+        // Y el certificado, que NO tiene geometria: cuelga del predio.
+        ejecutar(
+                app,
+                "INSERT INTO itse (municipalidad_id, predio_id, numero, nivel_riesgo, modalidad,"
+                        + " vigencia_desde, vigencia_hasta, observacion, usuario_registro)"
+                        + " VALUES (?, ?, ?, 'ALTO', 'PREVIA', DATE '2026-01-01',"
+                        + "         DATE '2026-12-31', 'certificado de prueba', 'prueba')",
+                muni,
+                predioId,
+                "ITSE-" + sufijo);
+
         // Los otros tres tipos de ficha (#19). Van sobre el mismo predio a proposito: el indice
         // parcial admite una vigente de cada tipo, y sembrarlas juntas lo comprueba de paso.
         long economica =
@@ -502,6 +560,102 @@ public final class DatosDePrueba {
 
         sembrarFiscalizacion(app, muni, sufijo, predioId, fichaId);
         return predioId;
+    }
+
+    /**
+     * Las cuatro tablas de {@code V7} (#4): zonificacion, sus parametros, la seccion de via y la
+     * habilitacion urbana.
+     *
+     * <p>Son de tenant, asi que {@code AislamientoMultiTenantTest} exige que la municipalidad A vea
+     * filas suyas en las cuatro: una tabla vacia haria que «no se ve nada de B» fuera cierto sin
+     * probar nada, que es el modo de fallo contra el que existe esa prueba.
+     *
+     * <p><b>La zona se dibuja alrededor del frente del predio</b>, sobre el mismo grado de longitud
+     * que {@code desplazamientoDe} le dio a esta municipalidad. Dos motivos, y los dos se miden:
+     * asi el predio de A cae DENTRO de la zona de A —que es lo que hace util la consulta de
+     * contencion en la prueba de frontera— y las zonas de las dos municipalidades no se solapan ni
+     * por casualidad, de modo que una fuga del filtro por marco se veria como filas de la otra y no
+     * como un empate ambiguo.
+     */
+    private static void sembrarUrbano(
+            Connection app, long muni, String sufijo, long viaId, long predioId)
+            throws SQLException {
+        String x = desplazamientoDe(sufijo);
+        long zonaId =
+                insertar(
+                        app,
+                        "INSERT INTO zonificacion (municipalidad_id, plan, ordenanza, codigo,"
+                                + " nombre, geometria, vigencia_desde, observacion,"
+                                + " usuario_registro)"
+                                + " VALUES (?, ?, ?, 'RDM', 'Residencial de densidad media',"
+                                + "  ST_GeogFromText('SRID=4326;MULTIPOLYGON(((' || ? || ' -4.91,'"
+                                + "   || ? || ' -4.91,' || ? || ' -4.89,' || ? || ' -4.89,'"
+                                + "   || ? || ' -4.91)))'),"
+                                + "  ?, 'zonificacion inicial de prueba', 'prueba') RETURNING id",
+                        muni,
+                        "PDU-" + sufijo,
+                        "ORD-001-" + sufijo,
+                        aLaIzquierda(x),
+                        aLaDerecha(x),
+                        aLaDerecha(x),
+                        aLaIzquierda(x),
+                        aLaIzquierda(x),
+                        VIGENCIA);
+        ejecutar(
+                app,
+                "INSERT INTO parametro_urbanistico (municipalidad_id, zonificacion_id, clave,"
+                        + " valor, unidad, observacion, usuario_registro)"
+                        + " VALUES (?, ?, 'altura_maxima', '5', 'pisos',"
+                        + "         'parametro inicial de prueba', 'prueba')",
+                muni,
+                zonaId);
+        ejecutar(
+                app,
+                "INSERT INTO seccion_via (municipalidad_id, via_id, tramo, plan, ordenanza,"
+                        + " clasificacion, ancho_via_m, ancho_calzada_m, ancho_vereda_m, retiro_m,"
+                        + " vigencia_desde, observacion, usuario_registro)"
+                        + " VALUES (?, ?, ?, ?, ?, 'COLECTORA', 20.00, 12.00, 3.00, 3.00, ?,"
+                        + "         'seccion inicial de prueba', 'prueba')",
+                muni,
+                viaId,
+                "cuadra 1 " + sufijo,
+                "PDU-" + sufijo,
+                "ORD-001-" + sufijo,
+                VIGENCIA);
+        ejecutar(
+                app,
+                "INSERT INTO habilitacion_urbana (municipalidad_id, codigo, denominacion,"
+                        + " resolucion, fecha_resolucion, estado, lotes_aprobados, area_bruta_m2,"
+                        + " geometria, observacion, usuario_registro)"
+                        + " VALUES (?, ?, ?, ?, ?, 'RECEPCIONADA', 40, 12000.00,"
+                        + "  ST_GeogFromText('SRID=4326;MULTIPOLYGON(((' || ? || ' -4.91,'"
+                        + "   || ? || ' -4.91,' || ? || ' -4.89,' || ? || ' -4.89,'"
+                        + "   || ? || ' -4.91)))'),"
+                        + "  'habilitacion inicial de prueba', 'prueba')",
+                muni,
+                "HU-" + sufijo,
+                "Urbanizacion de prueba " + sufijo,
+                "RES-010-" + sufijo,
+                VIGENCIA,
+                aLaIzquierda(x),
+                aLaDerecha(x),
+                aLaDerecha(x),
+                aLaIzquierda(x),
+                aLaIzquierda(x));
+        // Constancia de que el identificador encadenado se uso.
+        if (zonaId <= 0) {
+            throw new IllegalStateException("No se sembro ninguna zona");
+        }
+    }
+
+    /** Un grado a la izquierda del desplazamiento de esta municipalidad. */
+    private static String aLaIzquierda(String desplazamiento) {
+        return Double.toString(Double.parseDouble(desplazamiento) - 0.5) + " ";
+    }
+
+    /** Y medio grado a la derecha: la zona envuelve al frente del predio y no llega a la vecina. */
+    private static String aLaDerecha(String desplazamiento) {
+        return Double.toString(Double.parseDouble(desplazamiento) + 0.5) + " ";
     }
 
     /**

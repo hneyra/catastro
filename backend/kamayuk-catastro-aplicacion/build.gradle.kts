@@ -26,10 +26,12 @@ dependencies {
 
     // El unico contexto acotado de este sistema, con sus dos puertos de salida.
     implementation(project(":kamayuk-catastro-contribuyentes"))
-    // El hallazgo catastral (ADR-0035, #6). Es el segundo contexto acotado de este sistema.
+    implementation(project(":kamayuk-catastro-grd"))
+    // El hallazgo catastral (ADR-0035, #6).
     implementation(project(":kamayuk-catastro-fiscalizacion"))
     implementation(project(":kamayuk-catastro-nucleo"))
     implementation(project(":kamayuk-catastro-parametros"))
+    implementation(project(":kamayuk-catastro-urbano"))
 
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.modulith:spring-modulith-starter-core")

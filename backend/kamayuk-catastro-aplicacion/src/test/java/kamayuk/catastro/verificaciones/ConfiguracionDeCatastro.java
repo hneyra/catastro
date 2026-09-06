@@ -42,6 +42,10 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
             Map.ofEntries(
                     Map.entry("kamayuk-catastro-contribuyentes", "rentas"),
                     Map.entry("kamayuk-catastro-nucleo", "catastro"),
+                    // #4: el segundo contexto acotado de este sistema.
+                    Map.entry("kamayuk-catastro-urbano", "catastro"),
+                    // #5: y el tercero.
+                    Map.entry("kamayuk-catastro-grd", "catastro"),
                     Map.entry("kamayuk-catastro-rentas", "rentas"),
                     Map.entry("kamayuk-catastro-parametros", "normativa"),
                     // CATASTRO desde #6, y hasta entonces era una entrada MUERTA heredada del
@@ -174,33 +178,47 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
 
     private static final Set<String> DE_CATASTRO =
             Set.of(
-                    "actividad_economica",
-                    // V9 (#6, ADR-0035): las cinco del hallazgo catastral. `acta` es la de
-                    // CATASTRO y no `acta_fiscalizacion`, que es de `rentas` y sigue siendo suya.
+                    // V9 (#6, ADR-0035): las cinco del hallazgo catastral, cada una en su sitio
+                    // alfabetico. `acta` es la de CATASTRO y no `acta_fiscalizacion`, que es de
+                    // `rentas` y sigue siendo suya.
                     "acta",
+                    "actividad_economica",
                     "arancel",
+                    "bien_comun",
                     "campania",
                     "candidato",
-                    "bien_comun",
                     "colindante_rural",
                     "construccion",
                     "evidencia",
+                    "faja_marginal",
                     "ficha_catastral",
                     // V6: el frente del predio. Se nombra aunque este sistema no la tenga —y por
                     // eso
                     // mismo—: sin la entrada, el reparto la da por «replicada» y el escaner de la
                     // regla 11 DEJA DE MIRAR un cruce contra ella, en verde (la leccion de R-N).
                     "frente_predio",
+                    // V7 (#4): las cuatro de la zonificacion. Se nombran aunque este sistema sea
+                    // el dueno —y por eso mismo—: sin la entrada, el reparto las da por
+                    // «replicadas» y el escaner de la regla 11 DEJA DE MIRAR un cruce contra
+                    // ellas, en verde (la leccion de R-N).
+                    "habilitacion_urbana",
                     "hallazgo",
                     "inquilino",
+                    // #5: el certificado ITSE del predio. No se borra: entra ademas en
+                    // TablasDelSgtm.PROTEGIDAS.
+                    "itse",
                     "manzana",
                     "otra_instalacion",
+                    "parametro_urbanistico",
                     "participacion_comun",
                     "predio",
+                    "seccion_via",
                     "sector",
                     "tierra_rural",
                     "titularidad",
-                    "via");
+                    "via",
+                    "zona_riesgo",
+                    "zonificacion");
 
     private static final Set<String> DE_NORMATIVA =
             Set.of(
@@ -423,9 +441,14 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
                 // modulo mas grande del sistema no ponia roja esta guarda —se conformaba con que
                 // estuvieran los tres de infraestructura—. `caja` ya lo declaraba desde P5D.
                 "kamayuk.catastro.nucleo.dominio",
-                // El segundo contexto acotado (#6). Se nombra por el mismo motivo que el primero:
-                // sin la entrada, renombrar o vaciar su paquete de dominio no pondria roja ninguna
-                // guarda.
+                // El contexto acotado de #4, por lo mismo: sin nombrarlo, renombrar o vaciar su
+                // paquete de dominio no pondria roja ninguna guarda.
+                "kamayuk.catastro.urbano.dominio",
+                // Con #5: sin esta linea, renombrar o vaciar el paquete de dominio de `grd` no
+                // pondria roja ninguna guarda -las reglas acotadas a `..dominio..` seguirian
+                // encontrando las clases de los OTROS contextos y pasarian en verde-.
+                "kamayuk.catastro.grd.dominio",
+                // Y con #6, el hallazgo catastral, por el mismo motivo.
                 "kamayuk.catastro.fiscalizacion.dominio");
     }
 

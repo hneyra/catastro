@@ -95,6 +95,34 @@ jobs:
             infra/carga-de-datos/ejemplos
           sparse-checkout-cone-mode: false
 
+      # Lo que este sistema lee del clon de «normativa»: UN archivo, el cuadro de valores unitarios
+      # derivado del Anexo I.2 que `ElPadronDeDemostracionSeValorizaTest` usa para valorizar los 23
+      # predios del padron de demostracion (#8). No se copia aqui a proposito —una copia de una
+      # cifra normativa es un segundo sitio donde puede estar mal—, asi que el clon tiene que venir.
+      #
+      # Faltaba desde que #8 aterrizo en `beta`, y el rojo que producia no hablaba de su causa:
+      # «Falta el clon hermano de `normativa`» en el paso de `build`. `ClonesHermanosDelWorkflowTest`
+      # no lo cazo porque la ruta se componia en trozos, que es su falso negativo declarado; ahora
+      # esa prueba la escribe en un solo literal y esta guarda si la ve.
+      #
+      # El `ref` NO es decorativo. El cuadro esta hoy en `normativa@beta` y no en su `main`: es la
+      # etapa 1, que se integra en `beta` en los cinco repositorios a la vez. Un PR contra `beta`
+      # trae `beta`; todo lo demas trae `main`. La consecuencia querida es que un PR de `beta` a
+      # `main` se ponga ROJO mientras `normativa` no haya fusionado el suyo — que es exactamente el
+      # orden que hay que respetar, dicho por CI en vez de descubierto en produccion.
+      - name: Traer el cuadro que firma «normativa»
+        uses: actions/checkout@v4
+        with:
+          repository: hneyra/normativa
+          path: normativa
+          ref: ${{ (github.base_ref || github.ref_name) == 'beta' && 'beta' || 'main' }}
+          # Los cinco repositorios del producto son PRIVADOS y el `GITHUB_TOKEN` solo
+          # alcanza al suyo: sin esto, `Not Found` al pedir la rama por omision.
+          token: ${{ secrets.GH_CLONE_KEY || github.token }}
+          sparse-checkout: |
+            docs/10-negocio/valores-normativos/fuentes/valores-unitarios-2026
+          sparse-checkout-cone-mode: false
+
       # ADR-0001 fija Java 25. Se comprueba en vez de suponerse: si alguien cambiara la propiedad,
       # CI verificaria en silencio una version de Java distinta de la que se despliega.
       - name: La version de Java declarada es la que instala CI

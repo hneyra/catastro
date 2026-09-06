@@ -282,6 +282,20 @@ await navegador.close();
 servidor.kill();
 
 console.log(`\n${vistas} pantallas recorridas con el proxy apagado y la red cortada`);
+
+/* La misma guarda que `mirar.mjs`, y por el mismo motivo: con el recorrido
+   vacio, las tres afirmaciones de abajo —ninguna cifra, ninguna muda, ninguna
+   anonima— son ciertas sobre el conjunto vacio y este arnes sale con 0 diciendo
+   «lo que no se puede leer, no se afirma» sin haber leido nada. */
+if (vistas === 0) {
+  console.error(
+    'No se recorrio NI UNA pantalla, asi que este arnes no midio nada: la regla que gobierna esta\n' +
+      'interfaz se estaria cumpliendo sola. O el registro se quedo sin destinos, o el modulo que se\n' +
+      `pidio —«${soloModulo ?? '(ninguno)'}»— no es ninguno de los que hay.`,
+  );
+  process.exit(2);
+}
+
 if (!sucias.length) {
   console.log('ninguna ensena una cifra: lo que no se puede leer, no se afirma');
   process.exit(0);

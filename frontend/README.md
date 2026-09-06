@@ -35,12 +35,21 @@ yarn sin-red    # compila CON EL PROXY APAGADO, corta la red y comprueba que
                 # QUÉ ruta no pudieron leer—
 yarn impedimentos # ningún control apagado sin decir por qué
 yarn paleta     # la paleta de comandos se opera sólo con el teclado
+yarn imagen     # los dos archivos que deciden CÓMO SE SIRVE: levanta `nginx.conf`
+                # sobre la base del `Dockerfile` y pregunta POR HTTP si las tres
+                # cabeceras de seguridad llegan en cada ruta —`add_header` no se
+                # hereda, así que juntarlas «para no repetirlas» las apaga—, y
+                # comprueba que nada que git no vea entra en el contexto de
+                # construcción
 ```
 
 `mirar`, `impedimentos` y `paleta` necesitan una vista previa levantada; si no está en el 5190, se le dice con
 `CATASTRO_BASE=http://localhost:5210 yarn mirar`. `sin-red` **levanta la suya**, y hace falta:
 la bandera del proxy la resuelve Vite al compilar, así que correrlo contra otra vista previa
-mediría el paquete equivocado.
+mediría el paquete equivocado. `imagen` necesita **Docker**, y sin Docker **sale con 2, no se
+omite**: una comprobación bloqueante que se salta a sí misma deja el flujo en verde sin haber
+verificado nada. No construye la imagen del frontend: copia `nginx.conf` sobre `nginx:…` y siembra
+una raíz de mentira, así que no depende de que `yarn build` haya corrido.
 
 ## Cómo está armado
 
@@ -67,7 +76,9 @@ src/
     fuentes/      Source Sans 3, auto-hospedada
   modulos/<k>/    Un módulo por carpeta
     catastro/AltaDeFicha.tsx   el asistente de seis pasos: la ÚNICA escritura
-verificaciones/   Los ocho arneses, sus vistas y las muestras que violan cada regla
+verificaciones/   Los nueve arneses, sus vistas y las muestras que violan cada regla
+                  Ocho miran `src/`; `imagen.mjs` mira los dos archivos que deciden
+                  cómo se sirve: `nginx.conf` y `Dockerfile`
 ```
 
 ## Las decisiones que explican el resto

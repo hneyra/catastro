@@ -20,6 +20,27 @@
 #      la pantalla parece correcta siempre.
 #   5. `paleta` — la paleta de comandos se opera solo con el teclado. Esta aqui
 #      porque **ya se rompio una vez** en el frontend anterior y nada lo noto.
+#   6. `imagen` — los dos archivos que deciden COMO SE SIRVE, `nginx.conf` y
+#      `Dockerfile`, que hasta ahora no miraba nadie. Levanta nginx de verdad y
+#      pregunta por HTTP.
+#
+# <h2>Por que `imagen` va en `verificar` y no en `navegador`</h2>
+#
+# Por tres cosas medidas, y no por costumbre:
+#
+#   · **No necesita nada de lo que `navegador` monta.** Ni Chromium ni `dist/`:
+#     copia `nginx.conf` sobre la base de nginx y siembra una raiz de mentira, asi
+#     que no depende de que `yarn build` haya corrido. Ponerlo alli le ataria una
+#     comprobacion de segundos a una instalacion de navegador de minutos.
+#   · **Docker entra con el, y ya esta.** Los runners `ubuntu-latest` traen Docker;
+#     no hay paso nuevo de instalacion, solo la descarga de `nginx:…` —una imagen
+#     alpine— la primera vez.
+#   · **Lo que protege es lo que se publica.** El defecto que existe para atrapar
+#     horneaba un token dentro de `assets/index-*.js`, que es el artefacto que sale
+#     a `ghcr.io`. Eso pertenece al trabajo bloqueante y rapido, no al lento.
+#
+# Va DESPUES de `yarn build` porque es lo ultimo que se afirma del artefacto, y
+# porque un fallo de tipos o de reglas se lee antes que uno de cabeceras.
 #
 # <h2>Por que no hace falta backend</h2>
 #
@@ -105,6 +126,15 @@ jobs:
 
       - name: Compilar para produccion
         run: yarn build
+
+      # Levanta `nginx.conf` sobre la base que el propio `Dockerfile` nombra y
+      # pregunta POR HTTP. No construye la imagen del frontend a proposito: son
+      # segundos, y asi la comprobacion no depende del paso de arriba.
+      #
+      # Sin Docker sale con 2, no se omite. En un runner `ubuntu-latest` Docker
+      # esta, asi que el 2 aqui significa que algo se rompio de verdad.
+      - name: Las cabeceras llegan, y nada que git no vea entra en la imagen
+        run: yarn imagen
 
   navegador:
     name: Los destinos, en un navegador de verdad

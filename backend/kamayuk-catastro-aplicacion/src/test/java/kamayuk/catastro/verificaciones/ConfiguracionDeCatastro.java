@@ -197,6 +197,16 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
                     // mismo—: sin la entrada, el reparto la da por «replicada» y el escaner de la
                     // regla 11 DEJA DE MIRAR un cruce contra ella, en verde (la leccion de R-N).
                     "frente_predio",
+                    // V10 (#7): la constancia de la ultima derivacion de frentes. Se nombra aunque
+                    // este sistema sea el dueno —y por eso mismo—: sin la entrada, el reparto la da
+                    // por «replicada» y el escaner de la regla 11 DEJA DE MIRAR un cruce contra
+                    // ella, en verde (la leccion de R-N).
+                    "frente_derivacion",
+                    // V5 (C-8): el buzon de salida. Es de ESTE sistema y de nadie mas —lo escribe
+                    // `BuzonDeSalidaJdbc` en `nucleo` y lo lee `EventosController`—, y estaba sin
+                    // nombrar desde que nacio: el reparto la daba por «replicada» y la regla 11
+                    // dejaba de mirarla, en verde. Lo destapo el censo de #7.
+                    "catastro_evento",
                     // V7 (#4): las cuatro de la zonificacion. Se nombran aunque este sistema sea
                     // el dueno —y por eso mismo—: sin la entrada, el reparto las da por
                     // «replicadas» y el escaner de la regla 11 DEJA DE MIRAR un cruce contra
@@ -246,6 +256,30 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
     private static final Set<String> REPLICADAS =
             Set.of(
                     "acceso",
+                    // V2 (P5B, ADR-0025): la COPIA LOCAL del conjunto sellado. REPLICADAS y no
+                    // «de normativa», y el motivo lo decidio la medida y no el razonamiento.
+                    //
+                    // Se probaron las dos alternativas y las dos son falsas: declaradas de
+                    // `normativa`, `ValuacionRepositoryJdbc` —que es de `nucleo`, o sea de
+                    // `catastro`— sale marcado con DOS cruces vivos («la tabla
+                    // «normativa_valor_unitario» es de «normativa» y esto es «catastro»»), y no lo
+                    // son: esas filas estan EN ESTA BASE por diseno y leerlas no deja de funcionar
+                    // el dia que la base se parta. Declaradas de `catastro`, el marcado seria
+                    // `kamayuk-catastro-parametros`, que en el reparto de modulos es `normativa` y
+                    // es justamente quien las escribe.
+                    //
+                    // Lo que son es lo que dice el nombre de esta constante: una copia local de un
+                    // conjunto SELLADO, presente a los dos lados de la frontera a proposito (el
+                    // `V3` de `rentas` tiene la suya). «Replicado» significa «no esta a ningun lado
+                    // de la frontera», que es exactamente su caso.
+                    //
+                    // Estaban SIN NOMBRAR desde P5B —el reparto las daba por replicadas igual, con
+                    // `getOrDefault`, pero sin que nadie lo hubiera decidido—, y las destapo el
+                    // censo de #7.
+                    "normativa_conjunto",
+                    "normativa_parametro",
+                    "normativa_valor_unitario",
+                    "normativa_depreciacion",
                     "auditoria",
                     "auditoria_2026",
                     "auditoria_2027",

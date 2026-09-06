@@ -14,19 +14,19 @@ import java.util.UUID;
  * el transporte, dos entregas del mismo hecho serian dos hechos distintos y la deduplicacion seria
  * imposible — es exactamente lo que `V2` de `caja` dice de su {@code pagoId}.
  *
- * <h2>Es DERIVADO y no aleatorio, y los tres tipos no lo derivan igual</h2>
+ * <h2>Es DERIVADO y no aleatorio, y los seis tipos no lo derivan igual</h2>
  *
  * <p>Un uuid aleatorio haria que volver a proyectar el padron produjera 14 422 hechos «nuevos» que
  * el receptor tendria que aplicar uno a uno para acabar escribiendo lo mismo. Derivandolo del
  * contenido, reproyectar cuesta —del lado del receptor— exactamente los predios que cambiaron.
  *
- * <p><b>La valuacion es la excepcion, y es deliberada.</b> Se deriva de su IDENTIDAD —ejercicio y
- * predio— y no de su contenido, porque es un hecho sellado: que la misma identidad vuelva con otro
- * contenido no es un hecho nuevo, es el emisor reescribiendo uno sellado, y tiene que <b>verse</b>.
- * El receptor lo ve comparando la huella que `V9` le hizo guardar; con la identidad derivada del
- * contenido, esa comparacion nunca ocurriria —serian dos eventos distintos— y lo que fallaria seria
- * la clave primaria de {@code valuacion_predio} diciendo «ya hay una», que es cierto y no es la
- * causa.
+ * <p><b>La valuacion y el hallazgo firme son la excepcion, y es deliberada.</b> Se derivan de su
+ * IDENTIDAD —ejercicio y predio la una, el identificador del hallazgo el otro— y no de su
+ * contenido, porque son hechos firmados: que la misma identidad vuelva con otro contenido no es un
+ * hecho nuevo, es el emisor reescribiendo uno sellado, y tiene que <b>verse</b>. El receptor lo ve
+ * comparando la huella que `V9` le hizo guardar; con la identidad derivada del contenido, esa
+ * comparacion nunca ocurriria —serian dos eventos distintos— y lo que fallaria seria la clave
+ * primaria de {@code valuacion_predio} diciendo «ya hay una», que es cierto y no es la causa.
  *
  * <h2>Como se construye el uuid</h2>
  *
@@ -99,6 +99,61 @@ public final class IdentidadDelEvento {
                         + ejercicio
                         + s()
                         + corridaId);
+    }
+
+    /**
+     * La de una manzana: derivada del CONTENIDO (#7).
+     *
+     * <p>Republicar el catalogo territorial entero no produce ni un hecho nuevo si nada cambio, que
+     * es lo que hace que se pueda correr todos los dias.
+     */
+    public static UUID deUnaManzanaPublicada(long municipalidadId, long manzanaId, String huella) {
+        return derivar(
+                TipoDeEventoDeCatastro.MANZANA_PUBLICADA
+                        + s()
+                        + municipalidadId
+                        + s()
+                        + manzanaId
+                        + s()
+                        + huella);
+    }
+
+    /**
+     * La de los frentes de un predio: derivada del CONTENIDO (#7).
+     *
+     * <p>El hecho es el conjunto de frentes del predio y no cada frente por separado: «a que da
+     * este predio» es una respuesta, y partirla en N eventos dejaria al receptor sin poder saber
+     * cuando la tiene entera —le llegaria el segundo frente de una esquina sin nada que le dijera
+     * que faltaba, o que sobraba uno que se retiro—. Con el conjunto, un frente que desaparece
+     * cambia la huella y produce otro hecho.
+     */
+    public static UUID deLosFrentesDeUnPredio(long municipalidadId, long predioId, String huella) {
+        return derivar(
+                TipoDeEventoDeCatastro.FRENTE_PUBLICADO
+                        + s()
+                        + municipalidadId
+                        + s()
+                        + predioId
+                        + s()
+                        + huella);
+    }
+
+    /**
+     * La de un hallazgo firme: derivada de la IDENTIDAD y NO del contenido (#7, ADR-0035).
+     *
+     * <p>Por el mismo motivo que la valuacion, y hay que decirlo entero: un hallazgo es lo que una
+     * <b>persona</b> verifico, con su nombre y su fecha. Que la misma identidad vuelva con otra
+     * area verificada no es un hallazgo nuevo —es alguien reescribiendo lo que otro firmo— y el
+     * buzon lo <b>para</b> con {@code HechoSelladoReescrito} en vez de mandarlo. Derivada del
+     * contenido serian dos hechos distintos, el receptor aplicaria el segundo encima del primero
+     * sin decir nada, y la unica traza de que alguien cambio un acta firmada se perderia.
+     *
+     * <p>No entra el candidato: un hallazgo cuelga de su candidato y ese vinculo no cambia, asi que
+     * anadirlo no distinguiria dos hallazgos que hoy no se distingan.
+     */
+    public static UUID deUnHallazgoFirme(long municipalidadId, long hallazgoId) {
+        return derivar(
+                TipoDeEventoDeCatastro.HALLAZGO_FIRME + s() + municipalidadId + s() + hallazgoId);
     }
 
     private static String s() {

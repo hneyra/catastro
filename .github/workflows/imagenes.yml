@@ -1,0 +1,42 @@
+# Todo `Dockerfile` del arbol tiene quien publique su imagen.
+#
+# Va en su propio flujo y no dentro de `registro.yml` porque el nombre de aquel check —«El PR
+# deja su fila en "Verificar antes de afirmar"»— dejaria de decir la verdad, y el nombre de un
+# check es lo unico que se lee cuando sale rojo.
+#
+# **Sin filtro `paths`, a proposito.** Un `Dockerfile` puede aparecer en cualquier sitio del
+# arbol, que es justo lo que paso con `frontend/` (#40): llego con el suyo y ningun flujo lo
+# construia. Un filtro por `backend/**` o `frontend/**` no habria visto el siguiente.
+#
+# Cuesta segundos: no instala dependencias, no levanta nada y no habla con el registro. Lo que
+# se le pregunta a `ghcr.io` es otra cosa y la contesta el trabajo `comprobar` de
+# `publicar-imagenes.yml`, despues del `push`.
+name: Imágenes
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  publicador:
+    name: Cada Dockerfile tiene quien publique su imagen
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # Primero la autoprueba, como en `registro.yml`: una guarda que no se ha visto fallar no
+      # protege nada, y si la que se va a usar esta rota, su verde no significa nada.
+      - name: La autoprueba de la guarda, antes de usarla
+        run: node docs/00-gobierno/verificar-las-muestras-de-las-imagenes.mjs
+
+      - name: Quien publica cada imagen
+        run: node docs/00-gobierno/verificar-quien-publica-cada-imagen.mjs

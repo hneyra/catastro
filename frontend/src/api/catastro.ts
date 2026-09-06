@@ -252,6 +252,82 @@ export type Ficha = {
   construcciones: Construccion[];
 };
 
+/**
+ * Los campos de la ficha, como lista en tiempo de ejecucion.
+ *
+ * Misma forma y mismo motivo que `CAMPOS_DEL_ALTA`, por el otro sentido del
+ * cable: `verificaciones/rutas.mjs` la compara con los componentes de
+ * `FichaResource.java`, y `CampoDeFichaSinPareja` impide que la lista y el tipo
+ * se separen.
+ *
+ * **Y hace falta**: `FichaResource` publica **veintiun** componentes y este tipo
+ * declara **dieciseis**. Los cinco que faltan no se leen hoy, y sin esta lista
+ * eso no lo dice nada: un campo que el servidor manda y el tipo no declara no da
+ * ningun error —`tsc` solo se queja al leerlo—, asi que el hueco es invisible
+ * hasta que alguien lo necesita y descubre que tiene que escribir un `as`.
+ */
+export const CAMPOS_DE_FICHA = [
+  'id',
+  'predioId',
+  'tipo',
+  'version',
+  'areaTerreno',
+  'uso',
+  'frontis',
+  'condicionPropiedad',
+  'tipoEdificacion',
+  'vigenciaDesde',
+  'vigenciaHasta',
+  'vigente',
+  'origen',
+  'documentoOrigen',
+  'observacion',
+  'denominacion',
+  'construcciones',
+] as const;
+
+/**
+ * Lo que `FichaResource` publica y este tipo NO declara, con su motivo.
+ *
+ * No es documentacion: lo lee `rutas.mjs`, que exige que todo componente del
+ * `record` este o en `CAMPOS_DE_FICHA` o aqui. Un hueco declarado se puede
+ * discutir; uno callado se descubre el dia que hace falta.
+ *
+ * **`instalaciones` es el que mas pesa y el unico que no es anulable**: se
+ * construye siempre, asi que viaja en TODA respuesta de ficha. Y el asistente de
+ * alta ya las manda —`PeticionDeAlta.instalaciones`—, de modo que hoy se puede
+ * escribir una obra complementaria y no se puede volver a leer sin un `as`.
+ */
+export const CAMPOS_DE_FICHA_QUE_NO_SE_LEEN: Readonly<Record<string, string>> = {
+  instalaciones:
+    'Las obras complementarias. Viaja SIEMPRE —no es anulable— y el alta ya las manda. No se ' +
+    'declara porque ninguna pantalla las dibuja todavia y su importe no existe: el Anexo III de la ' +
+    'R.M. 277-2025-VIVIENDA no esta transcrito y «otra_instalacion» no tiene columna de importe.',
+  economico:
+    'El bloque economico de la ficha de actividad. Ningun paso del alta lo recoge y ninguna ' +
+    'pantalla lo dibuja; se declara aqui igual que «rutas.mjs» lo nombra en el sentido de ida.',
+  bienesComunes: 'El bloque de bienes comunes. Mismo caso que «economico»: nadie lo escribe ni lo lee.',
+  rural:
+    'El bloque rural. El alta SI lo manda —los cuatro linderos—, y la lectura no lo declara: es el ' +
+    'mismo hueco que «instalaciones», con una pantalla menos.',
+  historico:
+    'Las versiones anteriores. Solo llega si la peticion pide «historico=true», y «fichaUrbana» no ' +
+    'ofrece ese parametro: la pestana de movimientos del predio no es alcanzable desde esta capa.',
+};
+
+type CampoDeFicha = (typeof CAMPOS_DE_FICHA)[number];
+type FichaSoloEnElTipo = Exclude<keyof Ficha, CampoDeFicha>;
+type FichaSoloEnLaLista = Exclude<CampoDeFicha, keyof Ficha>;
+
+/** Que el tipo y la lista digan lo mismo. Si divergen, esto no compila. */
+export type CampoDeFichaSinPareja = [FichaSoloEnElTipo] extends [never]
+  ? [FichaSoloEnLaLista] extends [never]
+    ? true
+    : ['sobra en CAMPOS_DE_FICHA', FichaSoloEnLaLista]
+  : ['falta en CAMPOS_DE_FICHA', FichaSoloEnElTipo];
+
+export const LOS_CAMPOS_DE_FICHA_CUADRAN: CampoDeFichaSinPareja = true;
+
 export function fichaUrbana(
   codRefCatastral: string,
   senal?: AbortSignal,

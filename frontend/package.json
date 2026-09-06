@@ -13,7 +13,7 @@
     "verificar": "tsc -b --noEmit",
     "lint": "eslint .",
     "reglas": "node verificaciones/reglas.mjs",
-    "node": "node verificaciones/node.mjs",
+    "motor": "node verificaciones/node.mjs",
     "rutas": "node verificaciones/rutas.mjs",
     "datos": "node verificaciones/datos.mjs",
     "mirar": "node verificaciones/mirar.mjs",

@@ -1,6 +1,41 @@
+# Lo que NO entra en el contexto de construccion de la imagen.
+#
+# `Dockerfile` hace `COPY . .`, asi que todo lo que este archivo no excluya se
+# copia dentro de la etapa de construccion y **participa en `yarn build`**. Que
+# no acabe en la imagen final no basta: lo que Vite hornea en el paquete SI
+# acaba, y el paquete es lo que se publica.
 node_modules
 dist
 .capturas
 verificaciones
 *.md
 .git
+
+# Los `dist*` de los arneses. `sin-red.mjs` compila su propia vista previa en
+# `dist-sin-red/` y el contraste en `dist-con-proxy/`; con el patron acotado a
+# `dist`, los dos viajaban al contexto.
+dist-*
+
+# **Los archivos de entorno, y este es el importante.**
+#
+# Vite carga `.env`, `.env.local`, `.env.<modo>` y `.env.<modo>.local` del
+# directorio del proyecto y resuelve `import.meta.env` AL COMPILAR. Estaban en
+# `.gitignore` (`*.local`) y no aqui, que es la peor de las dos combinaciones:
+# git no los ve, asi que nadie repara en ellos, y `COPY . .` si los copia.
+#
+# Medido: con un `frontend/.env.local` que diga `VITE_CATASTRO_TOKEN=…`, el
+# `vite build` de la imagen mete el token EN CLARO dentro de `assets/index-*.js`
+# —una coincidencia, buscada con `grep -ro`—, y ese archivo es el que se publica
+# en `ghcr.io`. El propio `Dockerfile` afirma lo contrario: «NINGUN token se
+# hornea en la imagen». Sin esta linea, la afirmacion depende de que quien
+# construye no tenga un `.env.local`, que es exactamente lo que si tiene quien
+# ha levantado la interfaz contra el backend en su maquina.
+.env
+.env.*
+*.local
+
+# El incremental de `tsc -b`. Copiarlo mete en la imagen un estado de compilacion
+# de OTRA maquina, y `tsc -b` decide con el si hay algo que comprobar.
+tsconfig.tsbuildinfo
+
+.DS_Store

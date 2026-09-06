@@ -23,7 +23,9 @@ yarn rutas      # lo que esta interfaz dice del backend sigue siendo verdad:
                 # `ComposicionCatastral` del backend, y los campos del cuerpo
                 # del alta contra su `record`
 yarn datos      # en `src/datos/` no hay ni una cifra, solo rotulos y motivos
-yarn node       # `.nvmrc` y `engines` dicen lo mismo, y vite lo admite
+yarn motor      # `.nvmrc` y `engines` dicen lo mismo, vite lo admite, y ningún
+                # guión se llama como un comando de yarn —se llamaba `node`, y
+                # `yarn node` es el comando de yarn: el arnés no corría—
 yarn mirar      # recorre los 16 destinos y sus 13 vistas en Chromium y guarda
                 # una captura de cada uno en .capturas/; falla ante un error de
                 # consola o si el <main> se queda en blanco —que es como falla

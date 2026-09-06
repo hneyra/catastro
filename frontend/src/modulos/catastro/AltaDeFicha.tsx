@@ -3,7 +3,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import * as api from '../../api/catastro';
 import { ErrorDeApi } from '../../api/cliente';
 import { useRebote, useRecurso } from '../../api/useRecurso';
-import { Aviso, Insignia, Lectura } from '../../ds/componentes';
+import { Aviso, Insignia, Lectura, LoQueFalta, tituloDeError } from '../../ds/componentes';
 import {
   ALTA,
   MOTIVOS_DEL_ALTA,
@@ -1425,34 +1425,52 @@ function ElResumen({
   );
 }
 
-/** Los tres desenlaces del envio, cada uno con lo que hay que hacer. */
+/**
+ * Los desenlaces del envio, cada uno con lo que hay que hacer.
+ *
+ * **`faltaUnaCifraNormativa` se mira ANTES que el codigo, y esto se corrigio
+ * midiendo.** Un 422 con `parametroQueFalta` entraba por la rama `VALIDACION` y
+ * salia con «hay un campo que corregir en este mismo asistente. El servidor dice
+ * cual», que es **falso** y manda a repasar seis pasos por algo que se sella en
+ * otro repositorio. Es la inversion exacta de la regla que `cliente.ts` escribe:
+ * «si esta, no se arregla aqui — esa es toda la regla, y por eso se mira su
+ * PRESENCIA antes que su contenido».
+ *
+ * El resto se decide por codigo, y los que no tienen rama propia salen con el
+ * titulo del catalogo comun en vez de con «No se pudo registrar la ficha» para
+ * todos: un 401, un 403 y un 500 se arreglan de tres maneras distintas.
+ */
 function ElFallo({ error, senalados }: { error: ErrorDeApi; senalados: string[] }) {
   const donde = senalados
     .map((n) => CAMPO_POR_NOMBRE.get(n)!)
     .map((x) => `«${x.campo.label}», en ${x.paso.label}`);
 
+  const esDeLaPeticion = !error.faltaUnaCifraNormativa;
   const titulo =
     error.codigo === 'CONFLICTO'
       ? ALTA.falloConflicto
       : error.codigo === 'NO_ENCONTRADO'
         ? ALTA.falloNoEncontrado
-        : error.codigo === 'VALIDACION'
+        : error.codigo === 'VALIDACION' && esDeLaPeticion
           ? ALTA.falloValidacion
-          : 'No se pudo registrar la ficha';
+          : tituloDeError(error.codigo);
   const queHacer =
     error.codigo === 'CONFLICTO'
       ? ALTA.falloConflictoQueHacer
       : error.codigo === 'NO_ENCONTRADO'
         ? ALTA.falloNoEncontradoQueHacer
-        : error.codigo === 'VALIDACION'
+        : error.codigo === 'VALIDACION' && esDeLaPeticion
           ? ALTA.falloValidacionQueHacer
           : null;
 
   return (
     <div style={{ marginBottom: 16 }}>
-      <Aviso tono={error.codigo === 'VALIDACION' ? 'warn' : 'bad'} titulo={titulo}>
+      <Aviso tono={error.codigo === 'VALIDACION' && esDeLaPeticion ? 'warn' : 'bad'} titulo={titulo}>
         <p style={{ margin: 0 }}>{error.mensaje}</p>
-        {donde.length > 0 ? <p style={{ margin: '6px 0 0' }}>Hay que corregir {donde.join(' · ')}.</p> : null}
+        {error.parametroQueFalta ? <LoQueFalta falta={error.parametroQueFalta} /> : null}
+        {donde.length > 0 && esDeLaPeticion ? (
+          <p style={{ margin: '6px 0 0' }}>Hay que corregir {donde.join(' · ')}.</p>
+        ) : null}
         {error.detalles && error.detalles.length > 0 ? (
           <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
             {error.detalles.map((d) => (

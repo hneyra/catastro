@@ -91,6 +91,29 @@ for (const d of RECORRIDO) {
 await navegador.close();
 
 console.log(`${vistas} pantallas recorridas · capturas en ${SALIDA}/`);
+
+/**
+ * Un recorrido que no mira nada no informa de nada.
+ *
+ * Medido antes de escribir esta guarda: `node verificaciones/mirar.mjs
+ * modulo-que-no-existe` imprimia «0 pantallas recorridas» y «ninguna con errores
+ * de consola ni con el cuerpo vacio», y **salia con 0** — sin abrir una sola
+ * pagina y sin necesitar siquiera una vista previa levantada. El mismo desenlace
+ * tendria un registro que se quedara sin hojas: el paso de CI se llama «Los
+ * destinos se dibujan» y estaria en verde sin haber dibujado ninguno.
+ *
+ * `impedimentos.mjs` ya se protegia asi —«no se encontro NI UN control
+ * impedido»— y esto es la misma exigencia por el otro eje.
+ */
+if (vistas === 0) {
+  console.error(
+    '\nNo se recorrio NI UNA pantalla, asi que este arnes no midio nada: pasaria en verde con el\n' +
+      'defecto exacto que existe para atrapar. O el registro se quedo sin destinos, o el modulo que\n' +
+      `se pidio en la linea de ordenes —«${soloModulo ?? '(ninguno)'}»— no es ninguno de los que hay.`,
+  );
+  process.exit(2);
+}
+
 if (fallos.length) {
   console.error(`\n${fallos.length} con problema:\n\n${fallos.join('\n\n')}`);
   process.exit(1);

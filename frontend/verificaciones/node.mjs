@@ -1,7 +1,24 @@
 /**
- * La version de Node se declara en dos sitios, y los dos tienen que decir lo mismo.
+ * El motor: la version de Node, y que el flujo pueda llamar de verdad a los arneses.
  *
  *   node verificaciones/node.mjs
+ *
+ * <h2>Por que la segunda mitad esta aqui</h2>
+ *
+ * Porque este archivo es el que la sufrio. `package.json` declaraba el arnes con
+ * el nombre `node` y `.github/workflows/frontend.yml` lo llamaba `yarn node`, que
+ * **no es este arnes**: es el comando `node` de yarn 1, que arranca Node y sale.
+ * Medido: `yarn node` imprime «yarn node v1.22.22 · Done in 0.04s» y sale con 0
+ * sin ejecutar una linea de aqui, mientras que `yarn run node` si lo ejecuta. O
+ * sea que el paso «La version de Node dice lo mismo en los dos sitios» llevaba en
+ * verde desde que existe **sin haber comprobado nada**, y su sintoma era la
+ * ausencia de sintoma.
+ *
+ * El arreglo de fondo no es cambiar el flujo —eso se puede volver a escribir
+ * igual— sino que **ningun guion se llame como un comando de yarn**. Y la lista
+ * de comandos no se copia aqui: se le pregunta a yarn con `yarn help`, que es la
+ * fuente de verdad. Copiada, se quedaria vieja sin ruido, que es la forma de
+ * defecto que este repositorio lleva contadas ocho veces.
  *
  * `.nvmrc` es lo que instalan CI y quien clona; `engines` de `package.json` es lo
  * que **yarn comprueba al instalar** —gracias a `engine-strict=true` en
@@ -18,6 +35,7 @@
  * No abre navegador ni necesita backend.
  */
 import { readFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
 
 const raiz = new URL('../', import.meta.url);
 const nvmrc = (await readFile(new URL('.nvmrc', raiz), 'utf8')).trim();
@@ -78,8 +96,78 @@ if (deVite !== null && !mayorAdmitido(mayor, deVite)) {
   fallos.push(`vite pide Node ${deVite} y «.nvmrc» dice ${nvmrc}: la version que CI instala no la admite vite`);
 }
 
+/* ── Y que el flujo pueda llamar a los arneses ──────────────────────────── */
+
+/**
+ * Los comandos de yarn, preguntados a yarn.
+ *
+ * `yarn <x>` ejecuta el guion `<x>` **solo si `<x>` no es un comando suyo**; si
+ * lo es, gana el comando y el guion no corre. `test` no sale en esta lista a
+ * proposito —yarn lo reenvia al guion— y por eso preguntar vale mas que escribir
+ * la lista a mano.
+ */
+function comandosDeYarn() {
+  const salida = execFileSync('yarn', ['help'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  const bloque = salida.slice(salida.indexOf('Commands:'));
+  const nombres = new Set();
+  for (const casa of bloque.matchAll(/^\s*-\s+(.+)$/gm)) {
+    for (const alias of casa[1].split('/')) nombres.add(alias.trim());
+  }
+  return nombres;
+}
+
+let comandos = null;
+try {
+  comandos = comandosDeYarn();
+} catch {
+  fallos.push('no se pudo leer `yarn help`: sin la lista de comandos de yarn esta mitad no mide nada');
+}
+if (comandos !== null && comandos.size === 0) {
+  fallos.push('`yarn help` no nombro ni un comando: la lectura dejo de valer y esta mitad se cumpliria sola');
+}
+
+const guiones = Object.keys(paquete.scripts ?? {});
+if (guiones.length === 0) fallos.push('`package.json` no declara ni un guion: no hay nada que comprobar');
+if (comandos !== null) {
+  for (const guion of guiones) {
+    if (!comandos.has(guion)) continue;
+    fallos.push(
+      `el guion «${guion}» se llama como un comando de yarn: «yarn ${guion}» ejecuta EL COMANDO y no el ` +
+        `guion, que no corre y no dice que no ha corrido —sale con 0—. Renombralo: «yarn run ${guion}» ` +
+        'funciona, pero deja el defecto a una linea de volver',
+    );
+  }
+}
+
+/* Y que el flujo llame a guiones que existen. Un `yarn` a un nombre que no esta
+   declarado revienta y se ve; el caso que NO se ve es el de arriba, y este cierra
+   la otra mitad: que un guion se renombre y el flujo se quede nombrando el
+   anterior. */
+const FLUJO = new URL('../../.github/workflows/frontend.yml', import.meta.url);
+const flujo = await readFile(FLUJO, 'utf8').catch(() => null);
+if (flujo === null) {
+  fallos.push('no se encontro `.github/workflows/frontend.yml`: no se pudo comprobar como llama a los arneses');
+} else {
+  const llamados = [...flujo.matchAll(/^\s*run:\s*yarn\s+([a-z][a-z0-9-]*)/gm)].map((c) => c[1]);
+  if (llamados.length === 0) {
+    fallos.push(
+      '`frontend.yml` no llama a ni un `yarn <guion>`: o cambio de forma, o dejo de correr los arneses. ' +
+        'Sin ninguna llamada que mirar, esta comprobacion se estaria cumpliendo sola',
+    );
+  }
+  for (const llamado of new Set(llamados)) {
+    if (llamado === 'install') continue;
+    if (!guiones.includes(llamado)) {
+      fallos.push(`«frontend.yml» corre \`yarn ${llamado}\` y «package.json» no declara ese guion`);
+    }
+  }
+}
+
 if (!fallos.length) {
-  console.log(`.nvmrc dice ${nvmrc} · engines pide ${rango} · vite pide ${deVite ?? '—'}: los tres cuadran`);
+  console.log(
+    `.nvmrc dice ${nvmrc} · engines pide ${rango} · vite pide ${deVite ?? '—'}: los tres cuadran · ` +
+      `${guiones.length} guiones, ninguno se llama como uno de los ${comandos?.size ?? '?'} comandos de yarn`,
+  );
   process.exit(0);
 }
 console.log(`${fallos.length} problema(s) con la version de Node:\n`);

@@ -64,8 +64,29 @@ export const CODIGOS_DE_ERROR = [
 
 export type CodigoDeError = (typeof CODIGOS_DE_ERROR)[number];
 
-/** Los once del backend, sin el que se inventa esta interfaz. */
-export const CODIGOS_DEL_BACKEND = CODIGOS_DE_ERROR.filter((c) => c !== 'SIN_RESPUESTA');
+/**
+ * Los que esta interfaz ANADE, y el motivo de cada uno.
+ *
+ * No es documentacion: lo lee `verificaciones/rutas.mjs`. La relacion entre las
+ * dos listas **no es igualdad** —los del backend estan todos aqui, y ademas hay
+ * estos—, asi que una guarda que exigiera conjuntos iguales pondria roja una
+ * diferencia que es correcta. Lo que se exige es lo otro: que cada anadido este
+ * declarado con su motivo, en vez de aparecer y que nadie sepa de donde salio.
+ */
+export const CODIGOS_QUE_ANADE_EL_CLIENTE: Readonly<Record<string, string>> = {
+  SIN_RESPUESTA:
+    'No lo produce ningun servidor: nombra que no hubo ninguna respuesta que clasificar —red caida, ' +
+    'servidor apagado, origen distinto—. No puede estar en el enumerado del backend.',
+};
+
+/**
+ * Los del backend, derivados y no repetidos.
+ *
+ * Se quita lo que esta interfaz declara como propio; lo que queda tiene que ser
+ * `CodigoDeError.java` letra por letra, y eso lo comprueba `rutas.mjs` contra el
+ * fuente de verdad.
+ */
+export const CODIGOS_DEL_BACKEND = CODIGOS_DE_ERROR.filter((c) => !(c in CODIGOS_QUE_ANADE_EL_CLIENTE));
 
 /**
  * El miembro `parametroQueFalta` de un cuerpo `problem+json`.

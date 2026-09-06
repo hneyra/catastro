@@ -24,6 +24,37 @@ export type Ruta = {
 
 export const RUTA_VACIA: Ruta = { modulo: '', destino: '', sujeto: '', filtros: {} };
 
+/**
+ * Descodifica un tramo del hash, y **no revienta si no se puede**.
+ *
+ * `decodeURIComponent` lanza `URIError` ante un porcentaje suelto o una secuencia
+ * incompleta —`%`, `%E0%A4%A`—, y eso llega a la URL sola: se pega un enlace
+ * truncado por un chat, se copia media direccion, se teclea un `%` en un codigo.
+ * Sin esta guarda, medido en Chromium sobre la vista previa de produccion:
+ *
+ *   · **En frio** —`#/catastro/predios/%E0%A4%A` abierto de nuevo— el `useState`
+ *     de `App` lanza al construir el estado inicial, React no monta nada y la
+ *     pagina se queda **EN BLANCO**: `#raiz` con 0 caracteres y un
+ *     «PAGEERROR: URI malformed» en la consola. Es el desenlace peor de los tres
+ *     —ni datos ni error— que toda esta interfaz esta escrita para evitar.
+ *   · **En caliente** —cambiar el hash con la aplicacion abierta, que es lo que
+ *     hacen pegar una direccion y el boton «atras»— lanza dentro del oyente de
+ *     `hashchange`, el estado no se actualiza, y la pantalla **sigue ensenando
+ *     la ruta anterior mientras la barra dice otra**. Se comparte esa URL y quien
+ *     la abre ve algo distinto de quien la mando.
+ *
+ * Lo que no se puede descodificar se devuelve **tal cual**: un sujeto que no
+ * casa con ningun predio acaba en «no se encontro», que es una respuesta; una
+ * pagina en blanco no lo es.
+ */
+function descodificar(tramo: string): string {
+  try {
+    return decodeURIComponent(tramo);
+  } catch {
+    return tramo;
+  }
+}
+
 export function leerRuta(hash: string): Ruta {
   const crudo = hash.startsWith('#') ? hash.slice(1) : hash;
   const sinBarra = crudo.startsWith('/') ? crudo.slice(1) : crudo;
@@ -33,7 +64,7 @@ export function leerRuta(hash: string): Ruta {
 
   /* Los DOS primeros separadores, y el resto se queda entero. */
   const primera = camino.indexOf('/');
-  if (primera < 0) return { ...RUTA_VACIA, modulo: decodeURIComponent(camino) };
+  if (primera < 0) return { ...RUTA_VACIA, modulo: descodificar(camino) };
   const segunda = camino.indexOf('/', primera + 1);
   const modulo = camino.slice(0, primera);
   const destino = segunda < 0 ? camino.slice(primera + 1) : camino.slice(primera + 1, segunda);
@@ -44,9 +75,9 @@ export function leerRuta(hash: string): Ruta {
     if (valor !== '') filtros[clave] = valor;
   }
   return {
-    modulo: decodeURIComponent(modulo),
-    destino: decodeURIComponent(destino),
-    sujeto: decodeURIComponent(sujeto),
+    modulo: descodificar(modulo),
+    destino: descodificar(destino),
+    sujeto: descodificar(sujeto),
     filtros,
   };
 }

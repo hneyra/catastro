@@ -79,8 +79,15 @@ jobs:
       # desincronizan, yarn ya habra fallado antes con el mensaje que nombra las
       # dos versiones, y esto solo tiene que cazar el caso en que la version
       # instalada las cumple y aun asi no es la que vite admite.
+      #
+      # `motor` y no `node`, y no es cosmetica: este paso decia `yarn node`, que
+      # **no es el guion** sino el comando `node` de yarn 1 —arranca Node y sale—.
+      # Medido: imprimia «yarn node v1.22.22 · Done in 0.04s» y salia con 0 sin
+      # ejecutar una linea del arnes, asi que este paso llevaba en verde desde que
+      # existe sin haber comprobado nada. Lo vigila el propio arnes: ningun guion
+      # de `package.json` puede llamarse como un comando de yarn.
       - name: La version de Node dice lo mismo en los dos sitios
-        run: yarn node
+        run: yarn motor
 
       # No abre navegador: linta las muestras como texto.
       - name: Cada prohibicion muerde sobre su muestra

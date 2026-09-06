@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.local
+.DS_Store
+tsconfig.tsbuildinfo
+.capturas/
+dist-sin-red/
+dist-con-proxy/
+
+# Los arneses compilan `src/shell/modulos.ts` al vuelo aqui y lo borran al
+# terminar; si uno muere a medias, el temporal se queda —y se cola en el commit,
+# que es como llego a estarlo una vez.
+verificaciones/.registro*.mjs
+verificaciones/.modulos*.mjs

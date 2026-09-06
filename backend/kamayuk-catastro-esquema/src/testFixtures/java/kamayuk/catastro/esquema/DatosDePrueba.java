@@ -228,13 +228,47 @@ public final class DatosDePrueba {
                 EJERCICIO);
         ejecutar(
                 app,
+                // La CLAVE no puede ser `valor-de-relleno`, y eso lo destapo catastro#8 al leer
+                // por primera vez esta tabla con `LectorDeParametrosCacheados`. Al sellar el
+                // conjunto, el disparador de `EscenarioDeNormativa` copia aqui todo lo que
+                // `conjunto_parametro_detalle_de_prueba` compone —y compone justamente el
+                // `PRUEBA:valor-de-relleno` nacional—, de modo que la fila quedaba DOS VECES con
+                // la misma llave y la misma vigencia. Nadie lo veia porque nadie leia los
+                // parametros de este conjunto; en cuanto la corrida los lee, la guarda de #659
+                // salta con «tiene dos filas de PRUEBA:valor-de-relleno vigentes en 2026 … y
+                // nadie eligio cual rige», que es exactamente lo que esa guarda existe para
+                // decir. La fila manual se queda —`AislamientoMultiTenantTest` exige que esta
+                // tabla tenga filas propias de cada municipalidad, y el disparador solo escribe
+                // al sellar— pero con llave propia.
                 "INSERT INTO normativa_parametro (municipalidad_id, conjunto_id, tipo, clave,"
                         + " valor_numerico, vigencia_desde, documento_fuente)"
-                        + " VALUES (?, ?, 'PRUEBA', 'valor-de-relleno', 1.000000, ?,"
+                        + " VALUES (?, ?, 'PRUEBA', 'solo-de-la-cache-local', 1.000000, ?,"
                         + "         'fixture de la prueba de aislamiento')",
                 muni,
                 conjuntoId,
                 VIGENCIA);
+        // El «% actualizacion» del ejercicio, que es lo que `normativa` sella desde catastro#8.
+        // Va con valor CERO, que es su valor neutro medido (#437) y el que corresponde a 2026
+        // porque el supuesto del art. 12 del TUO LTM no se cumple ese ano —se publicaron los
+        // aranceles y los precios unitarios—. La fuente de verdad es
+        // `normativa/docs/10-negocio/valores-normativos/predial-porcentaje-de-actualizacion.md`
+        // §1.6 y su fila de `parametros-2026.csv`; esto es la COPIA LOCAL de un conjunto sellado,
+        // que es lo unico que este sistema lee.
+        //
+        // Sin esta fila la corrida se para en TODOS los predios nombrando la llave, que es
+        // exactamente lo que hacia antes de #8 — y es la rotura con la que se demuestra que la
+        // rama muerde.
+        ejecutar(
+                app,
+                "INSERT INTO normativa_parametro (municipalidad_id, conjunto_id, tipo, clave,"
+                        + " valor_numerico, vigencia_desde, vigencia_hasta, documento_fuente)"
+                        + " VALUES (?, ?, 'PORCENTAJE_DE_ACTUALIZACION', NULL, 0.000000, ?, ?,"
+                        + "         'TUO de la Ley de Tributacion Municipal"
+                        + "          (D.S. N. 156-2004-EF), art. 12')",
+                muni,
+                conjuntoId,
+                VIGENCIA,
+                LocalDate.of(EJERCICIO, 12, 31));
         ejecutar(
                 app,
                 "INSERT INTO normativa_valor_unitario (municipalidad_id, conjunto_id, partida,"
@@ -551,6 +585,20 @@ public final class DatosDePrueba {
                 "INSERT INTO arancel (municipalidad_id, conjunto_id, via_id, valor_m2,"
                         + " documento_fuente)"
                         + " VALUES (?, ?, ?, 1.000000, 'fixture de la prueba')",
+                muni,
+                conjuntoId,
+                viaId);
+        // Y un SEGUNDO arancel de la misma via, este CON tramo y con otra cifra. No es adorno:
+        // sin el, quitarle a `arancelSinTramoPorVia` su `AND tramo IS NULL` pasaba en VERDE
+        // —medido en catastro#8— porque no habia ninguna fila con tramo que se pudiera colar. Con
+        // esta fila, la misma rotura hace que la consulta devuelva DOS aranceles para la via y la
+        // corrida revienta nombrando la ambiguedad, en vez de valorizar el terreno con la cifra
+        // que el planificador devolviera primero.
+        ejecutar(
+                app,
+                "INSERT INTO arancel (municipalidad_id, conjunto_id, via_id, tramo, valor_m2,"
+                        + " documento_fuente)"
+                        + " VALUES (?, ?, ?, 'cuadra 1', 9.000000, 'fixture de la prueba')",
                 muni,
                 conjuntoId,
                 viaId);

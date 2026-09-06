@@ -1,51 +1,102 @@
 package kamayuk.catastro.nucleo.dominio;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
+import kamayuk.catastro.dominio.AreaM2;
+import kamayuk.catastro.dominio.Dinero;
+import kamayuk.catastro.dominio.ValorNormativo;
 import org.jspecify.annotations.Nullable;
 
 /**
  * Decide la valuacion de un predio. <b>Funcion pura</b> (regla 6): sin base, sin reloj, sin
  * configuracion, y la fecha entra como argumento.
  *
- * <h2>Hoy NO VALORIZA NINGUNO, y eso no es una limitacion de esta clase: es el estado del sistema
- * </h2>
+ * <h2>Desde #8 SI valoriza, y hay que saber a quien y a quien no</h2>
  *
- * <p>Y conviene decirlo con todas las letras, porque una clase que se llama «valorizacion» y
- * devuelve siempre un motivo invita a que alguien la «arregle» poniendo una cuenta:
+ * <p>Hasta #8 esta clase tenia cinco ramas y <b>las cinco devolvian motivo</b>, porque el primer
+ * insumo que faltaba paraba a todos los predios: el {@code % actualizacion} (D-11) no tenia fuente
+ * identificada. Con {@code normativa} publicando el ejercicio 2026 —los valores unitarios de
+ * edificacion (H-14), la tabla de depreciacion (H-15) y el {@code PORCENTAJE_DE_ACTUALIZACION} del
+ * ejercicio— el sistema puede por fin valorizar, y esta clase dice <b>de que depende cada
+ * predio</b> en vez de decir que no puede ninguno.
  *
- * <ul>
- *   <li><b>El cuadro de valores unitarios no se puede cargar</b> (GOB-03, H-14). Sin el no hay
- *       valor de construccion.
- *   <li><b>Los aranceles son de ordenanza local y su ratificacion provincial</b> (D-02b). Sin ellos
- *       no hay valor de terreno.
- *   <li><b>El {@code % actualizacion} SIGUE SIN FUENTE IDENTIFICADA</b> (D-11, NEG-05 §0.1). Es el
- *       ultimo de los cuatro factores que quedaba abierto y es el que decide esta clase: multiplica
- *       —o mas exactamente incrementa, que #437 midio contra la captura del manual: su valor neutro
- *       es CERO y no uno— el autovaluo de <b>todo el padron</b>, y un valor inventado escala el
- *       error por cada predio. Por eso las reglas que lo llevan no se implementan <b>ni
- *       estructuralmente</b>, y esta clase no las implementa.
- * </ul>
+ * <p>Lo que sale de aqui es el <b>valor del predio</b>, no la obligacion: ni tramos, ni alicuotas,
+ * ni deducciones, ni minimo imponible. Eso es {@code rentas} (ADR-0024).
  *
- * <p>Asi que lo que hace es lo unico honesto que se puede hacer: <b>decir cual es el primer insumo
- * que falta</b>, en un orden declarado, para que quien opera sepa que publicar y no reciba un cero.
+ * <h2>El orden de las ramas, y por que ese</h2>
  *
- * <p>El dia que los cuatro se cierren, lo que cambia aqui es que las ramas dejen de dispararse y
- * aparezca la cuenta —<i>valor unitario → +5 % → − depreciacion → × area</i>, NEG-05—; lo que no
- * cambia es la firma, ni que la fecha entre como argumento, ni que el resultado siga trayendo la
- * identidad de sus insumos.
+ * <p>Va de lo que le falta al SISTEMA a lo que le falta al PREDIO, porque quien opera arregla cada
+ * cosa en un sitio distinto y decirle la equivocada es peor que no decirle nada:
+ *
+ * <ol>
+ *   <li><b>El predio no tiene ficha vigente.</b> Se arregla fichando el predio, no publicando una
+ *       cifra;
+ *   <li><b>el conjunto sellado no trae uno de los dos cuadros nacionales</b> (H-14, H-15). Se
+ *       arregla publicandolo en {@code normativa} y volviendo a sellar;
+ *   <li><b>la via del predio no tiene arancel</b> (D-02b). Es de ordenanza local;
+ *   <li><b>el conjunto no trae el {@code % actualizacion} del ejercicio</b> (D-11). Cerrado <b>solo
+ *       para 2026</b>; cualquier otro ejercicio vuelve a pararse aqui;
+ *   <li><b>al cuadro le falta la celda que esta construccion necesita</b>. Es distinto de que falte
+ *       el cuadro: las tres celdas de puntos suspensivos del Anexo I.2 <b>no valen cero</b> (#48),
+ *       y una construccion de categoria {@code H} en muros no se puede valorizar aunque el cuadro
+ *       este entero;
+ *   <li><b>no se sabe que tabla de depreciacion le toca a este uso</b> (RT-004). Es la decision que
+ *       hoy deja sin valorizar a todo predio con construcciones, y se dice con su llave para que la
+ *       direccion pueda contarlos;
+ *   <li><b>el predio declara obras complementarias y no hay con que valorizarlas</b>. El Anexo III
+ *       de la R.M. 277-2025-VIVIENDA no esta transcrito, y {@code otra_instalacion} no tiene
+ *       columna de valor declarado: no hay ni cuadro ni declaracion de donde sacar la cifra.
+ * </ol>
+ *
+ * <h2>Un cero que si es un cero</h2>
+ *
+ * <p>Un predio sin construcciones tiene {@code valorConstruccion} <b>cero</b>, y un predio sin
+ * obras complementarias tiene {@code valorObras} cero. Eso <b>no</b> es el defecto de #48: alli el
+ * cero era una cifra que faltaba disfrazada de cifra; aqui es un hecho sobre el predio —no hay nada
+ * construido— y lo contrario, dejarlo sin valorizar, seria negarse a valorizar un terreno porque no
+ * tiene casa. La diferencia se ve en que las dos situaciones se distinguen: lo que falta sale por
+ * una de las ramas de arriba, con su llave; lo que no existe sale como cero.
  */
 public final class ValorizacionDelPredio {
 
     /**
-     * La llave del factor que hoy para a todos los predios, cargado o no lo demas.
+     * La llave del factor que hasta #8 paraba a todos los predios.
      *
-     * <p>No es un valor tributario —es el <b>nombre</b> de uno que falta— y por eso no lo caza el
-     * escaner de la regla 5, que vigila literales numericos. Nombrarlo es lo contrario de
-     * inventarlo.
+     * <p>No es un valor tributario —es el <b>nombre</b> de uno— y por eso no lo caza el escaner de
+     * la regla 5, que vigila literales numericos. Nombrarlo es lo contrario de inventarlo. Sigue
+     * aqui porque sigue haciendo falta: 2026 tiene su fila sellada y ningun otro ejercicio la
+     * tiene.
      */
     public static final String PORCENTAJE_DE_ACTUALIZACION = "PORCENTAJE_DE_ACTUALIZACION";
+
+    /**
+     * La llave de la decision que hoy deja sin valorizar a todo predio con construcciones.
+     *
+     * <p>El Anexo I del Reglamento Nacional de Tasaciones publica <b>cuatro</b> tablas —01
+     * vivienda, 02 tiendas y depositos, 03 edificios y oficinas, 04 salud, cines, industria y
+     * educacion— y {@code normativa} las trae las cuatro. Lo que no hay es la traduccion del <b>uso
+     * que declara la ficha catastral</b> al numero de tabla: {@code depreciacion.md} §3 lo dice con
+     * todas las letras —«es criterio, no transcripcion, y no vive en este dato: RT-004 sigue sin
+     * escribirse»—, asi que inventarla aqui seria escribir una regla sin fuente y depreciar una
+     * oficina con el porcentaje de una vivienda.
+     */
+    public static final String TABLA_DE_DEPRECIACION = "TABLA_DE_DEPRECIACION";
+
+    /**
+     * La llave que falta para valorizar una obra complementaria o instalacion fija.
+     *
+     * <p>Los valores unitarios a costo directo son el <b>Anexo III</b> de la R.M.
+     * 277-2025-VIVIENDA, que el corpus no transcribe —y antes de transcribirlo hay que decidir que
+     * significan, porque la propia resolucion los da como «de uso opcional… como una guia» mientras
+     * su Anexo II manda el camino del analisis de costos con el factor de oficializacion—. Y
+     * tampoco hay declaracion: {@code otra_instalacion} guarda descripcion, unidad y cantidad, y
+     * <b>ninguna columna de valor</b>.
+     */
+    public static final String VALOR_UNITARIO_OBRA_COMPLEMENTARIA =
+            "VALOR_UNITARIO_OBRA_COMPLEMENTARIA";
 
     /**
      * La version del procedimiento de valuacion de este repositorio, tal como viaja en cada hecho
@@ -54,39 +105,145 @@ public final class ValorizacionDelPredio {
      * <p>No es «la version del catalogo de reglas tributarias»: aqui no corre ninguna, y decir que
      * si seria mentir sobre lo que produjo la cifra. Es la version de <b>esto</b> —de la funcion
      * que decide—, y lo que compra es que {@code rentas} pueda distinguir dos corridas hechas con
-     * procedimientos distintos sin tener que mirar sus cifras: hoy todas dicen «no se pudo», y el
-     * dia que unas digan una cosa y otras otra, esta cadena es lo unico que las separa.
+     * procedimientos distintos sin tener que mirar sus cifras.
      *
-     * <p><b>Cambia el dia que la cuenta exista</b>, y ese dia las valuaciones ya publicadas no se
-     * reescriben: se publica otra corrida (ADR-0027 §1).
+     * <p><b>Cambia con #8</b>, porque el procedimiento cambio: donde antes no habia cuenta ahora la
+     * hay. Las valuaciones ya publicadas <b>no se reescriben</b>: se publica otra corrida, y esta
+     * cadena es lo unico que separa las dos (ADR-0027 §1).
      */
-    public static final String VERSION = "sin-valorizacion-v1";
+    public static final String VERSION = "valuacion-de-terreno-v1";
+
+    /** Las reglas que corrieron, anotadas en el hecho. Vacio cuando no corrio ninguna. */
+    private static final String REGLAS_DEL_TERRENO = "TERRENO";
 
     private ValorizacionDelPredio() {}
 
     /**
+     * La ficha vigente del predio, con lo que hay que mirar para valorizarlo.
+     *
+     * @param uso el uso que declara la ficha. Es lo que RT-004 tendria que traducir a una de las
+     *     cuatro tablas del Anexo I
+     * @param obrasComplementarias cuantas instalaciones fijas y permanentes declara la ficha. Se
+     *     cuenta y no se lista porque hoy ninguna se puede valorizar: lo que decide es si hay
+     *     alguna
+     */
+    public record FichaDeLaValuacion(
+            long fichaId,
+            AreaM2 areaTerreno,
+            String uso,
+            List<Edificacion> construcciones,
+            int obrasComplementarias) {
+
+        public FichaDeLaValuacion {
+            Objects.requireNonNull(areaTerreno, "Toda ficha lleva su area de terreno");
+            Objects.requireNonNull(uso, "Toda ficha lleva su uso");
+            construcciones =
+                    List.copyOf(Objects.requireNonNull(construcciones, "La lista, o vacia"));
+            if (obrasComplementarias < 0) {
+                throw new IllegalArgumentException(
+                        "Una ficha no puede declarar un numero negativo de obras complementarias");
+            }
+        }
+    }
+
+    /**
+     * Una construccion de la ficha, con lo que el cuadro necesita para ponerle precio.
+     *
+     * <p>Las tres categorias son las de las <b>tres partidas de apreciacion exterior</b> del Cuadro
+     * de Valores Unitarios (V59), y no las siete columnas {@code categoria_*} de {@code
+     * construccion}: esas describen la edificacion y no le ponen precio. Nulo es «no declarada», y
+     * <b>no</b> es la categoria de la casilla sin techo ni sin puertas —esas son la {@code H} y la
+     * {@code I} del propio cuadro, con su cifra—.
+     */
+    public record Edificacion(
+            String piso,
+            AreaM2 areaConstruida,
+            @Nullable Integer anioConstruccion,
+            @Nullable Character categoriaMuros,
+            @Nullable Character categoriaTechos,
+            @Nullable Character categoriaPuertas) {
+
+        public Edificacion {
+            Objects.requireNonNull(piso, "Toda construccion dice en que piso esta");
+            Objects.requireNonNull(areaConstruida, "Toda construccion lleva su area construida");
+        }
+
+        /** La categoria declarada para esa partida, si la hay. */
+        @Nullable Character categoriaDe(Partida partida) {
+            return switch (partida) {
+                case MUROS -> categoriaMuros;
+                case TECHOS -> categoriaTechos;
+                case PUERTAS -> categoriaPuertas;
+            };
+        }
+    }
+
+    /**
+     * El cuadro sellado, tal como se consulta.
+     *
+     * <p>Es el cuadro ENTERO del conjunto y no una celda: lo trae la corrida una vez, no una vez
+     * por predio, que es la propiedad de ADR-0025 §1 aplicada al camino caliente.
+     */
+    public record CuadroDeValoresUnitarios(List<ValorUnitarioEdificacion> celdas) {
+
+        public CuadroDeValoresUnitarios {
+            celdas = List.copyOf(Objects.requireNonNull(celdas, "El cuadro, o vacio"));
+        }
+
+        public boolean estaVacio() {
+            return celdas.isEmpty();
+        }
+
+        /**
+         * El valor por metro cuadrado de una casilla, si el cuadro la publica.
+         *
+         * <p>Vacio significa <b>que la norma no publica esa casilla</b> —las tres de puntos
+         * suspensivos del Anexo I.2— o que ninguna cubre ese ano de construccion. Las dos se tratan
+         * igual y ninguna vale cero (#48).
+         */
+        Optional<ValorNormativo> valorDe(Partida partida, char categoria, int anioConstruccion) {
+            return celdas.stream()
+                    .filter(celda -> celda.partida() == partida)
+                    .filter(celda -> celda.categoria() == categoria)
+                    .filter(celda -> celda.anioConstruccionDesde() <= anioConstruccion)
+                    .filter(
+                            celda ->
+                                    celda.anioConstruccionHasta() == null
+                                            || celda.anioConstruccionHasta() >= anioConstruccion)
+                    .map(ValorUnitarioEdificacion::valorM2)
+                    .findFirst();
+        }
+    }
+
+    /**
      * Lo que se sabe de un predio en el momento de valorizarlo.
      *
-     * @param fichaCatastralId la ficha VIGENTE A LA FECHA DE CORTE, o nulo si no tiene ninguna
-     * @param hayCuadroDeValoresUnitarios si el conjunto sellado trae el cuadro (GOB-03 H-14)
-     * @param hayCuadroDeDepreciacion si trae la depreciacion (H-15, cargable desde #188)
-     * @param hayArancelDeLaVia si la via del predio tiene arancel publicado (D-02b)
+     * @param ficha la ficha VIGENTE A LA FECHA DE CORTE, o nulo si no tiene ninguna
+     * @param arancelM2 el arancel de la via del predio en el conjunto sellado, o nulo si esa via no
+     *     lo tiene publicado (D-02b). Es el VALOR y no un booleano: es lo que valoriza el terreno
+     * @param porcentajeDeActualizacion el {@code % actualizacion} del ejercicio, tal como lo sello
+     *     {@code normativa}, o <b>nulo</b> si el conjunto no trae esa llave. Nulo NO es cero: cero
+     *     es una cifra sellada con su fundamento y nulo es que nadie la publico (D-11)
+     * @param cuadroDeDepreciacion si el conjunto trae la tabla de depreciacion (H-15). Es un
+     *     booleano y no el cuadro porque hoy no se llega a consultarlo: RT-004 para antes
      */
     public record Insumos(
             long predioId,
             int ejercicio,
             LocalDate fechaDeCorte,
-            @Nullable Long fichaCatastralId,
+            @Nullable FichaDeLaValuacion ficha,
             long conjuntoId,
             String reglasVersion,
-            boolean hayCuadroDeValoresUnitarios,
-            boolean hayCuadroDeDepreciacion,
-            boolean hayArancelDeLaVia,
+            CuadroDeValoresUnitarios cuadroDeValoresUnitarios,
+            boolean cuadroDeDepreciacion,
+            @Nullable ValorNormativo arancelM2,
+            @Nullable ValorNormativo porcentajeDeActualizacion,
             List<CuotaDeTitular> titulares) {
 
         public Insumos {
             Objects.requireNonNull(fechaDeCorte, "La fecha entra como argumento (regla 6)");
             Objects.requireNonNull(reglasVersion, "La corrida dice que catalogo de reglas usa");
+            Objects.requireNonNull(cuadroDeValoresUnitarios, "El cuadro, aunque este vacio");
             titulares = List.copyOf(Objects.requireNonNull(titulares, "La lista, o vacia"));
         }
     }
@@ -94,43 +251,203 @@ public final class ValorizacionDelPredio {
     /** La valuacion que corresponde a esos insumos. */
     public static ValuacionDelPredio valorizar(Insumos insumos) {
         Objects.requireNonNull(insumos, "No se valoriza sin insumos");
-        String motivo;
-        String llave;
-        if (insumos.fichaCatastralId() == null) {
+        SinValorizar sinValorizar = queImpideValorizar(insumos);
+        if (sinValorizar != null) {
+            return conMotivo(insumos, sinValorizar);
+        }
+
+        FichaDeLaValuacion ficha = Objects.requireNonNull(insumos.ficha());
+        ValorNormativo arancel = Objects.requireNonNull(insumos.arancelM2());
+        ValorNormativo actualizacion = Objects.requireNonNull(insumos.porcentajeDeActualizacion());
+
+        // El valor del terreno: area por arancel del metro cuadrado de su via. No se redondea aqui
+        // —D-03a y D-03b siguen abiertas— y el producto viaja exacto: quien redondee lo hara con
+        // una PoliticaDeRedondeo, que es donde esa decision se puede leer.
+        Dinero terreno = new Dinero(ficha.areaTerreno().valor().multiply(arancel.valor()));
+        // Cero porque no hay nada construido y nada declarado, no porque falte una cifra: lo que
+        // falta sale por `queImpideValorizar` con su llave. Ver el javadoc de la clase.
+        Dinero construccion = Dinero.CERO;
+        Dinero obras = Dinero.CERO;
+
+        // El «% actualizacion» INCREMENTA el autovaluo; no lo multiplica. Su valor neutro es CERO
+        // y no uno, medido contra una determinacion real del SRTM (#437, y
+        // `predial-porcentaje-de-actualizacion.md` §1.3). Para 2026 vale cero con su fundamento
+        // —el supuesto del art. 12 del TUO LTM no se cumple— asi que no mueve la cifra; el dia
+        // que un ejercicio lo active, hay que decidir antes DONDE se aplica, porque la captura
+        // del SRTM lo situa entre el autovaluo y la base imponible, o sea del lado de `rentas`
+        // (ADR-0024, junto al `% propiedad` de D-21).
+        //
+        // Un incremento de CERO no se aplica, y no es un atajo: `x + x·0` y `x` son el mismo
+        // importe, pero multiplicar por uno le anade a la escala tantos decimales como traiga el
+        // porcentaje, y elegir la escala del resultado es exactamente la decision que D-03a deja
+        // abierta. Aqui no se redondea nada —quien emita un documento lo hara con una
+        // `PoliticaDeRedondeo`— asi que tampoco se ensucia.
+        Dinero autovaluo = terreno.mas(construccion).mas(obras);
+        if (actualizacion.valor().signum() != 0) {
+            autovaluo = autovaluo.mas(autovaluo.por(porCiento(actualizacion)));
+        }
+
+        return new ValuacionDelPredio(
+                insumos.predioId(),
+                insumos.ejercicio(),
+                insumos.fechaDeCorte(),
+                terreno,
+                construccion,
+                obras,
+                autovaluo,
+                null,
+                null,
+                ficha.fichaId(),
+                insumos.conjuntoId(),
+                insumos.reglasVersion(),
+                REGLAS_DEL_TERRENO,
+                insumos.titulares());
+    }
+
+    /** El porcentaje como fraccion. {@code 0 %} da cero, que es el valor neutro del incremento. */
+    private static BigDecimal porCiento(ValorNormativo porcentaje) {
+        return porcentaje.valor().movePointLeft(2);
+    }
+
+    /**
+     * El primer insumo que falta, en el orden declarado, o nulo si no falta ninguno.
+     *
+     * <p>El orden importa y esta razonado en el javadoc de la clase: quien opera arregla cada cosa
+     * en un sitio distinto.
+     */
+    private static @Nullable SinValorizar queImpideValorizar(Insumos insumos) {
+        FichaDeLaValuacion ficha = insumos.ficha();
+        if (ficha == null) {
             // No es «falta publicar»: es que este predio no tiene con que valorizarse. Se
-            // distingue de las otras tres a proposito, porque se arregla fichando el predio y
-            // no publicando una cifra — y mandar a quien opera a buscar una ordenanza que no
-            // le falta es peor que no decirle nada.
-            motivo =
+            // distingue de las demas a proposito, porque se arregla fichando el predio y no
+            // publicando una cifra — y mandar a quien opera a buscar una ordenanza que no le
+            // falta es peor que no decirle nada.
+            return new SinValorizar(
                     "El predio no tiene ficha catastral vigente al "
                             + insumos.fechaDeCorte()
-                            + ": no hay area, ni uso, ni construcciones con que valorizarlo";
-            llave = null;
-        } else if (!insumos.hayCuadroDeValoresUnitarios()) {
-            motivo =
+                            + ": no hay area, ni uso, ni construcciones con que valorizarlo",
+                    null);
+        }
+        if (insumos.cuadroDeValoresUnitarios().estaVacio()) {
+            return new SinValorizar(
                     "El conjunto sellado del ejercicio no trae el cuadro de valores unitarios de"
-                            + " edificacion (GOB-03 H-14): sin el no hay valor de construccion";
-            llave = "VALOR_UNITARIO:" + insumos.ejercicio();
-        } else if (!insumos.hayCuadroDeDepreciacion()) {
-            motivo =
+                            + " edificacion (GOB-03 H-14): sin el no hay valor de construccion",
+                    "VALOR_UNITARIO:" + insumos.ejercicio());
+        }
+        if (!insumos.cuadroDeDepreciacion()) {
+            return new SinValorizar(
                     "El conjunto sellado del ejercicio no trae el cuadro de depreciacion"
-                            + " (GOB-03 H-15): sin el, la construccion se valorizaria sin depreciar";
-            llave = "DEPRECIACION:" + insumos.ejercicio();
-        } else if (!insumos.hayArancelDeLaVia()) {
-            motivo =
+                            + " (GOB-03 H-15): sin el, la construccion se valorizaria sin depreciar",
+                    "DEPRECIACION:" + insumos.ejercicio());
+        }
+        if (insumos.arancelM2() == null) {
+            return new SinValorizar(
                     "La via del predio no tiene arancel publicado para el ejercicio (D-02b, de"
                             + " ordenanza local con su ratificacion provincial): sin el no hay"
-                            + " valor de terreno";
-            llave = "ARANCEL:" + insumos.ejercicio();
-        } else {
-            // LA RAMA QUE SIEMPRE SE ALCANZA SI LAS OTRAS TRES NO. Ver la cabecera: D-11.
-            motivo =
-                    "El «% actualizacion» sigue sin fuente identificada (D-11, NEG-05 §0.1). Es un"
-                            + " incremento sobre el autovaluo de TODO el padron —su valor neutro es"
-                            + " cero, no uno (#437)— y no se inventa: mientras no se publique, este"
-                            + " sistema no valoriza ningun predio";
-            llave = PORCENTAJE_DE_ACTUALIZACION;
+                            + " valor de terreno",
+                    "ARANCEL:" + insumos.ejercicio());
         }
+        if (insumos.porcentajeDeActualizacion() == null) {
+            return new SinValorizar(
+                    "El conjunto sellado del ejercicio "
+                            + insumos.ejercicio()
+                            + " no trae el «% actualizacion» (D-11). Esta cerrado SOLO para 2026,"
+                            + " y con su fundamento: el supuesto del art. 12 del TUO LTM no se"
+                            + " cumple ese ano porque se publicaron los aranceles y los precios"
+                            + " unitarios. Cualquier otro ejercicio necesita su propia lectura, y"
+                            + " no hay valor por omision",
+                    PORCENTAJE_DE_ACTUALIZACION);
+        }
+        return loQueImpideValorizarLoConstruido(insumos, ficha);
+    }
+
+    private static @Nullable SinValorizar loQueImpideValorizarLoConstruido(
+            Insumos insumos, FichaDeLaValuacion ficha) {
+        for (Edificacion construccion : ficha.construcciones()) {
+            SinValorizar celda = celdaQueFalta(insumos, construccion);
+            if (celda != null) {
+                return celda;
+            }
+        }
+        if (!ficha.construcciones().isEmpty()) {
+            // RT-004: que tabla del Anexo I le toca a este uso. Es criterio y no transcripcion, y
+            // `normativa` no lo puede publicar porque ninguna norma lo fija
+            // (`depreciacion.md` §3). Se nombra con el USO para que la direccion pueda contar los
+            // predios por uso y ver que decide cada linea.
+            return new SinValorizar(
+                    "No esta decidido que tabla de depreciacion del Anexo I del Reglamento"
+                            + " Nacional de Tasaciones le corresponde al uso «"
+                            + ficha.uso()
+                            + "» (RT-004). El Anexo publica cuatro y las cuatro estan selladas;"
+                            + " traducir el uso de la ficha al numero de tabla es criterio y no"
+                            + " transcripcion, y depreciar una oficina con el porcentaje de una"
+                            + " vivienda es un error que ninguna consulta delata",
+                    TABLA_DE_DEPRECIACION + ":" + ficha.uso());
+        }
+        if (ficha.obrasComplementarias() > 0) {
+            return new SinValorizar(
+                    "El predio declara "
+                            + ficha.obrasComplementarias()
+                            + " obra(s) complementaria(s) o instalacion(es) fija(s) y no hay con"
+                            + " que valorizarlas: el Anexo III de la R.M. 277-2025-VIVIENDA no"
+                            + " esta transcrito en el corpus y la ficha no declara ningun valor"
+                            + " —«otra_instalacion» guarda descripcion, unidad y cantidad, y"
+                            + " ninguna columna de importe—",
+                    VALOR_UNITARIO_OBRA_COMPLEMENTARIA + ":" + insumos.ejercicio());
+        }
+        return null;
+    }
+
+    /**
+     * La casilla del cuadro que esta construccion necesita y no esta.
+     *
+     * <p><b>Es distinto de que falte el cuadro</b>, y por eso es una rama propia: el Anexo I.2
+     * publica 27 casillas y tres de ellas son puntos suspensivos —muros en {@code H} e {@code I},
+     * techos en {@code I}—, que «no son un dato que falte en la transcripcion ni un cero». Una
+     * construccion que caiga en una de esas no se puede valorizar aunque el cuadro este entero, y
+     * decir «falta el cuadro» mandaria a publicar algo que ya esta publicado.
+     */
+    private static @Nullable SinValorizar celdaQueFalta(Insumos insumos, Edificacion construccion) {
+        Integer anio = construccion.anioConstruccion();
+        if (anio == null) {
+            return new SinValorizar(
+                    "La construccion del piso "
+                            + construccion.piso()
+                            + " no declara ano de construccion, y sin el no se puede elegir la"
+                            + " casilla del cuadro ni la antiguedad con que se deprecia",
+                    null);
+        }
+        for (Partida partida : Partida.values()) {
+            Character categoria = construccion.categoriaDe(partida);
+            if (categoria == null) {
+                return new SinValorizar(
+                        "La construccion del piso "
+                                + construccion.piso()
+                                + " no declara la categoria de «"
+                                + partida
+                                + "», que es una de las tres partidas que el cuadro suma. Una"
+                                + " categoria sin declarar no es «sin techo» ni «sin puertas»:"
+                                + " esas son casillas del cuadro, con su cifra",
+                        null);
+            }
+            if (insumos.cuadroDeValoresUnitarios().valorDe(partida, categoria, anio).isEmpty()) {
+                return new SinValorizar(
+                        "El cuadro de valores unitarios no publica la casilla «"
+                                + partida
+                                + "» de la categoria "
+                                + categoria
+                                + " para una construccion de "
+                                + anio
+                                + ". En el Anexo I.2 esa casilla son puntos suspensivos, que no"
+                                + " son un dato que falte en la transcripcion ni un cero (#48)",
+                        "VALOR_UNITARIO:" + partida + ":" + categoria);
+            }
+        }
+        return null;
+    }
+
+    private static ValuacionDelPredio conMotivo(Insumos insumos, SinValorizar sinValorizar) {
+        FichaDeLaValuacion ficha = insumos.ficha();
         return new ValuacionDelPredio(
                 insumos.predioId(),
                 insumos.ejercicio(),
@@ -139,9 +456,9 @@ public final class ValorizacionDelPredio {
                 null,
                 null,
                 null,
-                motivo,
-                llave,
-                insumos.fichaCatastralId(),
+                sinValorizar.motivo(),
+                sinValorizar.llave(),
+                ficha == null ? null : ficha.fichaId(),
                 insumos.conjuntoId(),
                 insumos.reglasVersion(),
                 // Ninguna. Y se dice vacio en vez de omitirlo: «no corrio ninguna regla» y «no se
@@ -149,4 +466,7 @@ public final class ValorizacionDelPredio {
                 "",
                 insumos.titulares());
     }
+
+    /** Por que no se pudo valorizar, y con que llave se agrupa. */
+    private record SinValorizar(String motivo, @Nullable String llave) {}
 }

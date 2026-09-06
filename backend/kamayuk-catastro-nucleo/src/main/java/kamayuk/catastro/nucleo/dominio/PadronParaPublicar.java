@@ -2,10 +2,11 @@ package kamayuk.catastro.nucleo.dominio;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import kamayuk.catastro.dominio.AreaM2;
 import kamayuk.catastro.dominio.Ejercicio;
+import kamayuk.catastro.dominio.ValorNormativo;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -41,11 +42,34 @@ public interface PadronParaPublicar {
     /** Los titulares con su cuota, vigentes a la fecha, de todos los predios. */
     List<TitularDelPredio> titularesA(LocalDate fecha);
 
-    /** Las vias que tienen arancel publicado en el conjunto sellado de ese ejercicio (D-02b). */
-    Set<Long> viasConArancel(long conjuntoId);
+    /** Las construcciones de todas las fichas, en orden de ficha y piso. */
+    List<ConstruccionDeLaFicha> construcciones();
 
-    /** Si el conjunto trae el cuadro de valores unitarios de edificacion (GOB-03 H-14). */
-    boolean hayCuadroDeValoresUnitarios(long conjuntoId);
+    /** Cuantas obras complementarias o instalaciones fijas declara cada ficha. */
+    List<ObrasDeLaFicha> obrasComplementarias();
+
+    /**
+     * El arancel <b>sin tramo</b> de cada via, en el conjunto sellado (D-02b).
+     *
+     * <p>Devuelve el VALOR y no un conjunto de identificadores, porque el arancel es lo que
+     * valoriza el terreno y una corrida que solo supiera «esta via tiene arancel» tendria que
+     * volver a preguntar por cada predio.
+     *
+     * <p><b>Sin tramo</b>, y esa es la unica forma que hoy se puede usar: {@code arancel} admite
+     * varios tramos por via ({@code arancel_uq} es (municipalidad, conjunto, via, tramo)) y {@code
+     * predio} no dice en que tramo de su via esta, asi que una via que solo publique tramos deja a
+     * sus predios sin arancel aplicable. El indice {@code arancel_sin_tramo_uq} garantiza que el
+     * que no lleva tramo sea uno solo.
+     */
+    Map<Long, ValorNormativo> arancelSinTramoPorVia(long conjuntoId);
+
+    /**
+     * El cuadro de valores unitarios de edificacion del conjunto, entero (GOB-03 H-14).
+     *
+     * <p>Entero y de una vez, no una celda por predio: es la propiedad de ADR-0025 §1 aplicada al
+     * camino caliente. Vacio significa que el conjunto no lo compuso.
+     */
+    List<ValorUnitarioEdificacion> cuadroDeValoresUnitarios(long conjuntoId);
 
     /** Si el conjunto trae el cuadro de depreciacion (GOB-03 H-15). */
     boolean hayCuadroDeDepreciacion(long conjuntoId);
@@ -98,6 +122,32 @@ public interface PadronParaPublicar {
 
     /** Que ficha regia un predio a la fecha de corte. */
     record FichaVigente(long predioId, long fichaId) {}
+
+    /**
+     * Una construccion de una ficha, con lo que el cuadro de valores unitarios necesita.
+     *
+     * <p>Las tres categorias son las de las <b>tres partidas de apreciacion exterior</b> que el
+     * cuadro publica (V59), y no las siete columnas {@code categoria_*} de {@code construccion}:
+     * las otras cuatro describen la edificacion y no le ponen precio, porque ninguna region del
+     * Anexo I las publica.
+     */
+    record ConstruccionDeLaFicha(
+            long fichaId,
+            String piso,
+            AreaM2 areaConstruida,
+            @Nullable Integer anioConstruccion,
+            @Nullable Character categoriaMuros,
+            @Nullable Character categoriaTechos,
+            @Nullable Character categoriaPuertas) {
+
+        public ConstruccionDeLaFicha {
+            Objects.requireNonNull(piso, "Toda construccion dice en que piso esta");
+            Objects.requireNonNull(areaConstruida, "Toda construccion lleva su area construida");
+        }
+    }
+
+    /** Cuantas obras complementarias declara una ficha. */
+    record ObrasDeLaFicha(long fichaId, int cuantas) {}
 
     /** Un titular de un predio, con su cuota a la fecha. */
     record TitularDelPredio(long predioId, CuotaDeTitular cuota) {

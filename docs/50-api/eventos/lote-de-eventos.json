@@ -1,7 +1,7 @@
 {
   "eventos" : [ {
     "eventoId" : "28952a97-bcf1-80bf-bb37-f8425dc7a30c",
-    "secuencia" : 9,
+    "secuencia" : 10,
     "tipo" : "PREDIO_PROYECTADO",
     "predioId" : 2,
     "ejercicio" : null,
@@ -9,40 +9,40 @@
     "huella" : "d200b1988e503601eb7fdcd8cf93e544fa45b7d8e3c64b890541216dbd4b2454",
     "emitidoEn" : "2026-03-01T10:00:00Z"
   }, {
-    "eventoId" : "dfdd1955-8b68-8525-b7ec-38434beb851c",
-    "secuencia" : 10,
+    "eventoId" : "c36b9f5d-3491-8142-8b9f-e2c239532667",
+    "secuencia" : 11,
     "tipo" : "PREDIO_PROYECTADO",
-    "predioId" : 3,
+    "predioId" : 4,
     "ejercicio" : null,
-    "cuerpo" : "{\"estado\": \"ACTIVO\", \"fichas\": [{\"uso\": \"COMERCIO\", \"tipo\": \"UNICA\", \"fichaId\": 9, \"version\": 1, \"areaTerreno\": \"240.00\", \"vigenciaDesde\": \"2026-01-01\", \"vigenciaHasta\": null}], \"predioId\": 3, \"direccion\": \"Jr. Union 2\", \"sectorCodigo\": \"S-PB\", \"codigoRefCatastral\": \"202202000000000002\"}",
-    "huella" : "e3add75e38cee9b48108c780f95732e7d6c68b67539a053f1537779d6a2b20bd",
+    "cuerpo" : "{\"estado\": \"ACTIVO\", \"fichas\": [{\"uso\": \"COMERCIO\", \"tipo\": \"UNICA\", \"fichaId\": 13, \"version\": 1, \"areaTerreno\": \"240.00\", \"vigenciaDesde\": \"2026-01-01\", \"vigenciaHasta\": null}], \"predioId\": 4, \"direccion\": \"Jr. Union 2\", \"sectorCodigo\": \"S-PB\", \"codigoRefCatastral\": \"202202000000000002\"}",
+    "huella" : "9a593a61ef9edaae8405c6f1d14950e617a2daf5d6290c04b4aba6be5257edcd",
     "emitidoEn" : "2026-03-01T10:00:00Z"
   }, {
     "eventoId" : "72024c96-cc82-88ec-acb1-f9762e1c032f",
-    "secuencia" : 11,
+    "secuencia" : 12,
     "tipo" : "VALUACION_PUBLICADA",
     "predioId" : 2,
     "ejercicio" : 2026,
-    "cuerpo" : "{\"motivo\": \"El «% actualizacion» sigue sin fuente identificada (D-11, NEG-05 §0.1). Es un incremento sobre el autovaluo de TODO el padron —su valor neutro es cero, no uno (#437)— y no se inventa: mientras no se publique, este sistema no valoriza ningun predio\", \"predioId\": 2, \"ejercicio\": 2026, \"titulares\": [{\"cuota\": \"100.0000\", \"condicion\": \"PROPIETARIO_UNICO\", \"contribuyenteId\": 900001}], \"conjuntoId\": 2, \"valorObras\": null, \"fechaDeCorte\": \"2026-01-01\", \"valorTerreno\": null, \"llaveQueFalta\": \"PORCENTAJE_DE_ACTUALIZACION\", \"reglasVersion\": \"sin-valorizacion-v1\", \"valorDelPredio\": null, \"reglasAplicadas\": \"\", \"fichaCatastralId\": 5, \"valorConstruccion\": null}",
-    "huella" : "1516d47cbec9484ea98f8bb11d170fc040437bf0677eb0c94d898ae469ccc832",
+    "cuerpo" : "{\"motivo\": \"La construccion del piso 1 no declara la categoria de «TECHOS», que es una de las tres partidas que el cuadro suma. Una categoria sin declarar no es «sin techo» ni «sin puertas»: esas son casillas del cuadro, con su cifra\", \"predioId\": 2, \"ejercicio\": 2026, \"titulares\": [{\"cuota\": \"100.0000\", \"condicion\": \"PROPIETARIO_UNICO\", \"contribuyenteId\": 900001}], \"conjuntoId\": 2, \"valorObras\": null, \"fechaDeCorte\": \"2026-01-01\", \"valorTerreno\": null, \"llaveQueFalta\": null, \"reglasVersion\": \"valuacion-de-terreno-v1\", \"valorDelPredio\": null, \"reglasAplicadas\": \"\", \"fichaCatastralId\": 5, \"valorConstruccion\": null}",
+    "huella" : "4fcb3a47d338cb0e6af63dc78e60a58d96bb2a858182ebd9aad78141d7c94daa",
     "emitidoEn" : "2026-03-01T10:00:00Z"
   }, {
-    "eventoId" : "5862d39e-4ed5-868a-9fd6-b50406337611",
-    "secuencia" : 12,
+    "eventoId" : "63906f02-8b40-8173-8b7f-c73cda2ef12c",
+    "secuencia" : 13,
     "tipo" : "VALUACION_PUBLICADA",
-    "predioId" : 3,
+    "predioId" : 4,
     "ejercicio" : 2026,
-    "cuerpo" : "{\"motivo\": \"El «% actualizacion» sigue sin fuente identificada (D-11, NEG-05 §0.1). Es un incremento sobre el autovaluo de TODO el padron —su valor neutro es cero, no uno (#437)— y no se inventa: mientras no se publique, este sistema no valoriza ningun predio\", \"predioId\": 3, \"ejercicio\": 2026, \"titulares\": [{\"cuota\": \"100.0000\", \"condicion\": \"PROPIETARIO_UNICO\", \"contribuyenteId\": 900002}], \"conjuntoId\": 2, \"valorObras\": null, \"fechaDeCorte\": \"2026-01-01\", \"valorTerreno\": null, \"llaveQueFalta\": \"PORCENTAJE_DE_ACTUALIZACION\", \"reglasVersion\": \"sin-valorizacion-v1\", \"valorDelPredio\": null, \"reglasAplicadas\": \"\", \"fichaCatastralId\": 9, \"valorConstruccion\": null}",
-    "huella" : "ca258f7ed3edff6fadb46094c199a72ec6e01f9f8ba3ee078d06ee4f43236aea",
+    "cuerpo" : "{\"motivo\": null, \"predioId\": 4, \"ejercicio\": 2026, \"titulares\": [{\"cuota\": \"100.0000\", \"condicion\": \"PROPIETARIO_UNICO\", \"contribuyenteId\": 900002}], \"conjuntoId\": 2, \"valorObras\": \"0\", \"fechaDeCorte\": \"2026-01-01\", \"valorTerreno\": \"240.00000000\", \"llaveQueFalta\": null, \"reglasVersion\": \"valuacion-de-terreno-v1\", \"valorDelPredio\": \"240.00000000\", \"reglasAplicadas\": \"TERRENO\", \"fichaCatastralId\": 13, \"valorConstruccion\": \"0\"}",
+    "huella" : "8982a6897f554396db7a309c1c8898f734adde2e71a0fd09c0be41630896d257",
     "emitidoEn" : "2026-03-01T10:00:00Z"
   }, {
     "eventoId" : "e442d15c-766b-8661-afb4-025c3e7b291d",
-    "secuencia" : 13,
+    "secuencia" : 14,
     "tipo" : "CORRIDA_CERRADA",
     "predioId" : null,
     "ejercicio" : 2026,
-    "cuerpo" : "{\"conteo\": 2, \"huella\": \"c38a250a4fba09afb4ca2f90a344e3a94591de914e7308bd6c61ea7ae17ec088\", \"cerradaEn\": \"2026-03-01T10:00:00Z\", \"corridaId\": 3, \"ejercicio\": 2026, \"conjuntoId\": 2, \"fechaDeCorte\": \"2026-01-01\", \"reglasVersion\": \"sin-valorizacion-v1\"}",
-    "huella" : "c1cda6c8b46d94d0a942411b1d3bdd50fff17da99ecdafecc62ac8c5d1e67c77",
+    "cuerpo" : "{\"conteo\": 2, \"huella\": \"a90259fb363bff47f496fb0bc5bd5acebe575309a3bf06d7cf7239f4479ba27f\", \"cerradaEn\": \"2026-03-01T10:00:00Z\", \"corridaId\": 3, \"ejercicio\": 2026, \"conjuntoId\": 2, \"fechaDeCorte\": \"2026-01-01\", \"reglasVersion\": \"valuacion-de-terreno-v1\"}",
+    "huella" : "2510da28ecff824aa1e5969c4573f852ada596ce6fec84a6d174492a78432b8f",
     "emitidoEn" : "2026-03-01T10:00:00Z"
   } ],
   "pendientesQueQuedan" : 0,

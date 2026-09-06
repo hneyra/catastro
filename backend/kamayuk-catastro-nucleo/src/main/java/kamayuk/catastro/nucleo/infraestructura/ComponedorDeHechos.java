@@ -11,6 +11,7 @@ import kamayuk.catastro.nucleo.dominio.HechoDeCatastro;
 import kamayuk.catastro.nucleo.dominio.HuellaDelHecho;
 import kamayuk.catastro.nucleo.dominio.IdentidadDelEvento;
 import kamayuk.catastro.nucleo.dominio.PadronParaPublicar;
+import kamayuk.catastro.nucleo.dominio.TerritorioParaPublicar;
 import kamayuk.catastro.nucleo.dominio.TipoDeEventoDeCatastro;
 import kamayuk.catastro.nucleo.dominio.ValuacionDelPredio;
 import org.jspecify.annotations.Nullable;
@@ -19,7 +20,8 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Convierte un hecho del padron en la fila que va al buzon: su cuerpo y su huella (C-8).
+ * Convierte un hecho del padron o del territorio en la fila que va al buzon: su cuerpo y su huella
+ * (C-8, #7).
  *
  * <h2>Las dos cosas se componen AQUI y en el mismo metodo, y es deliberado</h2>
  *
@@ -180,6 +182,131 @@ public class ComponedorDeHechos {
                                 conteo,
                                 huellaAgregada,
                                 cerradaEn.toString())),
+                huella);
+    }
+
+    /**
+     * Una manzana con su sector (#7). Del CONTENIDO: republicar lo que no cambio no escribe nada.
+     */
+    public HechoDeCatastro deLaManzana(TerritorioParaPublicar.ManzanaDelTerritorio manzana) {
+        String huella =
+                HuellaDelHecho.deLosCampos(
+                        List.of(
+                                String.valueOf(manzana.manzanaId()),
+                                manzana.codigo(),
+                                manzana.sectorCodigo(),
+                                manzana.sectorNombre()));
+        return new HechoDeCatastro(
+                IdentidadDelEvento.deUnaManzanaPublicada(
+                        municipalidad(), manzana.manzanaId(), huella),
+                TipoDeEventoDeCatastro.MANZANA_PUBLICADA,
+                null,
+                null,
+                escribir(
+                        new ContratoDeEventos.ManzanaPublicada(
+                                manzana.manzanaId(),
+                                manzana.codigo(),
+                                manzana.sectorCodigo(),
+                                manzana.sectorNombre())),
+                huella);
+    }
+
+    /**
+     * Los frentes de un predio (#7). Del CONTENIDO, y el conjunto entero es UN hecho.
+     *
+     * <p>La huella cubre <b>todos</b> los campos de cada frente, incluido el estado de su longitud:
+     * confirmar una longitud que ya estaba propuesta con el mismo numero <b>cambia el hecho</b>,
+     * porque cambia lo unico que separa una cifra con la que se puede determinar de una con la que
+     * no (ADR-0021). Si el estado quedara fuera, esa confirmacion no produciria ningun evento y
+     * {@code rentas} seguiria creyendo que los metros los corto una maquina.
+     */
+    public HechoDeCatastro deLosFrentes(TerritorioParaPublicar.FrentesDeUnPredio frentes) {
+        List<ContratoDeEventos.FrenteDelPredio> publicados = new ArrayList<>();
+        List<@Nullable String> campos = new ArrayList<>();
+        campos.add(String.valueOf(frentes.predioId()));
+        campos.add(frentes.codigoRefCatastral());
+        for (TerritorioParaPublicar.FrenteDelTerritorio frente : frentes.frentes()) {
+            String longitud = frente.longitud().toString();
+            String retiro = frente.retiro() == null ? null : frente.retiro().toString();
+            publicados.add(
+                    new ContratoDeEventos.FrenteDelPredio(
+                            frente.frenteId(),
+                            frente.viaId(),
+                            frente.viaCodigo(),
+                            frente.viaNombre(),
+                            longitud,
+                            frente.estado().name(),
+                            frente.esPrincipal(),
+                            frente.numeracion(),
+                            retiro));
+            campos.add(String.valueOf(frente.frenteId()));
+            campos.add(String.valueOf(frente.viaId()));
+            campos.add(frente.viaCodigo());
+            campos.add(frente.viaNombre());
+            campos.add(longitud);
+            campos.add(frente.estado().name());
+            campos.add(String.valueOf(frente.esPrincipal()));
+            campos.add(frente.numeracion());
+            campos.add(retiro);
+        }
+        String huella = HuellaDelHecho.deLosCampos(campos);
+        return new HechoDeCatastro(
+                IdentidadDelEvento.deLosFrentesDeUnPredio(
+                        municipalidad(), frentes.predioId(), huella),
+                TipoDeEventoDeCatastro.FRENTE_PUBLICADO,
+                frentes.predioId(),
+                null,
+                escribir(
+                        new ContratoDeEventos.FrentePublicado(
+                                frentes.predioId(),
+                                frentes.codigoRefCatastral(),
+                                List.copyOf(publicados))),
+                huella);
+    }
+
+    /**
+     * Un hallazgo firme (#7, ADR-0035). De la IDENTIDAD y NO del contenido.
+     *
+     * <p>Es lo contrario de los otros dos de esta migracion, y es deliberado: un hallazgo lo firmo
+     * una persona. Que el mismo hallazgo vuelva con otra area verificada no es un hecho nuevo, es
+     * alguien reescribiendo lo firmado, y el buzon lo <b>para</b> con {@code
+     * HechoSelladoReescrito}. Ver {@code IdentidadDelEvento.deUnHallazgoFirme}.
+     */
+    public HechoDeCatastro delHallazgoFirme(TerritorioParaPublicar.HallazgoFirme hallazgo) {
+        String huella =
+                HuellaDelHecho.deLosCampos(
+                        java.util.Arrays.asList(
+                                String.valueOf(hallazgo.hallazgoId()),
+                                String.valueOf(hallazgo.candidatoId()),
+                                hallazgo.clase(),
+                                hallazgo.predioId() == null
+                                        ? null
+                                        : String.valueOf(hallazgo.predioId()),
+                                hallazgo.fichaId() == null
+                                        ? null
+                                        : String.valueOf(hallazgo.fichaId()),
+                                hallazgo.areaDeLaFicha() == null
+                                        ? null
+                                        : textoDelArea(hallazgo.areaDeLaFicha()),
+                                textoDelArea(hallazgo.areaVerificada()),
+                                hallazgo.inspector(),
+                                hallazgo.verificadoEn().toString()));
+        return new HechoDeCatastro(
+                IdentidadDelEvento.deUnHallazgoFirme(municipalidad(), hallazgo.hallazgoId()),
+                TipoDeEventoDeCatastro.HALLAZGO_FIRME,
+                hallazgo.predioId(),
+                null,
+                escribir(
+                        new ContratoDeEventos.HallazgoFirme(
+                                hallazgo.hallazgoId(),
+                                hallazgo.candidatoId(),
+                                hallazgo.clase(),
+                                hallazgo.predioId(),
+                                hallazgo.fichaId(),
+                                hallazgo.areaDeLaFicha(),
+                                hallazgo.areaVerificada(),
+                                hallazgo.inspector(),
+                                hallazgo.verificadoEn().toString())),
                 huella);
     }
 

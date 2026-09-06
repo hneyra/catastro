@@ -376,6 +376,39 @@ public final class DatosDePrueba {
                 desplazamientoDe(sufijo) + " ",
                 desplazamientoDe(sufijo) + " ");
 
+        // El eje de calzada de la via (`V10`). Con el, `via` pasa a ser una tabla de tenant CON
+        // geometria, asi que sus cuatro columnas de marco (ADR-0034) dejan de salir nulas: un
+        // filtro por marco sobre una columna nula pasaria en verde sin comprobar nada. Va sobre el
+        // mismo desplazamiento que el frente, para que las dos municipalidades caigan en grados de
+        // longitud distintos y una fuga del filtro se vea como filas ajenas y no como un empate.
+        ejecutar(
+                app,
+                "UPDATE via SET eje = ST_GeogFromText('SRID=4326;LINESTRING(' || ? || ' -4.90, '"
+                        + "                                                   || ? || ' -4.9002)')"
+                        + " WHERE municipalidad_id = ? AND id = ?",
+                desplazamientoDe(sufijo) + " ",
+                desplazamientoDe(sufijo) + " ",
+                muni,
+                viaId);
+
+        // La constancia de la derivacion (`V10`). Se siembra por lo mismo que el frente y las
+        // cinco tablas de la fiscalizacion: la prueba de aislamiento recorre TODAS las tablas de
+        // tenant y exige que la municipalidad A vea filas SUYAS. Sobre una tabla vacia, «no se ve
+        // nada de B» es cierto y no prueba nada — y esa es la forma exacta en que una tabla nueva
+        // entra sin que nadie compruebe su politica. Se puso roja sola al llegar `V10`:
+        // «frente_derivacion: la municipalidad A debe ver sus propias filas».
+        //
+        // `propuestos` en cero CON su motivo, porque es el estado real de hoy: no hay ni un
+        // poligono de lote cargado en ninguna instalacion, asi que el corte no daria ningun tramo.
+        ejecutar(
+                app,
+                "INSERT INTO frente_derivacion (municipalidad_id, predio_id, derivado_en,"
+                        + " propuestos, motivo)"
+                        + " VALUES (?, ?, now(), 0,"
+                        + "         'El corte no dio ningun tramo: el lote no tiene poligono')",
+                muni,
+                predioId);
+
         sembrarUrbano(app, muni, sufijo, viaId, predioId);
         // La gestion del riesgo (#5): una zona de peligro, una faja marginal y un ITSE.
         //

@@ -295,6 +295,23 @@ class ElPadronDeDemostracionSeValorizaTest {
     }
 
     /**
+     * La ruta del cuadro dentro del clon hermano, en UN SOLO literal y a proposito.
+     *
+     * <p>Antes se componia en tres trozos —{@code resolveSibling("normativa")} mas dos cachos de
+     * cadena— y eso caia justo en el <b>falso negativo declarado</b> de {@code
+     * ClonesHermanosDelWorkflowTest}: su {@code RUTA_A_MANO} reconoce un literal que empieza por el
+     * nombre de un hermano, y «una ruta compuesta en tiempo de ejecucion a partir de trozos no la
+     * veria». Resultado medido: el workflow no hacia {@code checkout} de {@code normativa}, la
+     * guarda que existe para cazar eso <b>paso en verde</b>, y el rojo aparecio donde no habla de
+     * su causa —«Falta el clon hermano de `normativa`» en el paso de {@code build} de CI—.
+     *
+     * <p>Escrito de una pieza, la guarda lo ve y exige que {@code .github/workflows/backend.yml} lo
+     * traiga. No se parte en dos aunque pase de 100 columnas: partirlo es volver al defecto.
+     */
+    private static final String EL_CUADRO_DEL_CLON_DE_NORMATIVA =
+            "normativa/docs/10-negocio/valores-normativos/fuentes/valores-unitarios-2026/valores-unitarios-costa-2026.csv";
+
+    /**
      * El cuadro que {@code normativa} publica, leido de su clon hermano.
      *
      * <p>Se lee del clon y no se copia aqui, por lo mismo que {@code catastro} lee {@code
@@ -304,12 +321,7 @@ class ElPadronDeDemostracionSeValorizaTest {
      */
     private static ValorizacionDelPredio.CuadroDeValoresUnitarios leerElCuadroDeNormativa()
             throws IOException {
-        Path derivado =
-                raizDelRepositorio()
-                        .resolveSibling("normativa")
-                        .resolve(
-                                "docs/10-negocio/valores-normativos/fuentes/valores-unitarios-2026/"
-                                        + "valores-unitarios-costa-2026.csv");
+        Path derivado = raizDelRepositorio().getParent().resolve(EL_CUADRO_DEL_CLON_DE_NORMATIVA);
         if (!Files.exists(derivado)) {
             throw new IllegalStateException(
                     "Falta el clon hermano de `normativa`, y sin el este censo no puede leer el"

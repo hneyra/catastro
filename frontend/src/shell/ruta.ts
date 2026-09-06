@@ -1,0 +1,65 @@
+/**
+ * La ruta vive en el hash: `#/<modulo>/<destino>/<sujeto>?<filtros>`.
+ *
+ * Asi una pantalla concreta se comparte por su URL y sobrevive a una recarga sin
+ * que haga falta un servidor que la sirva —lo cual importa aqui, porque la
+ * imagen es nginx sirviendo archivos estaticos—.
+ *
+ * <h2>Se parte solo por los DOS primeros separadores</h2>
+ *
+ * Un sujeto puede llevar barras. El codigo de referencia catastral no las lleva,
+ * pero el `codRefCatastral` de una ficha de bienes comunes y cualquier
+ * identificador que venga de un documento si pueden, y `split('/')` a secas los
+ * cortaria por la mitad **sin error**: la pantalla pediria otro predio y
+ * ensenaria una ficha que no es la que se compartio. Por eso el sujeto es «todo
+ * lo que queda», y por eso se codifica al escribirlo.
+ */
+export type Ruta = {
+  modulo: string;
+  destino: string;
+  /** Lo que la pantalla mira: un codigo, un identificador. Vacio = ninguno. */
+  sujeto: string;
+  filtros: Record<string, string>;
+};
+
+export const RUTA_VACIA: Ruta = { modulo: '', destino: '', sujeto: '', filtros: {} };
+
+export function leerRuta(hash: string): Ruta {
+  const crudo = hash.startsWith('#') ? hash.slice(1) : hash;
+  const sinBarra = crudo.startsWith('/') ? crudo.slice(1) : crudo;
+  const corte = sinBarra.indexOf('?');
+  const camino = corte >= 0 ? sinBarra.slice(0, corte) : sinBarra;
+  const consulta = corte >= 0 ? sinBarra.slice(corte + 1) : '';
+
+  /* Los DOS primeros separadores, y el resto se queda entero. */
+  const primera = camino.indexOf('/');
+  if (primera < 0) return { ...RUTA_VACIA, modulo: decodeURIComponent(camino) };
+  const segunda = camino.indexOf('/', primera + 1);
+  const modulo = camino.slice(0, primera);
+  const destino = segunda < 0 ? camino.slice(primera + 1) : camino.slice(primera + 1, segunda);
+  const sujeto = segunda < 0 ? '' : camino.slice(segunda + 1);
+
+  const filtros: Record<string, string> = {};
+  for (const [clave, valor] of new URLSearchParams(consulta)) {
+    if (valor !== '') filtros[clave] = valor;
+  }
+  return {
+    modulo: decodeURIComponent(modulo),
+    destino: decodeURIComponent(destino),
+    sujeto: decodeURIComponent(sujeto),
+    filtros,
+  };
+}
+
+export function escribirRuta(ruta: Ruta): string {
+  const partes = [encodeURIComponent(ruta.modulo), encodeURIComponent(ruta.destino)];
+  /* El sujeto se codifica ENTERO, barras incluidas: es lo que hace que volver a
+     leerlo devuelva lo mismo que se escribio. */
+  if (ruta.sujeto !== '') partes.push(encodeURIComponent(ruta.sujeto));
+  const consulta = new URLSearchParams();
+  for (const [clave, valor] of Object.entries(ruta.filtros)) {
+    if (valor !== '') consulta.set(clave, valor);
+  }
+  const cola = consulta.toString();
+  return `#/${partes.join('/')}${cola ? `?${cola}` : ''}`;
+}

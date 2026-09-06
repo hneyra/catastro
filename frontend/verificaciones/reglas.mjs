@@ -77,6 +77,15 @@ const PROHIBICIONES = [
     en: EN_UNA_PANTALLA,
     delata: /no-explicit-any/,
   },
+  /* La hermana de la de arriba, y no la misma: aquella se ancla al NOMBRE del
+     campo y esta no se ancla a nada. Un `parseFloat` sobre una variable
+     intermedia se escapa de la primera y pierde el decimal igual. */
+  {
+    prohibicion: 'parseFloat, sobre lo que sea',
+    muestra: 'parsefloat-sobre-un-texto.ts',
+    en: EN_UNA_PANTALLA,
+    delata: /Nada de parseFloat/,
+  },
   /* La regla del texto vale TAMBIEN dentro de la puerta: que `cliente.ts` pueda
      llamar a `fetch` no le da permiso para convertir un importe a numero. */
   {
@@ -162,10 +171,65 @@ for (const m of muestras) {
   if (!usadas.has(m)) fallos.push(`la muestra «${m}» no la comprueba nadie: es una regla sin verificacion`);
 }
 
+/**
+ * Y **la otra direccion**, que es la que faltaba: toda regla tiene su muestra.
+ *
+ * `ReglasDeArquitecturaMuerdenTest` exige las dos —regla sin muestra y muestra
+ * sin regla—, y aqui solo estaba escrita la segunda. La diferencia no es
+ * simetrica: una muestra huerfana es un archivo de mas, y una regla sin muestra
+ * es **una prohibicion que nadie ha comprobado que muerda**, que es justo lo que
+ * este arnes existe para impedir.
+ *
+ * Medido antes de escribirlo: borrar de `eslint.config.mjs` la prohibicion de
+ * `parseFloat` entera dejaba `yarn reglas` en VERDE con el mismo mensaje —«8
+ * prohibiciones muerden sobre sus 6 muestras»— y `yarn lint` tambien, porque
+ * ningun fuente la viola hoy. O sea que la prohibicion podia desaparecer sin que
+ * nada lo dijera.
+ *
+ * Las prohibiciones se leen de la CONFIGURACION de verdad y no de una lista
+ * escrita aqui. Las entradas propias de este repositorio son las que declaran
+ * `files` y **no** traen `name`: los presets —`js.configs.recommended` y los
+ * cuatro de `typescript-eslint`— o no acotan archivos o vienen con su nombre
+ * puesto, y sus cientos de reglas no son prohibiciones de esta casa.
+ */
+const { default: configuracion } = await import('../eslint.config.mjs');
+const propias = configuracion.filter((bloque) => bloque.files !== undefined && bloque.name === undefined);
+const prohibicionesDeclaradas = new Map();
+for (const bloque of propias) {
+  for (const [regla, valor] of Object.entries(bloque.rules ?? {})) {
+    if (regla !== 'no-restricted-syntax') {
+      prohibicionesDeclaradas.set(regla, `${regla}: `);
+      continue;
+    }
+    for (const opcion of Array.isArray(valor) ? valor.slice(1) : []) {
+      const mensaje = typeof opcion === 'string' ? opcion : opcion.message;
+      prohibicionesDeclaradas.set(`no-restricted-syntax :: ${mensaje}`, `no-restricted-syntax: ${mensaje}`);
+    }
+  }
+}
+
+if (prohibicionesDeclaradas.size === 0) {
+  console.error(
+    'No se leyo ni una prohibicion de «eslint.config.mjs», asi que esta mitad se estaria cumpliendo\n' +
+      'sola. O el criterio de que bloques son propios dejo de valer, o la configuracion cambio de forma.',
+  );
+  process.exit(2);
+}
+
+for (const [nombre, comoLaVeriaEslint] of prohibicionesDeclaradas) {
+  if (PROHIBICIONES.some((caso) => caso.delata.test(comoLaVeriaEslint))) continue;
+  fallos.push(
+    `«${nombre}» esta en «eslint.config.mjs» y ninguna muestra la ejerce.\n` +
+      '  Una prohibicion sin muestra no se ha comprobado que muerda: se puede borrar entera y este\n' +
+      '  arnes sigue en verde, y `yarn lint` tambien mientras ningun fuente la viole.',
+  );
+}
+
 if (!fallos.length) {
   console.log(
     `${PROHIBICIONES.length} prohibiciones muerden sobre sus ${muestras.length} muestras · ` +
-      `${EXCEPCIONES.length} excepciones siguen siendo excepciones`,
+      `${EXCEPCIONES.length} excepciones siguen siendo excepciones · ` +
+      `${prohibicionesDeclaradas.size} prohibiciones de «eslint.config.mjs», todas con muestra`,
   );
   process.exit(0);
 }

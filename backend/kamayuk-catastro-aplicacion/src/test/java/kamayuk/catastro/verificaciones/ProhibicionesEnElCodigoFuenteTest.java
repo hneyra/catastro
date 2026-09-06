@@ -6,8 +6,11 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Set;
 import kamayuk.comun.verificaciones.ProhibicionesEnElCodigoFuenteTestBase;
 import kamayuk.comun.verificaciones.RevisorDeCodigoFuente;
+import kamayuk.comun.verificaciones.RevisorDeEsquema;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -21,6 +24,70 @@ import org.junit.jupiter.api.Test;
  */
 @DisplayName("ARQ-04 §2 — Prohibiciones en el codigo fuente")
 class ProhibicionesEnElCodigoFuenteTest extends ProhibicionesEnElCodigoFuenteTestBase {
+
+    @Test
+    @DisplayName("ninguna tabla del esquema se queda fuera del reparto de la regla 11")
+    void ningunaTablaDelEsquemaSeQuedaFueraDelReparto() throws IOException {
+        // LA LECCION DE R-N, APLICADA A LAS TABLAS. El reparto se consulta con
+        // `getOrDefault(tabla, SISTEMA_REPLICADO)`, y «replicado» significa «no esta a ningun lado
+        // de la frontera»: una tabla que FALTA en el mapa no pone nada rojo, DEJA DE REVISARSE, en
+        // verde. Es exactamente lo que R-N midio con `SISTEMA_DEL_MODULO` y lo que cerro con
+        // `modulosDelReparto()`; aqui es lo mismo por el otro eje.
+        //
+        // Se midio al escribirla, y no estaba vacia: faltaban CINCO tablas que nadie habia
+        // decidido —`catastro_evento` desde C-8 y las cuatro `normativa_*` desde P5B—, y con ellas
+        // la regla 11 llevaba dos migraciones sin mirar el buzon de salida de este sistema.
+        //
+        // Comprueba UNA SOLA DIRECCION a proposito, igual que `modulosDelReparto()`: el mapa
+        // arrastra del monolito nombres de tablas que este sistema no tiene, y nombrar de mas no
+        // cuesta nada —es lo que hace que un cruce, si llega, se vea—. Podarlo es otro trabajo.
+        Set<String> delEsquema = RevisorDeEsquema.tablasDe(migracionesDeEsteEsquema());
+        Set<String> repartidas = new ConfiguracionDeCatastro().sistemaDeCadaTabla().keySet();
+
+        assertThat(delEsquema)
+                .as("el recorrido tiene que encontrar el esquema, o esto no comprueba nada")
+                .hasSizeGreaterThan(40);
+        assertThat(delEsquema)
+                .as(
+                        "toda tabla que este esquema crea tiene que estar repartida: la que falta"
+                                + " no da un cruce, deja de revisarse — y eso pasa en VERDE (la leccion"
+                                + " de R-N)")
+                .allSatisfy(
+                        tabla ->
+                                assertThat(repartidas)
+                                        .as("la tabla «%s» no esta en el reparto", tabla)
+                                        .contains(tabla));
+    }
+
+    /** Las migraciones de este esquema, en orden de version. */
+    private static List<RevisorDeEsquema.Migracion> migracionesDeEsteEsquema() throws IOException {
+        Path directorio =
+                RaizDelRepositorio.ruta()
+                        .resolve(
+                                "backend/kamayuk-catastro-esquema/src/main/resources/db/migration");
+        try (java.util.stream.Stream<Path> archivos = Files.list(directorio)) {
+            return archivos.filter(ruta -> ruta.getFileName().toString().endsWith(".sql"))
+                    .sorted(
+                            java.util.Comparator.comparingInt(
+                                    ProhibicionesEnElCodigoFuenteTest::versionDe))
+                    .map(
+                            ruta -> {
+                                try {
+                                    return new RevisorDeEsquema.Migracion(
+                                            ruta.getFileName().toString(),
+                                            Files.readString(ruta, StandardCharsets.UTF_8));
+                                } catch (IOException noSePudoLeer) {
+                                    throw new java.io.UncheckedIOException(noSePudoLeer);
+                                }
+                            })
+                    .toList();
+        }
+    }
+
+    private static int versionDe(Path migracion) {
+        String nombre = migracion.getFileName().toString();
+        return Integer.parseInt(nombre.substring(1, nombre.indexOf("__")));
+    }
 
     @Test
     @DisplayName("las cinco clases de catastro que componen el area a mano, una a una")

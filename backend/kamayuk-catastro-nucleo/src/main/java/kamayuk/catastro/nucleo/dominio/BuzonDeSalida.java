@@ -49,17 +49,46 @@ public interface BuzonDeSalida {
     /**
      * La misma identidad con otro contenido.
      *
-     * <p>Solo puede ocurrirle a una valuacion: la identidad de los otros dos hechos se deriva de su
-     * contenido, asi que un contenido distinto es otra identidad (ver {@link IdentidadDelEvento}).
+     * <p>Solo puede ocurrirle a los hechos cuya identidad se deriva de la IDENTIDAD y no del
+     * contenido: la valuacion (C-8) y, desde #7, el hallazgo firme. Los demas derivan su identidad
+     * del contenido, asi que un contenido distinto es otra identidad (ver {@link
+     * IdentidadDelEvento}).
      *
-     * <p>Y significa exactamente una cosa: <b>alguien esta reescribiendo un hecho sellado</b>
-     * (ADR-0027 §1). No se publica encima. Se dice, y se para — porque el receptor no puede
-     * distinguirlo de un reenvio y lo descartaria por deduplicacion, dejando la valuacion vieja
-     * puesta y a este lado creyendo que publico la nueva.
+     * <p>Y significa exactamente una cosa: <b>alguien esta reescribiendo un hecho firmado</b>
+     * (ADR-0027 §1 para la valuacion, ADR-0035 punto 2 para el hallazgo). No se publica encima. Se
+     * dice, y se para — porque el receptor no puede distinguirlo de un reenvio y lo descartaria por
+     * deduplicacion, dejando el hecho viejo puesto y a este lado creyendo que publico el nuevo.
      */
     final class HechoSelladoReescrito extends RuntimeException {
 
         @java.io.Serial private static final long serialVersionUID = 1L;
+
+        /**
+         * Que hecho firmado se esta reescribiendo, y por que no se puede publicar encima.
+         *
+         * <p>Un {@code switch} y no una frase fija, y no es cosmetica: el mensaje decia «Una
+         * valuacion es un HECHO SELLADO» para cualquier tipo, y con #7 hay un segundo tipo que
+         * puede llegar aqui —el hallazgo firme—. Un diagnostico que nombra el hecho equivocado
+         * manda a quien atiende a mirar la corrida de valuacion por un acta de fiscalizacion.
+         */
+        private static String porQueEsUnHechoFirmado(TipoDeEventoDeCatastro tipo) {
+            return switch (tipo) {
+                case VALUACION_PUBLICADA ->
+                        "Una valuacion es un HECHO SELLADO (ADR-0027 §1): corregirla es publicar"
+                                + " otra, y hoy no hay donde —`valuacion_predio` de `rentas` tiene la"
+                                + " clave (municipalidad, ejercicio, predio) y su ingestor no tiene"
+                                + " UPDATE—.";
+                case HALLAZGO_FIRME ->
+                        "Un hallazgo firme es lo que una PERSONA verifico, con su nombre y su fecha"
+                                + " (ADR-0035 punto 2): que vuelva con otro contenido es alguien"
+                                + " reescribiendo lo que otro firmo, y corregirlo es dejarlo sin efecto"
+                                + " y levantar otro, no editarlo.";
+                default ->
+                        "Este tipo de hecho deriva su identidad del CONTENIDO, asi que dos"
+                                + " contenidos distintos tendrian que ser dos identidades: que no lo"
+                                + " sean es un defecto de la derivacion, no del dato.";
+            };
+        }
 
         public HechoSelladoReescrito(HechoDeCatastro hecho, String huellaQueYaEstaba) {
             super(
@@ -75,11 +104,10 @@ public interface BuzonDeSalida {
                             + huellaQueYaEstaba
                             + " y ahora se quiere publicar con "
                             + hecho.huella()
-                            + ". Una valuacion es un HECHO SELLADO (ADR-0027 §1): corregirla es"
-                            + " publicar otra, y hoy no hay donde —`valuacion_predio` de `rentas`"
-                            + " tiene la clave (municipalidad, ejercicio, predio) y su ingestor no"
-                            + " tiene UPDATE—. Publicar encima dejaria a `rentas` descartando esto"
-                            + " por deduplicacion y a este lado creyendo que lo mando");
+                            + ". "
+                            + porQueEsUnHechoFirmado(hecho.tipo())
+                            + " Publicar encima dejaria a `rentas` descartando esto por"
+                            + " deduplicacion y a este lado creyendo que lo mando");
         }
     }
 }

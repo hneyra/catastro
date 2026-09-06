@@ -1,7 +1,7 @@
 import type { PantallaProps } from '../../App';
 import * as api from '../../api/fiscalizacion';
 import { useRecurso } from '../../api/useRecurso';
-import { Aviso, Campo, Dato, Insignia, Lectura, Rejilla, Seccion, Tabla } from '../../ds/componentes';
+import { Aviso, Campo, Dato, Insignia, Lectura, Rejilla, Seccion, Servida, Tabla } from '../../ds/componentes';
 
 function campaniaDe(sujeto: string): number | null {
   return /^\d+$/.test(sujeto) ? Number(sujeto) : null;
@@ -76,6 +76,11 @@ export function Campanias({ ruta, onSujeto }: PantallaProps) {
           )}
         </Lectura>
       </Seccion>
+
+      <Servida
+        lee={[api.RUTAS.tasaDeDescarte]}
+        falta="No hay ninguna lectura que ENUMERE las campanias: de las once operaciones del controlador, cuatro son lecturas y todas piden el identificador. Por eso se teclea, en vez de dibujar una tabla contra una operacion que no existe."
+      />
     </div>
   );
 }
@@ -122,6 +127,11 @@ export function Candidatos({ ruta, onSujeto }: PantallaProps) {
           )}
         </Lectura>
       </Seccion>
+
+      <Servida
+        lee={[api.RUTAS.candidatos]}
+        falta="Los candidatos cuelgan de una campania y no hay lectura por predio ni por municipalidad: sin el identificador de la campania no hay a quien preguntar."
+      />
     </div>
   );
 }
@@ -175,6 +185,11 @@ export function Hallazgos({ ruta, onSujeto }: PantallaProps) {
         observacion, y ese acto lo ejecuta una persona (ADR-0021, ADR-0035). Y aqui no se liquida nada: ninguna de
         las cinco tablas de fiscalizacion tiene columna de importe, y ninguna respuesta del contrato la trae.
       </Aviso>
+
+      <Servida
+        lee={[api.RUTAS.hallazgos]}
+        falta="Ninguna ruta corrige la ficha desde un hallazgo, y no falta: corregirla es versionar la ficha con su observacion, y ese acto lo ejecuta una persona (ADR-0021, ADR-0035)."
+      />
     </div>
   );
 }
@@ -242,6 +257,11 @@ export function Actas({ ruta, onSujeto }: PantallaProps) {
           )}
         </Lectura>
       </Seccion>
+
+      <Servida
+        lee={[api.RUTAS.evidencias]}
+        falta="No hay ninguna lectura de actas —ni por campania ni por hallazgo—: un acta se levanta con un POST sobre su hallazgo y el servidor devuelve la que acaba de crear. Lo que falta para dibujarlas es esa lectura, y esta interfaz no inventa endpoints."
+      />
     </div>
   );
 }

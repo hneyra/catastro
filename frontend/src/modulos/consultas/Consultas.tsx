@@ -15,6 +15,7 @@ import {
   Rejilla,
   Seccion,
   Selector,
+  Servida,
   Tabla,
 } from '../../ds/componentes';
 
@@ -72,6 +73,11 @@ export function Resumen({ ruta, onFiltros }: PantallaProps) {
         CATASTRAL: que predios tiene una persona y con que ficha. Lo que se debe por ellos lo determina «rentas»,
         que es la frontera de ADR-0024.
       </Aviso>
+
+      <Servida
+        lee={[api.RUTAS.resumenPredial]}
+        falta="La deuda de esos predios no la sirve ninguna ruta de este backend, y no es un hueco pendiente: la determina «rentas» (ADR-0024)."
+      />
     </div>
   );
 }
@@ -203,6 +209,11 @@ export function FichaDelContribuyente({ ruta, onSujeto }: PantallaProps) {
           que un &lt;a href&gt; a esa ruta se baja el rechazo con nombre de PDF.
         </p>
       </Seccion>
+
+      <Servida
+        lee={[api.RUTAS.fichaDelContribuyente]}
+        falta="No hay ninguna busqueda de contribuyentes en este backend: el padron de personas vive en «rentas» y aqui solo hay una copia por codigo, asi que el codigo se teclea."
+      />
     </div>
   );
 }

@@ -90,6 +90,12 @@ jobs:
       - name: Lo que esta interfaz dice del backend sigue siendo verdad
         run: yarn rutas
 
+      # Tampoco: lee `src/datos/` y falla ante cualquier numero que no sea una
+      # referencia. Es la mitad temprana de `sin-red`: esa caza la cifra que
+      # llega a la pantalla, y esta la caza cuando se escribe.
+      - name: En «src/datos» no hay ni una cifra
+        run: yarn datos
+
       - name: Compilar para produccion
         run: yarn build
 
@@ -134,6 +140,11 @@ jobs:
 
       - name: La paleta se opera con el teclado
         run: CATASTRO_BASE=http://localhost:5210 node verificaciones/paleta.mjs
+
+      # Un boton apagado es la unica pieza que no puede explicarse a si misma:
+      # no se puede pulsar, asi que no hay como averiguar que le falta.
+      - name: Ningun control impedido sin decir por que
+        run: CATASTRO_BASE=http://localhost:5210 node verificaciones/impedimentos.mjs
 
       # Compila su PROPIA vista previa con la bandera apagada y la sirve en otro
       # puerto: el proxy se apaga al compilar —Vite resuelve `import.meta.env`

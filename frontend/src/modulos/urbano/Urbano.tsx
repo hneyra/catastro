@@ -1,7 +1,7 @@
 import type { PantallaProps } from '../../App';
 import * as api from '../../api/urbano';
 import { useRecurso } from '../../api/useRecurso';
-import { Aviso, Campo, Dato, Lectura, Rejilla, Seccion, Tabla } from '../../ds/componentes';
+import { Aviso, Campo, Dato, Lectura, Rejilla, Seccion, Servida, Tabla } from '../../ds/componentes';
 
 /**
  * La zonificacion vigente: a que zona cae un predio.
@@ -68,6 +68,11 @@ export function Zonificacion({ ruta, onSujeto }: PantallaProps) {
         ADR-0024 que le impide calcular un tributo, y es lo que permite abrir esta API a desarrollo urbano sin
         abrir con ella el padron tributario.
       </Aviso>
+
+      <Servida
+        lee={[api.RUTAS.zonificacion]}
+        falta="La compatibilidad de un giro con esta zona no la sirve nadie de este backend, y no es un hueco: es dato de «rentas» (ciiu.zonificacion_compatible) y la licencia la emite «rentas»."
+      />
 
       <Aviso tono="warn" titulo="Por que casi siempre sale un rechazo">
         No hay <strong>ni un poligono cargado</strong> en ninguna instalacion. Sin geometria del lote no se puede

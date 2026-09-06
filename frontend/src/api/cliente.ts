@@ -67,6 +67,24 @@ export type CodigoDeError = (typeof CODIGOS_DE_ERROR)[number];
 /** Los once del backend, sin el que se inventa esta interfaz. */
 export const CODIGOS_DEL_BACKEND = CODIGOS_DE_ERROR.filter((c) => c !== 'SIN_RESPUESTA');
 
+/**
+ * El miembro `parametroQueFalta` de un cuerpo `problem+json`.
+ *
+ * `ejercicio` va siempre; `llave` **solo cuando el backend sabe cual es**
+ * —`TIPO:CLAVE` si falta una fila, el `TIPO` solo si falta el bloque entero— y
+ * desaparece del cuerpo cuando lo que falta es el conjunto sellado del ano.
+ * Medido en `ParametroQueFalta.comoMiembro()`: no llega como `null`, no llega.
+ *
+ * **Las tres lecturas de cuadro nunca nombran una llave**, y esta medido: sus
+ * controladores solo atrapan `LectorDeParametros.EjercicioSinSellar`, cuyo
+ * `llave()` es `Optional.empty()`. Asi que quien lo lea tiene que saber decir
+ * las dos cosas: «falta esta fila» y «falta el conjunto del ano».
+ */
+export type ParametroQueFalta = {
+  readonly ejercicio: number;
+  readonly llave?: string;
+};
+
 export class ErrorDeApi extends Error {
   constructor(
     readonly codigo: CodigoDeError,
@@ -89,12 +107,17 @@ export class ErrorDeApi extends Error {
      * mismo `estado`: «falta un campo de la peticion» lo arregla quien atiende,
      * en la misma pantalla; «el ejercicio no tiene un conjunto sellado» **no lo
      * arregla nadie desde la pantalla**. Si esta, no se arregla aqui — esa es
-     * toda la regla, y por eso se mira su PRESENCIA y no su contenido.
+     * toda la regla, y por eso se mira su PRESENCIA antes que su contenido.
      *
-     * El backend lo emite como **cadena** (`falta.comoMiembro()`), no como
-     * objeto: medido en `ManejadorDeErrores`.
+     * **Es un OBJETO, y esto se corrigio midiendo.** El javadoc anterior decia
+     * «lo emite como cadena» y la lectura preguntaba `typeof === 'string'`, asi
+     * que `faltaUnaCifraNormativa` valia `false` SIEMPRE y el aviso que existe
+     * para nombrar la llave no salia nunca. Medido en
+     * `ParametroQueFalta.comoMiembro()`, que compone un `LinkedHashMap` con
+     * `ejercicio` siempre y `llave` **solo cuando la hay** —a proposito, para
+     * que su ausencia no llegue como un `null`, que es un valor—.
      */
-    readonly parametroQueFalta?: string,
+    readonly parametroQueFalta?: ParametroQueFalta,
   ) {
     super(mensaje);
     this.name = 'ErrorDeApi';
@@ -319,8 +342,30 @@ function errorDe(estado: number, datos: unknown): ErrorDeApi {
         : 'No se pudo completar la operacion';
   const incidencia = typeof cuerpo.incidencia === 'string' ? cuerpo.incidencia : undefined;
   const detalles = Array.isArray(cuerpo.detalles) ? (cuerpo.detalles as string[]) : undefined;
-  const falta = typeof cuerpo.parametroQueFalta === 'string' ? cuerpo.parametroQueFalta : undefined;
+  const falta = leerParametroQueFalta(cuerpo.parametroQueFalta);
   return new ErrorDeApi(codigo, mensaje, estado, incidencia, detalles, falta);
+}
+
+/**
+ * El miembro `parametroQueFalta`, leido como el OBJETO que el backend emite.
+ *
+ * Antes se leia con `typeof === 'string'` y el resultado era que
+ * `faltaUnaCifraNormativa` valia `false` siempre: el discriminador que existe
+ * para distinguir «falta un campo de la peticion» de «falta publicar una cifra»
+ * no llegaba a ninguna pantalla, y las dos se veian igual. No lo delataba nada
+ * —ni un error de consola, ni un tipo— porque el camino de la ausencia y el de
+ * «no lo entendi» son el mismo `undefined`.
+ *
+ * Un miembro que no sea un objeto con `ejercicio` numerico se descarta entero:
+ * inventarle un ejercicio seria peor que no tenerlo.
+ */
+function leerParametroQueFalta(valor: unknown): ParametroQueFalta | undefined {
+  if (valor === null || typeof valor !== 'object') return undefined;
+  const miembro = valor as Record<string, unknown>;
+  if (typeof miembro.ejercicio !== 'number') return undefined;
+  return typeof miembro.llave === 'string'
+    ? { ejercicio: miembro.ejercicio, llave: miembro.llave }
+    : { ejercicio: miembro.ejercicio };
 }
 
 /**

@@ -29,6 +29,15 @@ export type ShellProps = {
   onCerrar: (modulo: string, hoja: string) => void;
   titulo: string;
   subtitulo: string;
+  /**
+   * La pantalla se dibuja a sangre: sin el margen del `<main>` y sin su
+   * desplazamiento, porque lleva el suyo.
+   *
+   * Lo piden los dos maestro-detalle del artboard y la hoja de cuadros, que
+   * ocupan el alto entero. Es aditivo: sin la bandera, el `<main>` sigue siendo
+   * exactamente el que era.
+   */
+  aSangre?: boolean;
   children: ReactNode;
 };
 
@@ -212,7 +221,19 @@ export function Shell(props: ShellProps) {
             </div>
           ) : null}
 
-          <main style={{ flex: 1, overflow: 'auto', padding: 18, animation: 'fadeIn .22s ease' }}>
+          <main
+            style={
+              props.aSangre
+                ? {
+                    flex: 1,
+                    minHeight: 0,
+                    display: 'flex',
+                    overflow: 'hidden',
+                    animation: 'fadeIn .22s ease',
+                  }
+                : { flex: 1, overflow: 'auto', padding: 18, animation: 'fadeIn .22s ease' }
+            }
+          >
             {props.pestanas.length === 0 ? <SinPestanas /> : props.children}
           </main>
         </div>

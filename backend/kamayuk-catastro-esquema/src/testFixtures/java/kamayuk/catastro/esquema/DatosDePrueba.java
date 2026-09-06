@@ -376,6 +376,63 @@ public final class DatosDePrueba {
                 desplazamientoDe(sufijo) + " ",
                 desplazamientoDe(sufijo) + " ");
 
+        // La gestion del riesgo (#5): una zona de peligro, una faja marginal y un ITSE.
+        //
+        // Se siembran aqui —y no en la prueba que las usa— por lo mismo que el frente: la prueba
+        // de aislamiento recorre TODAS las tablas de tenant y exige que la municipalidad A vea
+        // filas suyas. Sobre una tabla vacia, «no se ve nada de B» es cierto y no prueba nada, y
+        // esa es la forma exacta en que una tabla nueva entra sin que nadie compruebe su politica.
+        //
+        // Los dos poligonos van sobre el MISMO desplazamiento que el frente, asi que cada
+        // municipalidad tiene los suyos en un grado distinto de longitud: si el filtro por marco
+        // tuviera una fuga, la prueba veria filas de la otra y no un empate ambiguo.
+        ejecutar(
+                app,
+                "INSERT INTO zona_riesgo (municipalidad_id, codigo, fenomeno, nivel, mitigable,"
+                        + " fuente, documento_origen, vigencia_desde, geometria, observacion,"
+                        + " usuario_registro)"
+                        + " VALUES (?, ?, 'INUNDACION', 'MUY_ALTO', false, 'CENEPRED',"
+                        + "         'CARTA-DE-PRUEBA', DATE '2025-01-01',"
+                        + "         ST_GeogFromText('SRID=4326;MULTIPOLYGON(((' || ? || ' -4.90,'"
+                        + "                          || ? || ' -4.91, ' || ? || ' -4.91, '"
+                        + "                          || ? || ' -4.90, ' || ? || ' -4.90)))'),"
+                        + "         'zona de riesgo de prueba', 'prueba')",
+                muni,
+                "ZR-" + sufijo,
+                desplazamientoDe(sufijo) + " ",
+                desplazamientoDe(sufijo) + " ",
+                desplazamientoDe(sufijo) + "1 ",
+                desplazamientoDe(sufijo) + "1 ",
+                desplazamientoDe(sufijo) + " ");
+        ejecutar(
+                app,
+                "INSERT INTO faja_marginal (municipalidad_id, codigo, cuerpo_agua, ancho_m,"
+                        + " fuente, documento_origen, vigencia_desde, geometria, observacion,"
+                        + " usuario_registro)"
+                        + " VALUES (?, ?, 'Rio de prueba', 25.00, 'ANA', 'RD-DE-PRUEBA',"
+                        + "         DATE '2023-01-01',"
+                        + "         ST_GeogFromText('SRID=4326;MULTIPOLYGON(((' || ? || ' -4.92,'"
+                        + "                          || ? || ' -4.93, ' || ? || ' -4.93, '"
+                        + "                          || ? || ' -4.92, ' || ? || ' -4.92)))'),"
+                        + "         'faja marginal de prueba', 'prueba')",
+                muni,
+                "FM-" + sufijo,
+                desplazamientoDe(sufijo) + " ",
+                desplazamientoDe(sufijo) + " ",
+                desplazamientoDe(sufijo) + "1 ",
+                desplazamientoDe(sufijo) + "1 ",
+                desplazamientoDe(sufijo) + " ");
+        // Y el certificado, que NO tiene geometria: cuelga del predio.
+        ejecutar(
+                app,
+                "INSERT INTO itse (municipalidad_id, predio_id, numero, nivel_riesgo, modalidad,"
+                        + " vigencia_desde, vigencia_hasta, observacion, usuario_registro)"
+                        + " VALUES (?, ?, ?, 'ALTO', 'PREVIA', DATE '2026-01-01',"
+                        + "         DATE '2026-12-31', 'certificado de prueba', 'prueba')",
+                muni,
+                predioId,
+                "ITSE-" + sufijo);
+
         // Los otros tres tipos de ficha (#19). Van sobre el mismo predio a proposito: el indice
         // parcial admite una vigente de cada tipo, y sembrarlas juntas lo comprueba de paso.
         long economica =

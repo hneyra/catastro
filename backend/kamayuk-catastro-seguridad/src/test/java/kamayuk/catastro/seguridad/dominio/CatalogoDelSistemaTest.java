@@ -96,7 +96,11 @@ class CatalogoDelSistemaTest {
 
     private static Path raizDelRepositorio() {
         Path candidato = Path.of("").toAbsolutePath();
-        while (candidato != null && !Files.isDirectory(candidato.resolve(".git"))) {
+        // `Files.exists` y no `Files.isDirectory`: en un `git worktree` el `.git` de la raiz es
+        // un ARCHIVO («gitdir: .../worktrees/x») y no un directorio, asi que con `isDirectory` el
+        // recorrido sube hasta `/` y esta prueba muere con «No se encontro la raiz» — que es su
+        // propio camino de «no se pudo comprobar», o sea roja, pero por el motivo equivocado.
+        while (candidato != null && !Files.exists(candidato.resolve(".git"))) {
             candidato = candidato.getParent();
         }
         if (candidato == null) {

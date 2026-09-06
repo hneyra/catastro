@@ -122,6 +122,17 @@ final class TablasDelSgtm {
                     "papeleta_masivo",
                     "constancia_libre",
                     "ficha_catastral",
+                    // Con #5: el certificado ITSE. El administrado lo EXHIBE en su local y lo
+                    // presenta ante quien le pide la licencia. Borrarlo en la base deja al papel y
+                    // al sistema diciendo cosas distintas, y quien tiene el papel gana la
+                    // discusion. Uno emitido por error se anula -con su fecha y su motivo, que son
+                    // un acto- y la fila queda (regla 4).
+                    //
+                    // No entra en INMUTABLES, y es deliberado: la anulacion se escribe ENCIMA de
+                    // la propia fila, en `fecha_anulacion` y `motivo_anulacion`. Es el mismo
+                    // reparto que `declaracion_jurada`: lo que impide tocar el resto de columnas
+                    // no es este escaner, es que el acto que las cambiaria no existe.
+                    "itse",
                     "acta_fiscalizacion",
                     // Con #49: la liquidacion de fiscalizacion, su contraste linea a linea y
                     // su historial. Borrar una liquidacion seria borrar la constancia de que

@@ -1,0 +1,151 @@
+# Verificacion de `catastro-web`.
+#
+# Es lo que hay que pasar antes de un PR, y lo que hay que pasar aqui es lo
+# mismo: tipos, reglas, compilacion, y las tres comprobaciones de navegador que
+# sujetan las reglas por las que esta interfaz existe.
+#
+# <h2>Las verificaciones, y por que son estas</h2>
+#
+#   1. `reglas` — cada prohibicion de ESLint muerde sobre su muestra que la
+#      viola. Una regla que no puede fallar no protege nada, y es la misma
+#      exigencia que `ReglasDeArquitecturaMuerdenTest` impone en el backend.
+#   2. `rutas` — toda ruta de `src/api/*.ts` existe como `@RequestMapping` en
+#      `backend/`, y todo `acceso` de `modulos.ts` existe como `@RequiereAcceso`.
+#      Es el `prosa` de este repositorio, que **no tiene OpenAPI que leer**.
+#   3. `mirar` — los destinos se dibujan, sin errores de consola y sin cuerpo
+#      vacio. Es la red mas ancha y la mas barata.
+#   4. `sin-red` — con el proxy de datos APAGADO y todas las peticiones abortadas,
+#      ninguna pantalla ensena una cifra. Es la regla que gobierna esta interfaz,
+#      y mide el momento en que se rompe sin que nadie lo vea: con datos delante
+#      la pantalla parece correcta siempre.
+#   5. `paleta` — la paleta de comandos se opera solo con el teclado. Esta aqui
+#      porque **ya se rompio una vez** en el frontend anterior y nada lo noto.
+#
+# <h2>Por que no hace falta backend</h2>
+#
+# `sin-red` aborta las peticiones a proposito y las otras dos de navegador leen
+# del proxy de datos, que corre dentro de la propia pagina. Eso las hace
+# deterministas aqui, que es lo que un flujo bloqueante necesita.
+#
+# `rutas` SI necesita el arbol del backend, y lo tiene: vive en este mismo
+# repositorio, y por eso `backend/**` entra en los caminos que disparan el flujo
+# —una ruta que se renombra alli tiene que ponerse roja aqui—.
+name: Frontend
+
+on:
+  pull_request:
+    paths: ["frontend/**", "backend/**", ".github/workflows/frontend.yml"]
+  push:
+    branches: [main]
+    paths: ["frontend/**", "backend/**", ".github/workflows/frontend.yml"]
+
+# Sin permisos de escritura: este trabajo lee y verifica, no publica nada.
+permissions:
+  contents: read
+
+jobs:
+  verificar:
+    name: Tipos, reglas y compilacion
+    runs-on: ubuntu-latest
+    # Un colgado no consume cuota sin limite.
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # La version sale de `frontend/.nvmrc` y NO de un literal aqui: con el
+      # literal, CI y quien clona el repositorio son dos numeros que pueden
+      # separarse sin que nada lo diga, y separarse es lo que hacen. Asi la
+      # incoherencia no se puede escribir.
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: yarn
+          cache-dependency-path: frontend/yarn.lock
+
+      - name: Instalar dependencias
+        run: yarn install --frozen-lockfile
+
+      - name: Tipos
+        run: yarn verificar
+
+      - name: Las prohibiciones se cumplen
+        run: yarn lint
+
+      # Va DESPUES del install a proposito: si `.nvmrc` y `engines` se
+      # desincronizan, yarn ya habra fallado antes con el mensaje que nombra las
+      # dos versiones, y esto solo tiene que cazar el caso en que la version
+      # instalada las cumple y aun asi no es la que vite admite.
+      - name: La version de Node dice lo mismo en los dos sitios
+        run: yarn node
+
+      # No abre navegador: linta las muestras como texto.
+      - name: Cada prohibicion muerde sobre su muestra
+        run: yarn reglas
+
+      # Tampoco: lee el fuente del frontend y el `backend/` de este mismo clon.
+      - name: Lo que esta interfaz dice del backend sigue siendo verdad
+        run: yarn rutas
+
+      - name: Compilar para produccion
+        run: yarn build
+
+  navegador:
+    name: Los destinos, en un navegador de verdad
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: yarn
+          cache-dependency-path: frontend/yarn.lock
+
+      - name: Instalar dependencias
+        run: yarn install --frozen-lockfile
+
+      - name: Instalar Chromium
+        run: npx playwright-core install --with-deps chromium
+
+      - name: Compilar y servir
+        run: |
+          yarn build
+          npx vite preview --port 5210 --strictPort &
+          # Sin `wait-on`: es una dependencia mas que descargar para hacer lo que
+          # hacen tres lineas, y en un flujo bloqueante cada descarga es una forma
+          # nueva de ponerse rojo por algo que no se esta midiendo.
+          for i in $(seq 1 60); do
+            curl -sf -o /dev/null http://localhost:5210/ && break
+            sleep 1
+          done
+          curl -sf -o /dev/null http://localhost:5210/
+
+      - name: Los destinos se dibujan
+        run: CATASTRO_BASE=http://localhost:5210 node verificaciones/mirar.mjs
+
+      - name: La paleta se opera con el teclado
+        run: CATASTRO_BASE=http://localhost:5210 node verificaciones/paleta.mjs
+
+      # Compila su PROPIA vista previa con la bandera apagada y la sirve en otro
+      # puerto: el proxy se apaga al compilar —Vite resuelve `import.meta.env`
+      # entonces—, asi que correrlo contra la vista previa de arriba mediria el
+      # paquete equivocado y pasaria en verde sin haber apagado nada.
+      - name: Con el proxy apagado, ninguna pantalla ensena una cifra
+        run: node verificaciones/sin-red.mjs
+
+      - name: Publicar las capturas de lo que fallara
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capturas-del-navegador
+          path: frontend/.capturas/
+          retention-days: 7

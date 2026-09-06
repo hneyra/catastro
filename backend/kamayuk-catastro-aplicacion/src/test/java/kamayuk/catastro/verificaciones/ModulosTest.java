@@ -56,7 +56,12 @@ class ModulosTest {
                         // segmento del paquete, asi que renombrar el paquete lo renombra aqui — y
                         // esta lista es lo que lo puso en rojo al hacerlo.
                         "nucleo",
-                        // Y el segundo, con #5: la gestion del riesgo de desastres del predio.
+                        // El contexto acotado del urbanismo (#4). Es el segundo de este sistema:
+                        // publica la zona a la que cae un predio, y no toca ninguna tabla del
+                        // padron por Java —solo por SQL, en la misma sentencia que el marco, que
+                        // es lo que ADR-0034 regla 2 obliga—.
+                        "urbano",
+                        // Y el tercero, con #5: la gestion del riesgo de desastres del predio.
                         // No depende de `nucleo` -lo unico que necesita del predio es su poligono,
                         // y ese cruce se resuelve dentro de una sola sentencia SQL-, asi que lo que
                         // esta linea comprueba es que Modulith lo DETECTA: un contexto que no se

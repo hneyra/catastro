@@ -70,7 +70,13 @@ include("kamayuk-catastro-contribuyentes")
 // lo que cambia es el nombre del contexto.
 include("kamayuk-catastro-nucleo")
 
-// El segundo contexto acotado (#5): la gestion del riesgo de desastres del predio. Zona de riesgo,
+// El contexto acotado del urbanismo (#4): la zonificacion vigente, sus parametros
+// urbanisticos, la seccion normativa de las vias y las habilitaciones urbanas. Publica LA
+// ZONA a la que cae un predio; quien es compatible con que es dato de `rentas`
+// (`ciiu.zonificacion_compatible`), que es la frontera de ADR-0024.
+include("kamayuk-catastro-urbano")
+
+// El tercer contexto acotado (#5): la gestion del riesgo de desastres del predio. Zona de riesgo,
 // faja marginal y certificado ITSE. Publica el hecho; quien emite la licencia decide (ADR-0024).
 include("kamayuk-catastro-grd")
 

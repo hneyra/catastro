@@ -42,7 +42,9 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
             Map.ofEntries(
                     Map.entry("kamayuk-catastro-contribuyentes", "rentas"),
                     Map.entry("kamayuk-catastro-nucleo", "catastro"),
-                    // #5: el segundo contexto acotado de este sistema.
+                    // #4: el segundo contexto acotado de este sistema.
+                    Map.entry("kamayuk-catastro-urbano", "catastro"),
+                    // #5: y el tercero.
                     Map.entry("kamayuk-catastro-grd", "catastro"),
                     Map.entry("kamayuk-catastro-rentas", "rentas"),
                     Map.entry("kamayuk-catastro-parametros", "normativa"),
@@ -183,19 +185,27 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
                     // mismo—: sin la entrada, el reparto la da por «replicada» y el escaner de la
                     // regla 11 DEJA DE MIRAR un cruce contra ella, en verde (la leccion de R-N).
                     "frente_predio",
+                    // V7 (#4): las cuatro de la zonificacion. Se nombran aunque este sistema sea
+                    // el dueno —y por eso mismo—: sin la entrada, el reparto las da por
+                    // «replicadas» y el escaner de la regla 11 DEJA DE MIRAR un cruce contra
+                    // ellas, en verde (la leccion de R-N).
+                    "habilitacion_urbana",
                     "inquilino",
                     // #5: el certificado ITSE del predio. No se borra: entra ademas en
                     // TablasDelSgtm.PROTEGIDAS.
                     "itse",
                     "manzana",
                     "otra_instalacion",
+                    "parametro_urbanistico",
                     "participacion_comun",
                     "predio",
+                    "seccion_via",
                     "sector",
                     "tierra_rural",
                     "titularidad",
                     "via",
-                    "zona_riesgo");
+                    "zona_riesgo",
+                    "zonificacion");
 
     private static final Set<String> DE_NORMATIVA =
             Set.of(
@@ -372,10 +382,12 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
                 // modulo mas grande del sistema no ponia roja esta guarda —se conformaba con que
                 // estuvieran los tres de infraestructura—. `caja` ya lo declaraba desde P5D.
                 "kamayuk.catastro.nucleo.dominio",
-                // Y el segundo contexto acotado, con #5: sin esta linea, renombrar o vaciar el
-                // paquete de dominio de `grd` no pondria roja ninguna guarda -las reglas acotadas a
-                // `..dominio..` seguirian encontrando las clases del OTRO contexto y pasarian en
-                // verde-.
+                // El contexto acotado de #4, por lo mismo: sin nombrarlo, renombrar o vaciar su
+                // paquete de dominio no pondria roja ninguna guarda.
+                "kamayuk.catastro.urbano.dominio",
+                // Y el tercero, con #5: sin esta linea, renombrar o vaciar el paquete de dominio
+                // de `grd` no pondria roja ninguna guarda -las reglas acotadas a `..dominio..`
+                // seguirian encontrando las clases de los OTROS contextos y pasarian en verde-.
                 "kamayuk.catastro.grd.dominio");
     }
 

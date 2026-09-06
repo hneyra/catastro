@@ -94,12 +94,18 @@ class CatalogoDelSistemaTest {
         assertThat(codigos).doesNotHaveDuplicates();
     }
 
+    /**
+     * La raiz del clon: el primer ancestro con un {@code .git}.
+     *
+     * <p><b>{@code Files.exists} y no {@code Files.isDirectory}</b>, y no es indiferente: en un
+     * <i>worktree</i> de git —{@code git worktree add}, que es como se trabajan tres ramas del
+     * mismo repositorio a la vez— {@code .git} <b>no es un directorio sino un archivo</b> con una
+     * linea {@code gitdir: ...} dentro. Con {@code isDirectory} el recorrido pasa de largo por la
+     * raiz de verdad, sube hasta {@code /} y esta prueba muere con «No se encontro la raiz». O sea:
+     * la guarda no se puede correr, que es peor que un rojo porque no habla de lo que vigila.
+     */
     private static Path raizDelRepositorio() {
         Path candidato = Path.of("").toAbsolutePath();
-        // `Files.exists` y no `Files.isDirectory`: en un `git worktree` el `.git` de la raiz es
-        // un ARCHIVO («gitdir: .../worktrees/x») y no un directorio, asi que con `isDirectory` el
-        // recorrido sube hasta `/` y esta prueba muere con «No se encontro la raiz» — que es su
-        // propio camino de «no se pudo comprobar», o sea roja, pero por el motivo equivocado.
         while (candidato != null && !Files.exists(candidato.resolve(".git"))) {
             candidato = candidato.getParent();
         }

@@ -3,7 +3,9 @@ package kamayuk.catastro.nucleo.aplicacion;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import kamayuk.catastro.dominio.Ejercicio;
 import kamayuk.catastro.nucleo.dominio.BuzonDeSalida;
@@ -41,6 +43,15 @@ import org.springframework.stereotype.Service;
 @Service
 public class PublicacionDelPadron {
 
+    /**
+     * Como se agrupan en el informe los predios que no dependen de ninguna llave.
+     *
+     * <p>Son los que NO se arreglan publicando nada: el predio sin ficha vigente y la construccion
+     * cuya ficha no la describe entera. Se cuentan aparte a proposito, porque son la unica parte
+     * del recuento que se cierra fichando y no decidiendo.
+     */
+    public static final String SIN_LLAVE = "SIN_LLAVE_(ES_DEL_CATASTRO)";
+
     private final LecturaDelPadronParaPublicar lectura;
     private final PublicarUnHecho publicador;
     private final ComponedorDeHechos componedor;
@@ -72,11 +83,12 @@ public class PublicacionDelPadron {
      */
     public Informe proyectarElPadron(LocalDate aLaFecha) {
         Objects.requireNonNull(aLaFecha, "La fecha entra como argumento (regla 6, regla 9)");
-        // Se lee con un conjunto que no se usa: la proyeccion no mira ninguna tabla de valuacion.
-        // Se pasa 0 y no se resuelve ninguno a proposito — resolverlo aqui exigiria el ejercicio
-        // sellado para una publicacion que no lo necesita, y dejaria la proyeccion del padron
-        // bloqueada por D-02a sin ningun motivo.
-        LecturaDelPadronParaPublicar.Padron padron = lectura.leer(aLaFecha, 0L);
+        // Se lee SIN conjunto: la proyeccion no mira ninguna tabla de valuacion. No se resuelve
+        // ninguno a proposito —resolverlo aqui exigiria el ejercicio sellado para una publicacion
+        // que no lo necesita, y dejaria la proyeccion del padron bloqueada por D-02a sin ningun
+        // motivo—, y desde #8 se dice con un metodo propio y no con un `conjuntoId = 0`, que era
+        // un centinela que se colaba hasta `IdentificadorDeConjunto.de(0)`.
+        LecturaDelPadronParaPublicar.Padron padron = lectura.leerParaProyectar(aLaFecha);
         int nuevos = 0;
         int yaEstaban = 0;
         for (PadronParaPublicar.LoteDelPadron lote : padron.lotes()) {
@@ -87,7 +99,7 @@ public class PublicacionDelPadron {
                 yaEstaban++;
             }
         }
-        return new Informe(padron.lotes().size(), nuevos, yaEstaban, null);
+        return new Informe(padron.lotes().size(), nuevos, yaEstaban, null, 0, Map.of());
     }
 
     /**
@@ -112,6 +124,11 @@ public class PublicacionDelPadron {
 
         int nuevos = 0;
         int yaEstaban = 0;
+        int valorizados = 0;
+        // Cuantos predios se quedan sin cifra POR CADA LLAVE que falta. Es el entregable de #8:
+        // convierte una decision abierta en algo que se puede contar y mirar, en vez de en una
+        // frase. En orden de aparicion, que es el orden de las ramas de `ValorizacionDelPredio`.
+        Map<String, Integer> sinCifraPorLlave = new LinkedHashMap<>();
         // EN EL ORDEN EN QUE `lotes()` los devuelve, que es `predio_id` ascendente. Ese orden es
         // el que decide la huella agregada, y es el mismo que el `ORDER BY h.predio_id` con que
         // `rentas` calcula la suya. Reordenar aqui —o agrupar con un `HashMap`— romperia el
@@ -124,14 +141,25 @@ public class PublicacionDelPadron {
                                     lote.predioId(),
                                     ejercicio.valor(),
                                     fechaDeCorte,
-                                    padron.fichaVigentePorPredio().get(lote.predioId()),
+                                    padron.fichaDeLaValuacion(lote.predioId()),
                                     conjunto.valor(),
                                     ValorizacionDelPredio.VERSION,
-                                    padron.hayCuadroDeValoresUnitarios(),
+                                    padron.cuadroDeValoresUnitarios(),
                                     padron.hayCuadroDeDepreciacion(),
-                                    lote.viaId() != null
-                                            && padron.viasConArancel().contains(lote.viaId()),
+                                    padron.arancelDe(lote.viaId()),
+                                    padron.porcentajeDeActualizacion(),
                                     padron.titularesDe(lote.predioId())));
+            if (valuacion.seValorizo()) {
+                valorizados++;
+            } else {
+                // Sin llave —el predio no tiene ficha, o su ficha no describe la edificacion— se
+                // agrupa aparte y con nombre: son los que NO se arreglan publicando nada, y
+                // meterlos en el mismo saco que los demas escondería la unica parte del recuento
+                // que depende del catastro y no de una decision normativa.
+                String llave =
+                        valuacion.llaveQueFalta() == null ? SIN_LLAVE : valuacion.llaveQueFalta();
+                sinCifraPorLlave.merge(llave, 1, Integer::sum);
+            }
             HechoDeCatastro hecho = componedor.deLaValuacion(valuacion);
             huellas.add(hecho.huella());
             if (publicador.publicar(hecho) == BuzonDeSalida.Publicacion.NUEVO) {
@@ -153,7 +181,13 @@ public class PublicacionDelPadron {
                         huellaAgregada,
                         reloj.instant());
         publicador.publicar(cierre);
-        return new Informe(padron.lotes().size(), nuevos, yaEstaban, corridaId);
+        return new Informe(
+                padron.lotes().size(),
+                nuevos,
+                yaEstaban,
+                corridaId,
+                valorizados,
+                Map.copyOf(sinCifraPorLlave));
     }
 
     /** Cuantos hechos quedan sin entregar. */
@@ -180,18 +214,60 @@ public class PublicacionDelPadron {
      *     es el caso corriente de una reproyeccion, y contarlo aparte es lo que permite ver de un
      *     vistazo cuanto cambio el padron
      * @param corridaId el identificador de la corrida, o nulo si esto no fue una corrida
+     * @param valorizados cuantos predios salieron con sus cuatro cifras. Cero en una proyeccion,
+     *     que no valoriza nada
+     * @param sinCifraPorLlave cuantos se quedaron sin cifra por cada llave que falta. <b>Es el
+     *     entregable de #8</b>: agrupa por lo que hay que decidir o publicar, de modo que «el
+     *     sistema no valoriza» se convierte en «faltan estas tres cosas, y esta afecta a N
+     *     predios». Los que no dependen de ninguna llave —el predio sin ficha, la construccion sin
+     *     describir— se agrupan bajo {@link #SIN_LLAVE}
      */
-    public record Informe(int leidos, int nuevos, int yaEstaban, @Nullable Long corridaId) {
+    public record Informe(
+            int leidos,
+            int nuevos,
+            int yaEstaban,
+            @Nullable Long corridaId,
+            int valorizados,
+            Map<String, Integer> sinCifraPorLlave) {
+
+        public Informe {
+            sinCifraPorLlave =
+                    Map.copyOf(Objects.requireNonNull(sinCifraPorLlave, "El recuento, o vacio"));
+        }
+
+        /** Cuantos predios quedaron con motivo en vez de con cifras. */
+        public int sinValorizar() {
+            return sinCifraPorLlave.values().stream().mapToInt(Integer::intValue).sum();
+        }
 
         @Override
         public String toString() {
-            return leidos
-                    + " predio(s) leidos, "
-                    + nuevos
-                    + " hecho(s) publicados, "
-                    + yaEstaban
-                    + " sin cambios"
-                    + (corridaId == null ? "" : ", corrida " + corridaId);
+            StringBuilder texto = new StringBuilder();
+            texto.append(leidos)
+                    .append(" predio(s) leidos, ")
+                    .append(nuevos)
+                    .append(" hecho(s) publicados, ")
+                    .append(yaEstaban)
+                    .append(" sin cambios");
+            if (corridaId != null) {
+                texto.append(", corrida ").append(corridaId);
+                texto.append("; ")
+                        .append(valorizados)
+                        .append(" valorizado(s), ")
+                        .append(sinValorizar())
+                        .append(" con motivo");
+                // Ordenado por llave para que dos corridas del mismo padron impriman lo mismo: un
+                // recuento cuyo orden dependa del `HashMap` no se puede comparar entre dias.
+                for (Map.Entry<String, Integer> porLlave :
+                        new java.util.TreeMap<>(sinCifraPorLlave).entrySet()) {
+                    texto.append(" [")
+                            .append(porLlave.getKey())
+                            .append(": ")
+                            .append(porLlave.getValue())
+                            .append("]");
+                }
+            }
+            return texto.toString();
         }
     }
 }

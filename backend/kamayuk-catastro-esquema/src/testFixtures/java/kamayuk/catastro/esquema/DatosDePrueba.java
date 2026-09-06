@@ -228,13 +228,40 @@ public final class DatosDePrueba {
                 EJERCICIO);
         ejecutar(
                 app,
+                // La CLAVE no puede ser `valor-de-relleno`, y eso lo destapo catastro#8 al leer
+                // por primera vez esta tabla con `LectorDeParametrosCacheados`. Al sellar el
+                // conjunto, el disparador de `EscenarioDeNormativa` copia aqui todo lo que
+                // `conjunto_parametro_detalle_de_prueba` compone —y compone justamente el
+                // `PRUEBA:valor-de-relleno` nacional—, de modo que la fila quedaba DOS VECES con
+                // la misma llave y la misma vigencia. Nadie lo veia porque nadie leia los
+                // parametros de este conjunto; en cuanto la corrida los lee, la guarda de #659
+                // salta con «tiene dos filas de PRUEBA:valor-de-relleno vigentes en 2026 … y
+                // nadie eligio cual rige», que es exactamente lo que esa guarda existe para
+                // decir. La fila manual se queda —`AislamientoMultiTenantTest` exige que esta
+                // tabla tenga filas propias de cada municipalidad, y el disparador solo escribe
+                // al sellar— pero con llave propia.
                 "INSERT INTO normativa_parametro (municipalidad_id, conjunto_id, tipo, clave,"
                         + " valor_numerico, vigencia_desde, documento_fuente)"
-                        + " VALUES (?, ?, 'PRUEBA', 'valor-de-relleno', 1.000000, ?,"
+                        + " VALUES (?, ?, 'PRUEBA', 'solo-de-la-cache-local', 1.000000, ?,"
                         + "         'fixture de la prueba de aislamiento')",
                 muni,
                 conjuntoId,
                 VIGENCIA);
+        // EL «% ACTUALIZACION» NO SE SIEMBRA AQUI, Y ES LA PARTE QUE HAY QUE LEER.
+        //
+        // Esta fixture es la copia local de un conjunto SELLADO, y `normativa` hoy no puede sellar
+        // ninguno que traiga esa llave: su archivo del corpus
+        // —`predial-porcentaje-de-actualizacion.md`— esta en `TRANSCRITO`, le falta la segunda
+        // firma de ADR-0007, y `verificar-publicacion.mjs` no publica desde ese estado. Sembrarla
+        // aqui seria describir un estado del mundo que no existe, que es la clase de mentira que
+        // una fixture no puede contar: las cifras de relleno son relleno declarado, pero una
+        // llave que no se puede sellar no es relleno, es una premisa falsa.
+        //
+        // catastro#8 llego a sembrarla apoyandose en una firma que nadie puso; la direccion lo
+        // rechazo, y esto es la consecuencia medida. Quien quiera ver la corrida produciendo sus
+        // cuatro cifras la siembra en SU municipalidad y lo dice —lo hace
+        // `PublicacionDelPadronJdbcTest.conLaLlaveSelladaLaCorridaProduceCifras`—, en vez de
+        // dejarla puesta para todas y que el padron parezca valorizable.
         ejecutar(
                 app,
                 "INSERT INTO normativa_valor_unitario (municipalidad_id, conjunto_id, partida,"
@@ -584,6 +611,20 @@ public final class DatosDePrueba {
                 "INSERT INTO arancel (municipalidad_id, conjunto_id, via_id, valor_m2,"
                         + " documento_fuente)"
                         + " VALUES (?, ?, ?, 1.000000, 'fixture de la prueba')",
+                muni,
+                conjuntoId,
+                viaId);
+        // Y un SEGUNDO arancel de la misma via, este CON tramo y con otra cifra. No es adorno:
+        // sin el, quitarle a `arancelSinTramoPorVia` su `AND tramo IS NULL` pasaba en VERDE
+        // —medido en catastro#8— porque no habia ninguna fila con tramo que se pudiera colar. Con
+        // esta fila, la misma rotura hace que la consulta devuelva DOS aranceles para la via y la
+        // corrida revienta nombrando la ambiguedad, en vez de valorizar el terreno con la cifra
+        // que el planificador devolviera primero.
+        ejecutar(
+                app,
+                "INSERT INTO arancel (municipalidad_id, conjunto_id, via_id, tramo, valor_m2,"
+                        + " documento_fuente)"
+                        + " VALUES (?, ?, ?, 'cuadra 1', 9.000000, 'fixture de la prueba')",
                 muni,
                 conjuntoId,
                 viaId);

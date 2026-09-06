@@ -295,6 +295,94 @@ class SinNormativaFronteraTest {
                     .as("con `normativa` apagado, el mismo conjunto se sigue leyendo igual")
                     .isEqualByComparingTo(new BigDecimal("5500.000000"));
         }
+
+        @Test
+        @DisplayName("y los DOS cuadros de la valuacion entran en la cache con esa misma huella")
+        void losDosCuadrosDeLaValuacionEntranEnLaCache() throws Exception {
+            // catastro#8, AC-7. Hasta ahora esta clase solo media que los PARAMETROS se cachearan
+            // —el cuerpo de prueba traia `valoresUnitarios: []` y `depreciaciones: []`—, de modo
+            // que las dos tablas que `ValuacionRepositoryJdbc` lee podian quedarse vacias sin que
+            // nada se pusiera rojo. Lo que se mide aqui es que el mismo camino que verifica la
+            // huella deja dentro las dos.
+            //
+            // Y la huella NO se puede recalcular despues sobre estas filas —`V2` lo dice—: lo que
+            // esta fila afirma es que en ese instante el servidor entrego exactamente eso. Por
+            // eso el caso de arriba, el de la huella que no cuadra, es la otra mitad de esto.
+            String cuerpo = cuerpoConLosDosCuadros(10_101L);
+            try (ServidorDeMentira servidor = ServidorDeMentira.con(cuerpo, sha256(cuerpo))) {
+                PublicadorDeNormativa cliente =
+                        new ClienteHttpDeNormativa(new JsonMapper(), servidor.raiz());
+                envolver(new DescargaDeNormativa(cache, cliente))
+                        .asegurarDescargado(10_101L, "VALUACION");
+            }
+
+            assertThat(cuantasFilas("normativa_valor_unitario", 10_101L))
+                    .as("las tres partidas de la casilla que el conjunto sello")
+                    .isEqualTo(3);
+            assertThat(cuantasFilas("normativa_depreciacion", 10_101L))
+                    .as("y la fila de depreciacion, con su tramo abierto")
+                    .isEqualTo(1);
+            assertThat(
+                            unDato(
+                                    "SELECT valor_m2 FROM normativa_valor_unitario"
+                                            + " WHERE conjunto_id = 10101 AND partida = 'MUROS'"))
+                    .as("la cifra llega tal cual: la copia local no reinterpreta un valor sellado")
+                    .isEqualTo("387.430000");
+            assertThat(
+                            unDato(
+                                    "SELECT coalesce(antiguedad_hasta::text, 'sin tope')"
+                                            + " FROM normativa_depreciacion WHERE conjunto_id = 10101"))
+                    .as(
+                            "nulo es «mas de 50 anios» y viaja como nulo: leerlo como cero convierte"
+                                    + " el tramo abierto en uno que no cubre nada (#188 H-15)")
+                    .isEqualTo("sin tope");
+        }
+    }
+
+    /** Un snapshot con las tres casillas de una categoria y una fila de depreciacion. */
+    private static String cuerpoConLosDosCuadros(long conjunto) {
+        return "{\"conjuntoId\":"
+                + conjunto
+                + ",\"ejercicio\":2026,\"version\":1,\"ambito\":\"VALUACION\",\"filas\":4,"
+                + "\"parametros\":[],"
+                + "\"valoresUnitarios\":["
+                + casilla("MUROS", "387.430000")
+                + ","
+                + casilla("TECHOS", "285.800000")
+                + ","
+                + casilla("PUERTAS", "161.410000")
+                + "],"
+                + "\"depreciaciones\":[{\"uso\":\"01\",\"material\":\"Concreto\","
+                + "\"estadoConservacion\":\"Bueno\",\"antiguedadHasta\":null,"
+                + "\"porcentaje\":\"32.0000\",\"documentoFuente\":\"Anexo I de prueba\"}],"
+                + "\"valoresReferenciales\":[]}";
+    }
+
+    private static String casilla(String partida, String valor) {
+        return "{\"partida\":\""
+                + partida
+                + "\",\"categoria\":\"C\",\"anioConstruccionDesde\":1990,"
+                + "\"anioConstruccionHasta\":null,\"valorM2\":\""
+                + valor
+                + "\",\"documentoFuente\":\"Anexo I.2 de prueba\"}";
+    }
+
+    private static int cuantasFilas(String tabla, long conjunto) {
+        // El nombre de la tabla se interpola y no viaja como parametro —no se puede—, y solo lo
+        // llaman las dos lineas de arriba con literales suyos.
+        return Integer.parseInt(
+                unDato("SELECT count(*) FROM " + tabla + " WHERE conjunto_id = " + conjunto));
+    }
+
+    private static String unDato(String sql) {
+        try (Connection admin = base.conexionAdmin();
+                PreparedStatement sentencia = admin.prepareStatement(sql);
+                ResultSet fila = sentencia.executeQuery()) {
+            fila.next();
+            return fila.getString(1);
+        } catch (SQLException noSePudo) {
+            throw new IllegalStateException(noSePudo);
+        }
     }
 
     // ------------------------------------------------------------------

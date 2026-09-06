@@ -37,7 +37,14 @@ class ValorizacionDelPredioTest {
     /** Un arancel de relleno: diez por metro cuadrado, para que la cuenta se lea. */
     private static final ValorNormativo ARANCEL = ValorNormativo.de("10");
 
-    /** El «% actualizacion» de 2026: cero, con el fundamento del art. 12 del TUO LTM. */
+    /**
+     * El «% actualizacion» que 2026 sellaria: cero, con el fundamento del art. 12 del TUO LTM.
+     *
+     * <p>Es un CONTRAFACTUAL, y se dice: hoy ningun conjunto lo trae, porque su archivo del corpus
+     * esta en {@code TRANSCRITO} y le falta la segunda firma de ADR-0007. Aqui entra a mano porque
+     * esta clase es una funcion pura y lo que se mide es la RAMA, no el estado del mundo; el estado
+     * del mundo lo mide {@code ElPadronDeDemostracionSeValorizaTest}.
+     */
     private static final ValorNormativo SIN_ACTUALIZACION = ValorNormativo.de("0");
 
     /** Un cuadro con las tres partidas de la categoria C, y nada mas. */
@@ -149,10 +156,11 @@ class ValorizacionDelPredioTest {
                 .isEqualTo(ValorizacionDelPredio.PORCENTAJE_DE_ACTUALIZACION);
         assertThat(valuacion.motivo())
                 .as(
-                        "y dice que 2026 es la excepcion y no la regla, para que nadie lea el cero"
-                                + " como un valor por omision")
-                .contains("SOLO para 2026")
-                .contains("art. 12");
+                        "y dice que lo que falta es una FIRMA y no una cifra, y que no hay valor"
+                                + " por omision: es lo que separa «no lo se» de «pongo cero»")
+                .contains("SEGUNDA FIRMA")
+                .contains("art. 12")
+                .contains("no hay valor por omision");
     }
 
     @Test

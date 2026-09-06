@@ -23,8 +23,8 @@
     "tipo" : "VALUACION_PUBLICADA",
     "predioId" : 2,
     "ejercicio" : 2026,
-    "cuerpo" : "{\"motivo\": \"La construccion del piso 1 no declara la categoria de «TECHOS», que es una de las tres partidas que el cuadro suma. Una categoria sin declarar no es «sin techo» ni «sin puertas»: esas son casillas del cuadro, con su cifra\", \"predioId\": 2, \"ejercicio\": 2026, \"titulares\": [{\"cuota\": \"100.0000\", \"condicion\": \"PROPIETARIO_UNICO\", \"contribuyenteId\": 900001}], \"conjuntoId\": 2, \"valorObras\": null, \"fechaDeCorte\": \"2026-01-01\", \"valorTerreno\": null, \"llaveQueFalta\": null, \"reglasVersion\": \"valuacion-de-terreno-v1\", \"valorDelPredio\": null, \"reglasAplicadas\": \"\", \"fichaCatastralId\": 5, \"valorConstruccion\": null}",
-    "huella" : "4fcb3a47d338cb0e6af63dc78e60a58d96bb2a858182ebd9aad78141d7c94daa",
+    "cuerpo" : "{\"motivo\": \"El conjunto sellado del ejercicio 2026 no trae el «% actualizacion» (D-11). Para 2026 su fundamento esta escrito —el supuesto del art. 12 del TUO LTM no se cumple ese ano porque se publicaron los aranceles y los precios unitarios— y le falta la SEGUNDA FIRMA de ADR-0007, que es un acto de una persona: hasta que llegue, ningun conjunto puede traer esta llave. Y no hay valor por omision\", \"predioId\": 2, \"ejercicio\": 2026, \"titulares\": [{\"cuota\": \"100.0000\", \"condicion\": \"PROPIETARIO_UNICO\", \"contribuyenteId\": 900001}], \"conjuntoId\": 2, \"valorObras\": null, \"fechaDeCorte\": \"2026-01-01\", \"valorTerreno\": null, \"llaveQueFalta\": \"PORCENTAJE_DE_ACTUALIZACION\", \"reglasVersion\": \"valuacion-de-terreno-v1\", \"valorDelPredio\": null, \"reglasAplicadas\": \"\", \"fichaCatastralId\": 5, \"valorConstruccion\": null}",
+    "huella" : "e8eaf42ca8d9f9bfeefb8e8846d093ac1eff1c882c97531a32ccd4f0f33a442a",
     "emitidoEn" : "2026-03-01T10:00:00Z"
   }, {
     "eventoId" : "63906f02-8b40-8173-8b7f-c73cda2ef12c",
@@ -32,8 +32,8 @@
     "tipo" : "VALUACION_PUBLICADA",
     "predioId" : 4,
     "ejercicio" : 2026,
-    "cuerpo" : "{\"motivo\": null, \"predioId\": 4, \"ejercicio\": 2026, \"titulares\": [{\"cuota\": \"100.0000\", \"condicion\": \"PROPIETARIO_UNICO\", \"contribuyenteId\": 900002}], \"conjuntoId\": 2, \"valorObras\": \"0\", \"fechaDeCorte\": \"2026-01-01\", \"valorTerreno\": \"240.00000000\", \"llaveQueFalta\": null, \"reglasVersion\": \"valuacion-de-terreno-v1\", \"valorDelPredio\": \"240.00000000\", \"reglasAplicadas\": \"TERRENO\", \"fichaCatastralId\": 13, \"valorConstruccion\": \"0\"}",
-    "huella" : "8982a6897f554396db7a309c1c8898f734adde2e71a0fd09c0be41630896d257",
+    "cuerpo" : "{\"motivo\": \"El conjunto sellado del ejercicio 2026 no trae el «% actualizacion» (D-11). Para 2026 su fundamento esta escrito —el supuesto del art. 12 del TUO LTM no se cumple ese ano porque se publicaron los aranceles y los precios unitarios— y le falta la SEGUNDA FIRMA de ADR-0007, que es un acto de una persona: hasta que llegue, ningun conjunto puede traer esta llave. Y no hay valor por omision\", \"predioId\": 4, \"ejercicio\": 2026, \"titulares\": [{\"cuota\": \"100.0000\", \"condicion\": \"PROPIETARIO_UNICO\", \"contribuyenteId\": 900002}], \"conjuntoId\": 2, \"valorObras\": null, \"fechaDeCorte\": \"2026-01-01\", \"valorTerreno\": null, \"llaveQueFalta\": \"PORCENTAJE_DE_ACTUALIZACION\", \"reglasVersion\": \"valuacion-de-terreno-v1\", \"valorDelPredio\": null, \"reglasAplicadas\": \"\", \"fichaCatastralId\": 13, \"valorConstruccion\": null}",
+    "huella" : "f7c4b2f0ca422add05cc4d6b19f484d24d375e7069228b1abe29954684ae29d0",
     "emitidoEn" : "2026-03-01T10:00:00Z"
   }, {
     "eventoId" : "e442d15c-766b-8661-afb4-025c3e7b291d",
@@ -41,8 +41,8 @@
     "tipo" : "CORRIDA_CERRADA",
     "predioId" : null,
     "ejercicio" : 2026,
-    "cuerpo" : "{\"conteo\": 2, \"huella\": \"a90259fb363bff47f496fb0bc5bd5acebe575309a3bf06d7cf7239f4479ba27f\", \"cerradaEn\": \"2026-03-01T10:00:00Z\", \"corridaId\": 3, \"ejercicio\": 2026, \"conjuntoId\": 2, \"fechaDeCorte\": \"2026-01-01\", \"reglasVersion\": \"valuacion-de-terreno-v1\"}",
-    "huella" : "2510da28ecff824aa1e5969c4573f852ada596ce6fec84a6d174492a78432b8f",
+    "cuerpo" : "{\"conteo\": 2, \"huella\": \"c37c14e471e9b9573f1600032d8c18cdf62316032ba50d565495f551963f7e17\", \"cerradaEn\": \"2026-03-01T10:00:00Z\", \"corridaId\": 3, \"ejercicio\": 2026, \"conjuntoId\": 2, \"fechaDeCorte\": \"2026-01-01\", \"reglasVersion\": \"valuacion-de-terreno-v1\"}",
+    "huella" : "a3d2b48444000f07747d27d22e3af3eaf9837347a811993528a20e5b1fd2d977",
     "emitidoEn" : "2026-03-01T10:00:00Z"
   } ],
   "pendientesQueQuedan" : 0,

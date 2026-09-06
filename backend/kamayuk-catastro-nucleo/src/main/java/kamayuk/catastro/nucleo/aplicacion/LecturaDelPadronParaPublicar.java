@@ -156,8 +156,9 @@ public class LecturaDelPadronParaPublicar {
                         padron.cuadroDeValoresUnitarios(conjuntoId)),
                 padron.hayCuadroDeDepreciacion(conjuntoId),
                 // El «% actualizacion» del conjunto SELLADO, o nulo si no lo trae. Nulo y cero no
-                // son lo mismo: cero es una cifra sellada con su fundamento (D-11 cerrada SOLO
-                // para 2026) y nulo es que nadie la publico.
+                // son lo mismo: cero seria una cifra sellada con su fundamento y nulo es que nadie
+                // la publico. HOY es nulo siempre: el archivo del corpus que lo respalda esta en
+                // TRANSCRITO y le falta la segunda firma de ADR-0007 (D-11).
                 parametros
                         .porConjunto(conjunto)
                         .numero(ValorizacionDelPredio.PORCENTAJE_DE_ACTUALIZACION, null)

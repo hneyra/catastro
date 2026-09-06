@@ -14,14 +14,28 @@ import org.jspecify.annotations.Nullable;
  * Decide la valuacion de un predio. <b>Funcion pura</b> (regla 6): sin base, sin reloj, sin
  * configuracion, y la fecha entra como argumento.
  *
- * <h2>Desde #8 SI valoriza, y hay que saber a quien y a quien no</h2>
+ * <h2>Desde #8 SABE valorizar, y hoy no valoriza a nadie — las dos cosas a la vez</h2>
  *
- * <p>Hasta #8 esta clase tenia cinco ramas y <b>las cinco devolvian motivo</b>, porque el primer
- * insumo que faltaba paraba a todos los predios: el {@code % actualizacion} (D-11) no tenia fuente
- * identificada. Con {@code normativa} publicando el ejercicio 2026 —los valores unitarios de
- * edificacion (H-14), la tabla de depreciacion (H-15) y el {@code PORCENTAJE_DE_ACTUALIZACION} del
- * ejercicio— el sistema puede por fin valorizar, y esta clase dice <b>de que depende cada
- * predio</b> en vez de decir que no puede ninguno.
+ * <p>Hasta #8 esta clase tenia cinco ramas y <b>las cinco devolvian motivo</b> sin haber hecho
+ * ninguna cuenta. Ahora la cuenta del terreno esta escrita y medida —area por arancel del metro
+ * cuadrado de su via—, {@code normativa} publica los dos cuadros nacionales (H-14, H-15) y las
+ * siete ramas dicen <b>de que depende cada predio</b> en vez de decir lo mismo de todos.
+ *
+ * <p><b>Y aun asi hoy no se valoriza ni un predio</b>, por una sola llave: el {@code %
+ * actualizacion} (D-11). Su fundamento esta escrito en el corpus de {@code normativa} y <b>le falta
+ * la segunda firma de ADR-0007</b>, que es un acto de una persona; hasta que llegue, ningun
+ * conjunto sellado puede traerla y esta clase se para en la cuarta rama para todo el padron. Medido
+ * sobre el padron de demostracion: <b>0 de 23</b> valorizados, los 23 por esa llave; con la firma
+ * serian <b>4 de 23</b> — lo cuenta {@code ElPadronDeDemostracionSeValorizaTest}, que corre las dos
+ * cuentas y las imprime.
+ *
+ * <p><b>Y hay una observacion de frontera medida, que este repositorio declara y no arregla</b> (es
+ * D-21): esa llave se pide como <b>precondicion</b> y se usa <b>en un solo sitio</b>, el incremento
+ * del autovaluo, que solo se aplica si el porcentaje no es cero. Con el valor que 2026 sellaria
+ * —cero— <b>ninguna de las cuatro cifras del hecho sellado depende de ella</b>, y con un porcentaje
+ * distinto de cero cambia <b>una sola</b>. O sea que lo que hoy para al padron entero no aportaria
+ * un centimo a ninguna de las tres cifras que esta clase calcula, que es el argumento de ADR-0024
+ * para situarlo del lado de {@code rentas}.
  *
  * <p>Lo que sale de aqui es el <b>valor del predio</b>, no la obligacion: ni tramos, ni alicuotas,
  * ni deducciones, ni minimo imponible. Eso es {@code rentas} (ADR-0024).
@@ -37,8 +51,9 @@ import org.jspecify.annotations.Nullable;
  *   <li><b>el conjunto sellado no trae uno de los dos cuadros nacionales</b> (H-14, H-15). Se
  *       arregla publicandolo en {@code normativa} y volviendo a sellar;
  *   <li><b>la via del predio no tiene arancel</b> (D-02b). Es de ordenanza local;
- *   <li><b>el conjunto no trae el {@code % actualizacion} del ejercicio</b> (D-11). Cerrado <b>solo
- *       para 2026</b>; cualquier otro ejercicio vuelve a pararse aqui;
+ *   <li><b>el conjunto no trae el {@code % actualizacion} del ejercicio</b> (D-11). <b>Es la rama
+ *       que HOY se alcanza siempre</b>: para 2026 el fundamento esta escrito y le falta la segunda
+ *       firma de ADR-0007, y ningun otro ejercicio tiene ni siquiera eso;
  *   <li><b>al cuadro le falta la celda que esta construccion necesita</b>. Es distinto de que falte
  *       el cuadro: las tres celdas de puntos suspensivos del Anexo I.2 <b>no valen cero</b> (#48),
  *       y una construccion de categoria {@code H} en muros no se puede valorizar aunque el cuadro
@@ -63,12 +78,13 @@ import org.jspecify.annotations.Nullable;
 public final class ValorizacionDelPredio {
 
     /**
-     * La llave del factor que hasta #8 paraba a todos los predios.
+     * La llave del factor que para a todos los predios, hoy incluido.
      *
      * <p>No es un valor tributario —es el <b>nombre</b> de uno— y por eso no lo caza el escaner de
-     * la regla 5, que vigila literales numericos. Nombrarlo es lo contrario de inventarlo. Sigue
-     * aqui porque sigue haciendo falta: 2026 tiene su fila sellada y ningun otro ejercicio la
-     * tiene.
+     * la regla 5, que vigila literales numericos. Nombrarlo es lo contrario de inventarlo.
+     *
+     * <p><b>Ningun ejercicio tiene su fila sellada</b>: la de 2026 tiene su fundamento escrito en
+     * {@code normativa} y espera la segunda firma de ADR-0007; los demas no tienen ni eso.
      */
     public static final String PORCENTAJE_DE_ACTUALIZACION = "PORCENTAJE_DE_ACTUALIZACION";
 
@@ -271,11 +287,16 @@ public final class ValorizacionDelPredio {
 
         // El «% actualizacion» INCREMENTA el autovaluo; no lo multiplica. Su valor neutro es CERO
         // y no uno, medido contra una determinacion real del SRTM (#437, y
-        // `predial-porcentaje-de-actualizacion.md` §1.3). Para 2026 vale cero con su fundamento
-        // —el supuesto del art. 12 del TUO LTM no se cumple— asi que no mueve la cifra; el dia
+        // `predial-porcentaje-de-actualizacion.md` §1.3). Para 2026 valdria cero con su fundamento
+        // —el supuesto del art. 12 del TUO LTM no se cumple— asi que no moveria la cifra; el dia
         // que un ejercicio lo active, hay que decidir antes DONDE se aplica, porque la captura
         // del SRTM lo situa entre el autovaluo y la base imponible, o sea del lado de `rentas`
         // (ADR-0024, junto al `% propiedad` de D-21).
+        //
+        // Y ESTA LINEA ES LA UNICA QUE LO USA, que es la observacion de frontera de #8: las tres
+        // cifras de arriba —terreno, construccion y obras— no lo tocan nunca, y `valorDelPredio`
+        // solo cuando el porcentaje no es cero. Medido en `ElPadronDeDemostracionSeValorizaTest`
+        // con tres corridas del padron de demostracion.
         //
         // Un incremento de CERO no se aplica, y no es un atajo: `x + x·0` y `x` son el mismo
         // importe, pero multiplicar por uno le anade a la escala tantos decimales como traiga el
@@ -351,11 +372,12 @@ public final class ValorizacionDelPredio {
             return new SinValorizar(
                     "El conjunto sellado del ejercicio "
                             + insumos.ejercicio()
-                            + " no trae el «% actualizacion» (D-11). Esta cerrado SOLO para 2026,"
-                            + " y con su fundamento: el supuesto del art. 12 del TUO LTM no se"
-                            + " cumple ese ano porque se publicaron los aranceles y los precios"
-                            + " unitarios. Cualquier otro ejercicio necesita su propia lectura, y"
-                            + " no hay valor por omision",
+                            + " no trae el «% actualizacion» (D-11). Para 2026 su fundamento esta"
+                            + " escrito —el supuesto del art. 12 del TUO LTM no se cumple ese ano"
+                            + " porque se publicaron los aranceles y los precios unitarios— y le"
+                            + " falta la SEGUNDA FIRMA de ADR-0007, que es un acto de una persona:"
+                            + " hasta que llegue, ningun conjunto puede traer esta llave. Y no hay"
+                            + " valor por omision",
                     PORCENTAJE_DE_ACTUALIZACION);
         }
         return loQueImpideValorizarLoConstruido(insumos, ficha);

@@ -247,28 +247,21 @@ public final class DatosDePrueba {
                 muni,
                 conjuntoId,
                 VIGENCIA);
-        // El «% actualizacion» del ejercicio, que es lo que `normativa` sella desde catastro#8.
-        // Va con valor CERO, que es su valor neutro medido (#437) y el que corresponde a 2026
-        // porque el supuesto del art. 12 del TUO LTM no se cumple ese ano —se publicaron los
-        // aranceles y los precios unitarios—. La fuente de verdad es
-        // `normativa/docs/10-negocio/valores-normativos/predial-porcentaje-de-actualizacion.md`
-        // §1.6 y su fila de `parametros-2026.csv`; esto es la COPIA LOCAL de un conjunto sellado,
-        // que es lo unico que este sistema lee.
+        // EL «% ACTUALIZACION» NO SE SIEMBRA AQUI, Y ES LA PARTE QUE HAY QUE LEER.
         //
-        // Sin esta fila la corrida se para en TODOS los predios nombrando la llave, que es
-        // exactamente lo que hacia antes de #8 — y es la rotura con la que se demuestra que la
-        // rama muerde.
-        ejecutar(
-                app,
-                "INSERT INTO normativa_parametro (municipalidad_id, conjunto_id, tipo, clave,"
-                        + " valor_numerico, vigencia_desde, vigencia_hasta, documento_fuente)"
-                        + " VALUES (?, ?, 'PORCENTAJE_DE_ACTUALIZACION', NULL, 0.000000, ?, ?,"
-                        + "         'TUO de la Ley de Tributacion Municipal"
-                        + "          (D.S. N. 156-2004-EF), art. 12')",
-                muni,
-                conjuntoId,
-                VIGENCIA,
-                LocalDate.of(EJERCICIO, 12, 31));
+        // Esta fixture es la copia local de un conjunto SELLADO, y `normativa` hoy no puede sellar
+        // ninguno que traiga esa llave: su archivo del corpus
+        // —`predial-porcentaje-de-actualizacion.md`— esta en `TRANSCRITO`, le falta la segunda
+        // firma de ADR-0007, y `verificar-publicacion.mjs` no publica desde ese estado. Sembrarla
+        // aqui seria describir un estado del mundo que no existe, que es la clase de mentira que
+        // una fixture no puede contar: las cifras de relleno son relleno declarado, pero una
+        // llave que no se puede sellar no es relleno, es una premisa falsa.
+        //
+        // catastro#8 llego a sembrarla apoyandose en una firma que nadie puso; la direccion lo
+        // rechazo, y esto es la consecuencia medida. Quien quiera ver la corrida produciendo sus
+        // cuatro cifras la siembra en SU municipalidad y lo dice —lo hace
+        // `PublicacionDelPadronJdbcTest.conLaLlaveSelladaLaCorridaProduceCifras`—, en vez de
+        // dejarla puesta para todas y que el padron parezca valorizable.
         ejecutar(
                 app,
                 "INSERT INTO normativa_valor_unitario (municipalidad_id, conjunto_id, partida,"

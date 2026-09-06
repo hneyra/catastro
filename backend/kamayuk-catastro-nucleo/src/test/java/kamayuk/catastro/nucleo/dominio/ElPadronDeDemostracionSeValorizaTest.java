@@ -1,6 +1,7 @@
 package kamayuk.catastro.nucleo.dominio;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.entry;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -14,6 +15,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import kamayuk.catastro.dominio.AreaM2;
 import kamayuk.catastro.dominio.ValorNormativo;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -34,17 +36,45 @@ import org.junit.jupiter.api.Test;
  * exactamente el mismo reparto y ademas dejaria el censo dependiendo de que ese montaje corra, que
  * es lo contrario de una guarda.
  *
- * <h2>Las dos premisas, dichas porque se pueden desmentir</h2>
+ * <h2>Se cuenta TRES VECES, y la diferencia entre las tres es el entregable</h2>
  *
  * <ol>
- *   <li><b>El arancel de cada via se supone publicado</b>, con un valor cualquiera. El padron de
- *       demostracion NO trae ninguno —D-02b sigue abierta y el arancel es de ordenanza local—, y
- *       este censo no mide importes: mide en que RAMA cae cada predio, y esa rama no depende del
- *       valor del arancel sino de que exista. Sin la premisa, los 23 predios saldrian por {@code
- *       ARANCEL:2026} y el censo no diria nada de lo demas.
- *   <li><b>El {@code % actualizacion} se supone sellado</b>, que es lo que {@code normativa} hace
- *       para 2026 desde este mismo issue.
+ *   <li><b>Hoy</b>, con el {@code % actualizacion} <b>ausente</b>. Es el estado real del sistema:
+ *       su archivo del corpus esta en {@code TRANSCRITO} —le falta la segunda firma de ADR-0007, y
+ *       ninguna maquina puede ponerla— asi que ningun conjunto sellado puede traer esa llave.
+ *   <li><b>El dia que una persona firme §1.6</b>, con el {@code % actualizacion} en el valor que
+ *       ese fundamento sella: <b>cero</b>. Es un contrafactual y se dice que lo es.
+ *   <li><b>El mismo contrafactual con un porcentaje distinto de cero</b>, que no es ningun
+ *       ejercicio real: existe para medir <b>que cifra de las cuatro depende de la llave</b>.
  * </ol>
+ *
+ * <p>La diferencia entre (1) y (2) es <b>lo que cuesta esa firma</b>, y se lee sin interpretar
+ * nada. La diferencia entre (2) y (3) es la <b>observacion de frontera</b> que este censo declara y
+ * no arregla: ver abajo.
+ *
+ * <h2>La observacion de frontera, medida y NO arreglada (es D-21 y no es de este issue)</h2>
+ *
+ * <p>La llave {@code PORCENTAJE_DE_ACTUALIZACION} se pide en {@code queImpideValorizar} como
+ * <b>precondicion</b> —la quinta rama, antes de tocar una sola cifra— y se usa <b>en un solo
+ * sitio</b>: el incremento del autovaluo, que solo se aplica si el porcentaje no es cero. De modo
+ * que con el valor que 2026 sella, <b>ninguna de las cuatro cifras del hecho sellado depende de
+ * ella</b>: el terreno, la construccion y las obras no la tocan nunca, y el valor del predio sale
+ * identico al del terreno. Esta prueba lo mide comparando (2) contra (3): con {@code p != 0} cambia
+ * <b>una sola</b> de las cuatro.
+ *
+ * <p>Eso es exactamente lo que ADR-0024 pone del lado de {@code rentas}: un incremento sobre el
+ * autovaluo que no cambia el valor del predio es de la base imponible, no de la valuacion, y vive
+ * junto al {@code % propiedad} de D-21. <b>No se mueve aqui</b> —decidirlo no es de este issue—,
+ * pero queda medido, porque significa que la firma de §1.6 desbloquea el padron sin aportar una
+ * cifra a ninguna de las cuatro, y eso cambia donde hay que mirar cuando se decida D-21.
+ *
+ * <h2>La premisa que queda, dicha porque se puede desmentir</h2>
+ *
+ * <p><b>El arancel de cada via se supone publicado</b>, con un valor cualquiera. El padron de
+ * demostracion NO trae ninguno —D-02b sigue abierta y el arancel es de ordenanza local—, y este
+ * censo no mide importes: mide en que RAMA cae cada predio, y esa rama no depende del valor del
+ * arancel sino de que exista. Sin la premisa, los 23 predios saldrian por {@code ARANCEL:2026} y el
+ * censo no diria nada de lo demas.
  *
  * <p>Lo que el censo NO supone es nada del cuadro: las casillas son las que el corpus firma, y una
  * combinacion que el Anexo no publique sale por su llave.
@@ -58,51 +88,23 @@ class ElPadronDeDemostracionSeValorizaTest {
     /** Ver el javadoc: el valor no decide ninguna rama, solo que la via tenga arancel. */
     private static final ValorNormativo ARANCEL_SUPUESTO = ValorNormativo.de("1");
 
-    private static final ValorNormativo SIN_ACTUALIZACION = ValorNormativo.de("0");
+    /** El valor que §1.6 sella cuando alguien la firme. Contrafactual, y se dice que lo es. */
+    private static final ValorNormativo SI_ALGUIEN_FIRMA = ValorNormativo.de("0");
+
+    /**
+     * Ningun ejercicio real. Existe para medir que cifra de las cuatro depende de la llave.
+     *
+     * <p>No es un literal tributario prohibido por la regla 5: no es la cifra de ninguna norma, y
+     * la prueba no afirma nada sobre su valor — solo sobre <b>cual de las cuatro cifras se
+     * mueve</b> cuando el porcentaje deja de ser cero.
+     */
+    private static final ValorNormativo UN_PORCENTAJE_CUALQUIERA = ValorNormativo.de("10");
 
     @Test
     @DisplayName("23 predios: el reparto por llave, contado y no supuesto")
     void elCensoDelPadronDeDemostracion() throws IOException {
         List<Predio> padron = leerElPadron();
         ValorizacionDelPredio.CuadroDeValoresUnitarios cuadro = leerElCuadroDeNormativa();
-
-        int valorizados = 0;
-        Map<String, Integer> porLlave = new TreeMap<>();
-        for (Predio predio : padron) {
-            ValuacionDelPredio valuacion =
-                    ValorizacionDelPredio.valorizar(
-                            new ValorizacionDelPredio.Insumos(
-                                    predio.numero(),
-                                    EJERCICIO,
-                                    CORTE,
-                                    predio.ficha(),
-                                    1L,
-                                    ValorizacionDelPredio.VERSION,
-                                    cuadro,
-                                    true,
-                                    ARANCEL_SUPUESTO,
-                                    SIN_ACTUALIZACION,
-                                    List.of()));
-            if (valuacion.seValorizo()) {
-                valorizados++;
-            } else {
-                porLlave.merge(
-                        valuacion.llaveQueFalta() == null ? "SIN_LLAVE" : valuacion.llaveQueFalta(),
-                        1,
-                        Integer::sum);
-            }
-        }
-
-        // La cifra del entregable, escrita para que se lea de un vistazo en el registro.
-        System.out.println(
-                "CENSO DEL PADRON DE DEMOSTRACION ("
-                        + padron.size()
-                        + " predios): "
-                        + valorizados
-                        + " valorizado(s), "
-                        + (padron.size() - valorizados)
-                        + " con motivo "
-                        + porLlave);
 
         assertThat(padron)
                 .as("el padron de demostracion que este repositorio versiona")
@@ -111,19 +113,47 @@ class ElPadronDeDemostracionSeValorizaTest {
                 .as("las 24 casillas con cifra del Anexo I.2, tal como `normativa` las firma")
                 .hasSize(24);
 
-        // 4 predios sin ninguna construccion declarada: SI se valorizan, con su terreno y con
-        // construccion y obras en cero. Antes de #8 eran CERO, y por una llave que no era ninguna
-        // de estas: el `% actualizacion` paraba a los 23.
-        assertThat(valorizados).isEqualTo(4);
+        Censo hoy = censar(padron, cuadro, null);
+        Censo siAlguienFirma = censar(padron, cuadro, SI_ALGUIEN_FIRMA);
+        Censo conUnPorcentaje = censar(padron, cuadro, UN_PORCENTAJE_CUALQUIERA);
+
+        // Las cifras del entregable, escritas para que se lean de un vistazo en el registro.
+        System.out.println(
+                "CENSO DEL PADRON DE DEMOSTRACION ("
+                        + padron.size()
+                        + " predios)\n  HOY, con el «% actualizacion» AUSENTE:   "
+                        + hoy
+                        + "\n  SI ALGUIEN FIRMA §1.6 (contrafactual): "
+                        + siAlguienFirma);
+
+        // ------------------------------------------------------------------
+        // (1) HOY: el estado real del sistema
+        // ------------------------------------------------------------------
+        // `predial-porcentaje-de-actualizacion.md` esta en TRANSCRITO: tiene su fundamento escrito
+        // y le falta la segunda firma de ADR-0007, que es un acto de una PERSONA. Sin ella, ningun
+        // conjunto sellado trae la llave, y la quinta rama para a los 23 predios antes de calcular
+        // nada. Es la rotura R9 de este issue convertida en el estado permanente del sistema.
+        assertThat(hoy.valorizados()).isZero();
+        assertThat(hoy.porLlave())
+                .as("los 23, por la misma llave, y no repartidos entre varias")
+                .containsExactly(entry(ValorizacionDelPredio.PORCENTAJE_DE_ACTUALIZACION, 23));
+
+        // ------------------------------------------------------------------
+        // (2) EL DIA QUE ALGUIEN FIRME: lo que esa firma desbloquea
+        // ------------------------------------------------------------------
+        // 4 predios sin ninguna construccion declarada: se valorizan con su terreno, y con
+        // construccion y obras en cero — cero porque no hay nada declarado, no porque falte una
+        // cifra, que es la distincion que #48 existe para sostener.
+        assertThat(siAlguienFirma.valorizados()).isEqualTo(4);
         // Y los 19 restantes salen TODOS por la misma llave, que es la cifra que este censo existe
         // para poner delante: **RT-004**, que tabla del Anexo I del Reglamento Nacional de
         // Tasaciones le toca a cada uso de ficha. `normativa` sella las cuatro tablas; lo que
         // falta es la traduccion, y `depreciacion.md` §3 dice que es criterio y no transcripcion.
-        // Una sola decision desbloquea 19 de 23 predios.
+        // Una sola decision desbloquea 19 de 23 predios — el dia que la primera este firmada.
         //
         // Se cuenta POR USO y no en bloque porque el uso es lo que esa decision tiene que
         // traducir: la lista de abajo es, literalmente, el trabajo que RT-004 tiene por delante.
-        assertThat(porLlave)
+        assertThat(siAlguienFirma.porLlave())
                 .as("el reparto entero, sin agrupar nada bajo «otros»")
                 .containsExactlyInAnyOrderEntriesOf(
                         Map.of(
@@ -148,12 +178,98 @@ class ElPadronDeDemostracionSeValorizaTest {
         // los predios que las tienen tienen tambien construcciones, y la rama de RT-004 va antes.
         // Se dice porque la ausencia de esa llave no significa que el Anexo III sobre — significa
         // que hoy no llega a estorbar.
-        assertThat(porLlave)
+        assertThat(siAlguienFirma.porLlave())
                 .doesNotContainKey(
                         ValorizacionDelPredio.VALOR_UNITARIO_OBRA_COMPLEMENTARIA + ":2026");
-        assertThat(porLlave.values().stream().mapToInt(Integer::intValue).sum())
+        assertThat(siAlguienFirma.porLlave().values().stream().mapToInt(Integer::intValue).sum())
                 .as("y suma exactamente lo que no se valorizo: ningun predio se queda sin contar")
-                .isEqualTo(padron.size() - valorizados);
+                .isEqualTo(padron.size() - siAlguienFirma.valorizados());
+
+        // ------------------------------------------------------------------
+        // (3) LA OBSERVACION DE FRONTERA: que cifra de las cuatro depende de la llave
+        // ------------------------------------------------------------------
+        // Con el porcentaje en el valor que §1.6 sella —cero—, el autovaluo es IDENTICO al valor
+        // del terreno: la llave que para a los 23 predios no aporta un centimo a ninguna de las
+        // cuatro cifras. Es una precondicion, no un insumo del calculo.
+        for (ValuacionDelPredio valuacion : siAlguienFirma.cifras().values()) {
+            assertThat(valuacion.valorDelPredio())
+                    .as("predio %d: con p = 0 el autovaluo es el terreno", valuacion.predioId())
+                    .isEqualTo(valuacion.valorTerreno());
+        }
+        // Y con un porcentaje distinto de cero se mueve UNA SOLA de las cuatro. Se mide, en vez de
+        // razonarlo, porque es lo que decide de que lado de ADR-0024 vive el «% actualizacion»: un
+        // incremento que no cambia el valor del predio es de la BASE IMPONIBLE y no de la
+        // valuacion, o sea de `rentas`, junto al «% propiedad» de D-21. Aqui NO se mueve.
+        assertThat(conUnPorcentaje.cifras().keySet())
+                .as("el porcentaje no cambia QUIEN se valoriza, solo cuanto")
+                .isEqualTo(siAlguienFirma.cifras().keySet());
+        for (Map.Entry<Long, ValuacionDelPredio> caso : siAlguienFirma.cifras().entrySet()) {
+            ValuacionDelPredio conCero = caso.getValue();
+            ValuacionDelPredio conPorcentaje = conUnPorcentaje.cifras().get(caso.getKey());
+            assertThat(conPorcentaje.valorTerreno()).isEqualTo(conCero.valorTerreno());
+            assertThat(conPorcentaje.valorConstruccion()).isEqualTo(conCero.valorConstruccion());
+            assertThat(conPorcentaje.valorObras()).isEqualTo(conCero.valorObras());
+            assertThat(conPorcentaje.valorDelPredio())
+                    .as(
+                            "predio %d: la UNICA de las cuatro que depende de la llave, y solo"
+                                    + " cuando el porcentaje no es cero",
+                            caso.getKey())
+                    .isNotEqualTo(conCero.valorDelPredio());
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // El censo, contado con un valor cualquiera del «% actualizacion»
+    // ------------------------------------------------------------------
+
+    /**
+     * Lo que sale de una corrida: cuantos con cifras, cuantos por llave, y las cifras de los que se
+     * valorizaron.
+     */
+    private record Censo(
+            int valorizados, Map<String, Integer> porLlave, Map<Long, ValuacionDelPredio> cifras) {
+
+        @Override
+        public String toString() {
+            return valorizados
+                    + " valorizado(s), "
+                    + porLlave.values().stream().mapToInt(Integer::intValue).sum()
+                    + " con motivo "
+                    + porLlave;
+        }
+    }
+
+    private static Censo censar(
+            List<Predio> padron,
+            ValorizacionDelPredio.CuadroDeValoresUnitarios cuadro,
+            @Nullable ValorNormativo porcentajeDeActualizacion) {
+        Map<String, Integer> porLlave = new TreeMap<>();
+        Map<Long, ValuacionDelPredio> cifras = new LinkedHashMap<>();
+        for (Predio predio : padron) {
+            ValuacionDelPredio valuacion =
+                    ValorizacionDelPredio.valorizar(
+                            new ValorizacionDelPredio.Insumos(
+                                    predio.numero(),
+                                    EJERCICIO,
+                                    CORTE,
+                                    predio.ficha(),
+                                    1L,
+                                    ValorizacionDelPredio.VERSION,
+                                    cuadro,
+                                    true,
+                                    ARANCEL_SUPUESTO,
+                                    porcentajeDeActualizacion,
+                                    List.of()));
+            if (valuacion.seValorizo()) {
+                cifras.put(predio.numero(), valuacion);
+            } else {
+                porLlave.merge(
+                        valuacion.llaveQueFalta() == null ? "SIN_LLAVE" : valuacion.llaveQueFalta(),
+                        1,
+                        Integer::sum);
+            }
+        }
+        return new Censo(cifras.size(), porLlave, cifras);
     }
 
     // ------------------------------------------------------------------

@@ -1,14 +1,18 @@
 package kamayuk.catastro.nucleo.infraestructura;
 
 import java.time.LocalDate;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 import kamayuk.catastro.dominio.AreaM2;
 import kamayuk.catastro.dominio.Porcentaje;
+import kamayuk.catastro.dominio.ValorNormativo;
 import kamayuk.catastro.nucleo.dominio.CuotaDeTitular;
 import kamayuk.catastro.nucleo.dominio.PadronParaPublicar;
+import kamayuk.catastro.nucleo.dominio.Partida;
+import kamayuk.catastro.nucleo.dominio.ValorUnitarioEdificacion;
 import kamayuk.catastro.persistencia.RepositorioJdbc;
+import org.jspecify.annotations.Nullable;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -119,45 +123,134 @@ public class PadronParaPublicarJdbc extends RepositorioJdbc implements PadronPar
     }
 
     @Override
-    public Set<Long> viasConArancel(long conjuntoId) {
-        return new HashSet<>(
-                jdbc().sql("SELECT DISTINCT via_id FROM arancel WHERE conjunto_id = :conjunto")
-                        .param("conjunto", conjuntoId)
-                        .query(Long.class)
-                        .list());
+    public List<ConstruccionDeLaFicha> construcciones() {
+        return jdbc().sql(
+                        """
+                        SELECT c.ficha_id, c.piso, c.area_construida, c.anio_construccion,
+                               c.categoria_muros, c.categoria_techos, c.categoria_puertas
+                          FROM construccion c
+                         ORDER BY c.ficha_id, c.piso
+                        """)
+                .query(
+                        (fila, numero) ->
+                                new ConstruccionDeLaFicha(
+                                        fila.getLong("ficha_id"),
+                                        fila.getString("piso"),
+                                        new AreaM2(fila.getBigDecimal("area_construida")),
+                                        (Integer) fila.getObject("anio_construccion"),
+                                        letra(fila.getString("categoria_muros")),
+                                        letra(fila.getString("categoria_techos")),
+                                        letra(fila.getString("categoria_puertas"))))
+                .list();
+    }
+
+    /**
+     * La letra de una categoria, o nulo si la ficha no la declara.
+     *
+     * <p>Nulo <b>no</b> es «sin techo» ni «sin puertas»: esas son las casillas {@code H} e {@code
+     * I} del propio cuadro, con su cifra. Confundirlas seria valorizar al 0,00 una edificacion que
+     * el tecnico no llego a describir.
+     */
+    private static @Nullable Character letra(@Nullable String celda) {
+        return celda == null || celda.isBlank() ? null : celda.charAt(0);
     }
 
     @Override
-    public boolean hayCuadroDeValoresUnitarios(long conjuntoId) {
-        return hayAlgunaFilaEn("normativa_valor_unitario", conjuntoId);
+    public List<ObrasDeLaFicha> obrasComplementarias() {
+        return jdbc().sql(
+                        """
+                        SELECT o.ficha_id, count(*) AS cuantas
+                          FROM otra_instalacion o
+                         GROUP BY o.ficha_id
+                         ORDER BY o.ficha_id
+                        """)
+                .query(
+                        (fila, numero) ->
+                                new ObrasDeLaFicha(
+                                        fila.getLong("ficha_id"), fila.getInt("cuantas")))
+                .list();
+    }
+
+    @Override
+    public Map<Long, ValorNormativo> arancelSinTramoPorVia(long conjuntoId) {
+        // `tramo IS NULL` es el arancel de la via entera, y `arancel_sin_tramo_uq` (V1) garantiza
+        // que sea uno solo por via y conjunto. Los aranceles CON tramo no se leen aqui a
+        // proposito: `predio` no dice en que tramo de su via esta, asi que elegir uno seria
+        // inventar el dato que falta.
+        //
+        // Y el `merge` que revienta no es paranoia: quitar el `AND tramo IS NULL` de la consulta
+        // de arriba —la rotura obvia— pasaba en VERDE, porque un `put` se queda con la ultima
+        // fila que llegue y el orden lo decide el plan. Un arancel elegido por el planificador es
+        // exactamente la clase de cifra que nadie audita, asi que aqui se prefiere el ruido.
+        Map<Long, ValorNormativo> porVia = new HashMap<>();
+        jdbc().sql(
+                        """
+                        SELECT via_id, valor_m2
+                          FROM arancel
+                         WHERE conjunto_id = :conjunto AND tramo IS NULL
+                        """)
+                .param("conjunto", conjuntoId)
+                .query(
+                        (fila, numero) ->
+                                porVia.merge(
+                                        fila.getLong("via_id"),
+                                        new ValorNormativo(fila.getBigDecimal("valor_m2")),
+                                        (uno, otro) -> {
+                                            throw new IllegalStateException(
+                                                    "La via tiene mas de un arancel aplicable en"
+                                                            + " el conjunto sellado ("
+                                                            + uno
+                                                            + " y "
+                                                            + otro
+                                                            + "), y el predio no dice en que"
+                                                            + " tramo esta: elegir uno seria"
+                                                            + " inventar el dato que falta");
+                                        }))
+                .list();
+        return Map.copyOf(porVia);
+    }
+
+    @Override
+    public List<ValorUnitarioEdificacion> cuadroDeValoresUnitarios(long conjuntoId) {
+        return jdbc().sql(
+                        """
+                        SELECT v.partida, v.categoria, v.anio_construccion_desde,
+                               v.anio_construccion_hasta, v.valor_m2, v.documento_fuente
+                          FROM normativa_valor_unitario v
+                         WHERE v.conjunto_id = :conjunto
+                         ORDER BY v.partida, v.categoria, v.anio_construccion_desde
+                        """)
+                .param("conjunto", conjuntoId)
+                .query(
+                        (fila, numero) ->
+                                new ValorUnitarioEdificacion(
+                                        // La copia local no lleva `id` propio: el de `normativa`
+                                        // no significa nada aqui. Lo mismo que hace
+                                        // `ValuacionRepositoryJdbc` con la misma tabla.
+                                        0L,
+                                        Partida.valueOf(fila.getString("partida")),
+                                        fila.getString("categoria").charAt(0),
+                                        fila.getInt("anio_construccion_desde"),
+                                        (Integer) fila.getObject("anio_construccion_hasta"),
+                                        new ValorNormativo(fila.getBigDecimal("valor_m2")),
+                                        fila.getString("documento_fuente")))
+                .list();
     }
 
     @Override
     public boolean hayCuadroDeDepreciacion(long conjuntoId) {
-        return hayAlgunaFilaEn("normativa_depreciacion", conjuntoId);
-    }
-
-    @Override
-    public long cuantosPredios() {
-        return jdbc().sql("SELECT count(*) FROM predio").query(Long.class).single();
-    }
-
-    /**
-     * Las dos tablas de la cache sellada, preguntadas igual.
-     *
-     * <p>El nombre de la tabla se interpola y no viaja como parametro —no se puede—, y por eso este
-     * metodo es {@code private} y solo lo llaman los dos de arriba con literales suyos: no hay
-     * ninguna cadena de fuera que pueda llegar hasta aqui.
-     */
-    private boolean hayAlgunaFilaEn(String tabla, long conjuntoId) {
         Boolean hay =
                 jdbc().sql(
-                                "SELECT EXISTS (SELECT 1 FROM "
-                                        + tabla
+                                "SELECT EXISTS (SELECT 1 FROM normativa_depreciacion"
                                         + " WHERE conjunto_id = :conjunto)")
                         .param("conjunto", conjuntoId)
                         .query(Boolean.class)
                         .single();
         return Boolean.TRUE.equals(hay);
+    }
+
+    @Override
+    public long cuantosPredios() {
+        return jdbc().sql("SELECT count(*) FROM predio").query(Long.class).single();
     }
 }

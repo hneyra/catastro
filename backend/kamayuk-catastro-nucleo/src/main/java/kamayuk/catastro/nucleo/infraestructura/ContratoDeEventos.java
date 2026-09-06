@@ -98,4 +98,68 @@ public final class ContratoDeEventos {
             int conteo,
             String huella,
             String cerradaEn) {}
+
+    /** El cuerpo de {@code MANZANA_PUBLICADA} (#7). */
+    public record ManzanaPublicada(
+            long manzanaId, String codigo, String sectorCodigo, String sectorNombre) {}
+
+    /**
+     * El cuerpo de {@code FRENTE_PUBLICADO}: los metros lineales de un predio y a que vias dan
+     * (#7).
+     *
+     * <p><b>Ni un importe y ni un servicio.</b> Este es el insumo de los arbitrios y el importe lo
+     * determina {@code rentas} (ADR-0024): aqui no aparece ninguno de los tres valores del
+     * enumerado {@code Servicio} de aquel repositorio, ni ningun factor de barrido. Lo comprueba
+     * {@code CatastroNoNombraUnArbitrioTest} sobre el arbol entero — y este parrafo los nombraba
+     * uno a uno hasta que esa prueba lo puso rojo.
+     */
+    public record FrentePublicado(
+            long predioId, String codigoRefCatastral, List<FrenteDelPredio> frentes) {}
+
+    /**
+     * Un frente dentro del hecho de su predio.
+     *
+     * <p>{@code longitudEstado} viaja porque separa dos cifras que se leen igual: {@code PROPUESTA}
+     * la corto una maquina contra el eje de la via y {@code CONFIRMADA} la firmo una persona
+     * (ADR-0021). Determinar sobre la primera es legitimo mientras se sepa que se esta haciendo, y
+     * sin este campo no hay forma de saberlo.
+     *
+     * <p><b>La longitud sale con su unidad dentro —{@code "18.50 ML"}— y no tipada</b>, que es lo
+     * que este sistema ya hace con toda {@code Medida} (ver {@code FichaResource}): un {@code
+     * AreaM2} lleva la unidad en la cabecera de su columna y una medida la lleva dentro, porque ahi
+     * la unidad <b>es</b> parte del dato. Aqui importa doble: el barrido se determina sobre metros
+     * LINEALES y el recojo sobre metros CUADRADOS, y leer unos por otros no falla —cobra otra
+     * cosa—.
+     */
+    public record FrenteDelPredio(
+            long frenteId,
+            long viaId,
+            String viaCodigo,
+            String viaNombre,
+            String longitud,
+            String longitudEstado,
+            boolean esPrincipal,
+            @Nullable String numeracion,
+            @Nullable String retiro) {}
+
+    /**
+     * El cuerpo de {@code HALLAZGO_FIRME}: lo que una persona verifico (#7, ADR-0035).
+     *
+     * <p>Lleva {@code inspector} y {@code verificadoEn} porque son la respuesta a la unica pregunta
+     * que un contraste de areas no puede contestar —«¿quien dijo esto?»— y porque quien reciba el
+     * hecho va a notificar a alguien con el.
+     *
+     * <p><b>Ni un importe.</b> Un hallazgo informa una diferencia de superficie; cuanto se cobra
+     * por ella es de {@code rentas}.
+     */
+    public record HallazgoFirme(
+            long hallazgoId,
+            long candidatoId,
+            String clase,
+            @Nullable Long predioId,
+            @Nullable Long fichaId,
+            @Nullable AreaM2 areaDeLaFicha,
+            AreaM2 areaVerificada,
+            String inspector,
+            String verificadoEn) {}
 }

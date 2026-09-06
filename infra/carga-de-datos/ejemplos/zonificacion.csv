@@ -1,0 +1,36 @@
+# Zonificacion de ejemplo — Catacaos (ubigeo 200104), la piloto de D-01.
+#
+# ESTRUCTURA, NO NORMA. Los codigos de zona (RDB, RDM, CZ, ZRP, ZRE, ZTE) y los nombres
+# son los del Reglamento de Acondicionamiento Territorial y Desarrollo Urbano, que es
+# vocabulario nacional. Los POLIGONOS son rectangulos inventados sobre el area de
+# Catacaos, y los parametros urbanisticos son los que ilustran la forma del dato: NINGUNA
+# de estas filas es la zonificacion real de ninguna municipalidad, y lo que hay que cargar
+# en una instalacion de verdad es el plan aprobado por SU ordenanza.
+#
+# Por eso las dos ordenanzas dicen DEMO en su numero: una ordenanza inventada tiene que
+# reconocerse como inventada en cualquier reporte, igual que los DNI de contribuyentes.csv.
+#
+# Formato de ImportarZonificacion:
+#   plan,ordenanza,codigo,nombre,vigenciaDesde,vigenciaHasta,geometria[,parametro...]
+#
+# - vigenciaHasta se deja vacia mientras el plan siga vigente. Es INCLUSIVA: el ultimo dia
+#   que la zona rige. Para relevar un plan se cierra el anterior LA VISPERA del nuevo.
+# - geometria es WKT MULTIPOLYGON en WGS84 (EPSG:4326), longitud primero. Va entre
+#   comillas porque lleva comas dentro.
+# - detras van tantos parametros urbanisticos como la ordenanza declare, uno por columna,
+#   con la forma clave=valor o clave=valor:unidad. El valor es TEXTO a proposito: media
+#   ordenanza no dice cifras («segun frente», «1/2 por vivienda»).
+#
+# DOS PLANES VIGENTES NO PUEDEN CUBRIR EL MISMO SUELO, y lo rechaza el motor
+# (zonificacion_planes_no_se_pisan, V7). Este archivo trae un solo plan vigente: las zonas
+# del PDU-2016-DEMO estan cerradas el 2025-12-31 y las del PDU-2026-DEMO abren el
+# 2026-01-01. Si se le quita esa fecha de cierre a la primera fila, la carga rechaza las
+# del plan nuevo que se pisen con ella — que es lo que tiene que pasar.
+plan,ordenanza,codigo,nombre,vigenciaDesde,vigenciaHasta,geometria,parametros
+PDU-2016-DEMO,ORD-012-2016-MDC-DEMO,RDB,Residencial de densidad baja,2016-03-01,2025-12-31,"MULTIPOLYGON(((-80.690 -5.270,-80.670 -5.270,-80.670 -5.255,-80.690 -5.255,-80.690 -5.270)))",altura_maxima=2:pisos,area_lote_minima=160:m2,retiro_frontal=2:m
+PDU-2026-DEMO,ORD-004-2026-MDC-DEMO,RDB,Residencial de densidad baja,2026-01-01,,"MULTIPOLYGON(((-80.690 -5.270,-80.670 -5.270,-80.670 -5.255,-80.690 -5.255,-80.690 -5.270)))",altura_maxima=3:pisos,area_lote_minima=120:m2,retiro_frontal=2:m,estacionamientos=1 por vivienda,densidad_neta=330:hab/ha
+PDU-2026-DEMO,ORD-004-2026-MDC-DEMO,RDM,Residencial de densidad media,2026-01-01,,"MULTIPOLYGON(((-80.670 -5.270,-80.655 -5.270,-80.655 -5.255,-80.670 -5.255,-80.670 -5.270)))",altura_maxima=5:pisos,area_lote_minima=90:m2,retiro_frontal=3:m,estacionamientos=1 cada 2 viviendas,densidad_neta=1300:hab/ha
+PDU-2026-DEMO,ORD-004-2026-MDC-DEMO,CZ,Comercio zonal,2026-01-01,,"MULTIPOLYGON(((-80.655 -5.270,-80.645 -5.270,-80.645 -5.258,-80.655 -5.258,-80.655 -5.270)))",altura_maxima=6:pisos,area_lote_minima=300:m2,retiro_frontal=segun seccion de via,estacionamientos=1 cada 50 m2
+PDU-2026-DEMO,ORD-004-2026-MDC-DEMO,ZRP,Zona de recreacion publica,2026-01-01,,"MULTIPOLYGON(((-80.670 -5.255,-80.655 -5.255,-80.655 -5.248,-80.670 -5.248,-80.670 -5.255)))",altura_maxima=1:pisos,area_libre_minima=80:%
+PDU-2026-DEMO,ORD-004-2026-MDC-DEMO,ZRE,Zona de reglamentacion especial,2026-01-01,,"MULTIPOLYGON(((-80.690 -5.255,-80.670 -5.255,-80.670 -5.248,-80.690 -5.248,-80.690 -5.255)))",altura_maxima=2:pisos,area_lote_minima=200:m2,retiro_frontal=3:m,intervencion=previa opinion del Ministerio de Cultura
+PDU-2026-DEMO,ORD-004-2026-MDC-DEMO,ZTE,Zona de tratamiento especial agricola,2026-01-01,,"MULTIPOLYGON(((-80.655 -5.258,-80.640 -5.258,-80.640 -5.248,-80.655 -5.248,-80.655 -5.258)))",altura_maxima=1:pisos,area_lote_minima=1000:m2,uso=agricola y vivienda de apoyo

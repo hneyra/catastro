@@ -143,6 +143,24 @@ public final class DatosDePrueba {
     public static void sembrarTenant(
             BaseDeDatosDePrueba base, long muni, long parametroId, String sufijo)
             throws SQLException {
+        sembrarTenant(base, muni, parametroId, sufijo, true);
+    }
+
+    /**
+     * Lo mismo, pudiendo dejar FUERA el {@code % actualizacion} del conjunto sellado.
+     *
+     * <p>La unica razon legitima para pasar {@code false} es <b>medir el contraste</b>: que la
+     * corrida vuelva a pararse nombrando esa llave si {@code normativa} dejara de publicarla. Ese
+     * fue el estado real del sistema hasta el 2026-09-06 y no es hipotetico, asi que se sigue
+     * pudiendo reproducir; lo que no se puede es que sea el estado por omision de la fixture.
+     */
+    public static void sembrarTenant(
+            BaseDeDatosDePrueba base,
+            long muni,
+            long parametroId,
+            String sufijo,
+            boolean conElPorcentajeDeActualizacion)
+            throws SQLException {
         try (Connection app = base.conexion(BaseDeDatosDePrueba.APP)) {
             ContextoDeTenant.fijar(app, muni);
 
@@ -167,7 +185,7 @@ public final class DatosDePrueba {
             // cache, y sembrar al reves la disparaba — lo cual, dicho de paso, es la primera
             // demostracion de que muerde: la fixture cayo con «El conjunto de parametros 1 esta
             // sellado» antes de que ninguna prueba la mirara.
-            sembrarCacheDeNormativa(app, muni, conjuntoId);
+            sembrarCacheDeNormativa(app, muni, conjuntoId, conElPorcentajeDeActualizacion);
             sembrarSeguridad(app, muni, sufijo);
 
             // Constancia de que los identificadores encadenados se usaron.
@@ -215,7 +233,8 @@ public final class DatosDePrueba {
      * <p>Las cifras son de relleno y estan marcadas como tales en su documento fuente. Ninguna se
      * puede leer como un valor normativo: los de verdad los publica {@code normativa}.
      */
-    private static void sembrarCacheDeNormativa(Connection app, long muni, long conjuntoId)
+    private static void sembrarCacheDeNormativa(
+            Connection app, long muni, long conjuntoId, boolean conElPorcentajeDeActualizacion)
             throws SQLException {
         ejecutar(
                 app,
@@ -228,13 +247,56 @@ public final class DatosDePrueba {
                 EJERCICIO);
         ejecutar(
                 app,
+                // La CLAVE no puede ser `valor-de-relleno`, y eso lo destapo catastro#8 al leer
+                // por primera vez esta tabla con `LectorDeParametrosCacheados`. Al sellar el
+                // conjunto, el disparador de `EscenarioDeNormativa` copia aqui todo lo que
+                // `conjunto_parametro_detalle_de_prueba` compone —y compone justamente el
+                // `PRUEBA:valor-de-relleno` nacional—, de modo que la fila quedaba DOS VECES con
+                // la misma llave y la misma vigencia. Nadie lo veia porque nadie leia los
+                // parametros de este conjunto; en cuanto la corrida los lee, la guarda de #659
+                // salta con «tiene dos filas de PRUEBA:valor-de-relleno vigentes en 2026 … y
+                // nadie eligio cual rige», que es exactamente lo que esa guarda existe para
+                // decir. La fila manual se queda —`AislamientoMultiTenantTest` exige que esta
+                // tabla tenga filas propias de cada municipalidad, y el disparador solo escribe
+                // al sellar— pero con llave propia.
                 "INSERT INTO normativa_parametro (municipalidad_id, conjunto_id, tipo, clave,"
                         + " valor_numerico, vigencia_desde, documento_fuente)"
-                        + " VALUES (?, ?, 'PRUEBA', 'valor-de-relleno', 1.000000, ?,"
+                        + " VALUES (?, ?, 'PRUEBA', 'solo-de-la-cache-local', 1.000000, ?,"
                         + "         'fixture de la prueba de aislamiento')",
                 muni,
                 conjuntoId,
                 VIGENCIA);
+        // EL «% ACTUALIZACION», Y POR QUE HOY SE SIEMBRA CUANDO ANTES NO.
+        //
+        // Esta fixture es la copia local de un conjunto SELLADO, asi que solo puede traer lo que
+        // `normativa` pueda sellar. Hasta el 2026-09-06 no podia sellar esta llave: su archivo del
+        // corpus —`predial-porcentaje-de-actualizacion.md`— estaba en `TRANSCRITO`, le faltaba la
+        // segunda firma de ADR-0007 y `verificar-publicacion.mjs` no publica desde ese estado.
+        // Sembrarla entonces habria sido describir un estado del mundo que no existia, que es la
+        // clase de mentira que una fixture no puede contar: una cifra de relleno es relleno
+        // declarado, pero una llave que no se puede sellar es una premisa falsa.
+        //
+        // Ese dia una persona firmo §1.6, la fila entro en `parametros-2026.csv` y el ejercicio se
+        // sello (`ElEjercicio2026SeSellaTest`). La premisa dejo de ser falsa y la fixture pasa a
+        // traerla, con el valor que ese fundamento sella —CERO, y no un valor por omision: el
+        // supuesto del art. 12 del TUO LTM no se cumple en 2026 porque se publicaron los aranceles
+        // y los precios unitarios—.
+        //
+        // catastro#8 llego a sembrarla ANTES, apoyandose en una firma que nadie habia puesto; la
+        // direccion lo rechazo y la fixture volvio a no traerla. Que hoy la traiga no borra ese
+        // episodio: lo que cambio no es el razonamiento, es quien responde por el.
+        if (conElPorcentajeDeActualizacion) {
+            ejecutar(
+                    app,
+                    "INSERT INTO normativa_parametro (municipalidad_id, conjunto_id, tipo, clave,"
+                            + " valor_numerico, vigencia_desde, vigencia_hasta, documento_fuente)"
+                            + " VALUES (?, ?, 'PORCENTAJE_DE_ACTUALIZACION', NULL, 0.000000, ?,"
+                            + "         DATE '2026-12-31',"
+                            + "         'TUO de la Ley de Tributacion Municipal, art. 12')",
+                    muni,
+                    conjuntoId,
+                    VIGENCIA);
+        }
         ejecutar(
                 app,
                 "INSERT INTO normativa_valor_unitario (municipalidad_id, conjunto_id, partida,"
@@ -376,6 +438,97 @@ public final class DatosDePrueba {
                 desplazamientoDe(sufijo) + " ",
                 desplazamientoDe(sufijo) + " ");
 
+        // El eje de calzada de la via (`V10`). Con el, `via` pasa a ser una tabla de tenant CON
+        // geometria, asi que sus cuatro columnas de marco (ADR-0034) dejan de salir nulas: un
+        // filtro por marco sobre una columna nula pasaria en verde sin comprobar nada. Va sobre el
+        // mismo desplazamiento que el frente, para que las dos municipalidades caigan en grados de
+        // longitud distintos y una fuga del filtro se vea como filas ajenas y no como un empate.
+        ejecutar(
+                app,
+                "UPDATE via SET eje = ST_GeogFromText('SRID=4326;LINESTRING(' || ? || ' -4.90, '"
+                        + "                                                   || ? || ' -4.9002)')"
+                        + " WHERE municipalidad_id = ? AND id = ?",
+                desplazamientoDe(sufijo) + " ",
+                desplazamientoDe(sufijo) + " ",
+                muni,
+                viaId);
+
+        // La constancia de la derivacion (`V10`). Se siembra por lo mismo que el frente y las
+        // cinco tablas de la fiscalizacion: la prueba de aislamiento recorre TODAS las tablas de
+        // tenant y exige que la municipalidad A vea filas SUYAS. Sobre una tabla vacia, «no se ve
+        // nada de B» es cierto y no prueba nada — y esa es la forma exacta en que una tabla nueva
+        // entra sin que nadie compruebe su politica. Se puso roja sola al llegar `V10`:
+        // «frente_derivacion: la municipalidad A debe ver sus propias filas».
+        //
+        // `propuestos` en cero CON su motivo, porque es el estado real de hoy: no hay ni un
+        // poligono de lote cargado en ninguna instalacion, asi que el corte no daria ningun tramo.
+        ejecutar(
+                app,
+                "INSERT INTO frente_derivacion (municipalidad_id, predio_id, derivado_en,"
+                        + " propuestos, motivo)"
+                        + " VALUES (?, ?, now(), 0,"
+                        + "         'El corte no dio ningun tramo: el lote no tiene poligono')",
+                muni,
+                predioId);
+
+        sembrarUrbano(app, muni, sufijo, viaId, predioId);
+        // La gestion del riesgo (#5): una zona de peligro, una faja marginal y un ITSE.
+        //
+        // Se siembran aqui —y no en la prueba que las usa— por lo mismo que el frente: la prueba
+        // de aislamiento recorre TODAS las tablas de tenant y exige que la municipalidad A vea
+        // filas suyas. Sobre una tabla vacia, «no se ve nada de B» es cierto y no prueba nada, y
+        // esa es la forma exacta en que una tabla nueva entra sin que nadie compruebe su politica.
+        //
+        // Los dos poligonos van sobre el MISMO desplazamiento que el frente, asi que cada
+        // municipalidad tiene los suyos en un grado distinto de longitud: si el filtro por marco
+        // tuviera una fuga, la prueba veria filas de la otra y no un empate ambiguo.
+        ejecutar(
+                app,
+                "INSERT INTO zona_riesgo (municipalidad_id, codigo, fenomeno, nivel, mitigable,"
+                        + " fuente, documento_origen, vigencia_desde, geometria, observacion,"
+                        + " usuario_registro)"
+                        + " VALUES (?, ?, 'INUNDACION', 'MUY_ALTO', false, 'CENEPRED',"
+                        + "         'CARTA-DE-PRUEBA', DATE '2025-01-01',"
+                        + "         ST_GeogFromText('SRID=4326;MULTIPOLYGON(((' || ? || ' -4.90,'"
+                        + "                          || ? || ' -4.91, ' || ? || ' -4.91, '"
+                        + "                          || ? || ' -4.90, ' || ? || ' -4.90)))'),"
+                        + "         'zona de riesgo de prueba', 'prueba')",
+                muni,
+                "ZR-" + sufijo,
+                desplazamientoDe(sufijo) + " ",
+                desplazamientoDe(sufijo) + " ",
+                desplazamientoDe(sufijo) + "1 ",
+                desplazamientoDe(sufijo) + "1 ",
+                desplazamientoDe(sufijo) + " ");
+        ejecutar(
+                app,
+                "INSERT INTO faja_marginal (municipalidad_id, codigo, cuerpo_agua, ancho_m,"
+                        + " fuente, documento_origen, vigencia_desde, geometria, observacion,"
+                        + " usuario_registro)"
+                        + " VALUES (?, ?, 'Rio de prueba', 25.00, 'ANA', 'RD-DE-PRUEBA',"
+                        + "         DATE '2023-01-01',"
+                        + "         ST_GeogFromText('SRID=4326;MULTIPOLYGON(((' || ? || ' -4.92,'"
+                        + "                          || ? || ' -4.93, ' || ? || ' -4.93, '"
+                        + "                          || ? || ' -4.92, ' || ? || ' -4.92)))'),"
+                        + "         'faja marginal de prueba', 'prueba')",
+                muni,
+                "FM-" + sufijo,
+                desplazamientoDe(sufijo) + " ",
+                desplazamientoDe(sufijo) + " ",
+                desplazamientoDe(sufijo) + "1 ",
+                desplazamientoDe(sufijo) + "1 ",
+                desplazamientoDe(sufijo) + " ");
+        // Y el certificado, que NO tiene geometria: cuelga del predio.
+        ejecutar(
+                app,
+                "INSERT INTO itse (municipalidad_id, predio_id, numero, nivel_riesgo, modalidad,"
+                        + " vigencia_desde, vigencia_hasta, observacion, usuario_registro)"
+                        + " VALUES (?, ?, ?, 'ALTO', 'PREVIA', DATE '2026-01-01',"
+                        + "         DATE '2026-12-31', 'certificado de prueba', 'prueba')",
+                muni,
+                predioId,
+                "ITSE-" + sufijo);
+
         // Los otros tres tipos de ficha (#19). Van sobre el mismo predio a proposito: el indice
         // parcial admite una vigente de cada tipo, y sembrarlas juntas lo comprueba de paso.
         long economica =
@@ -496,10 +649,122 @@ public final class DatosDePrueba {
                 muni,
                 conjuntoId,
                 viaId);
+        // Y un SEGUNDO arancel de la misma via, este CON tramo y con otra cifra. No es adorno:
+        // sin el, quitarle a `arancelSinTramoPorVia` su `AND tramo IS NULL` pasaba en VERDE
+        // —medido en catastro#8— porque no habia ninguna fila con tramo que se pudiera colar. Con
+        // esta fila, la misma rotura hace que la consulta devuelva DOS aranceles para la via y la
+        // corrida revienta nombrando la ambiguedad, en vez de valorizar el terreno con la cifra
+        // que el planificador devolviera primero.
+        ejecutar(
+                app,
+                "INSERT INTO arancel (municipalidad_id, conjunto_id, via_id, tramo, valor_m2,"
+                        + " documento_fuente)"
+                        + " VALUES (?, ?, ?, 'cuadra 1', 9.000000, 'fixture de la prueba')",
+                muni,
+                conjuntoId,
+                viaId);
         // valor_unitario_edificacion y depreciacion ya no se siembran aqui: desde D-13 (V55) son
         // nacionales, las carga rol_carga_parametros y viven en crearParametroNacional. El arancel
         // si se queda: se carga y se corrige por municipalidad.
+
+        sembrarFiscalizacion(app, muni, sufijo, predioId, fichaId);
         return predioId;
+    }
+
+    /**
+     * Las cuatro tablas de {@code V7} (#4): zonificacion, sus parametros, la seccion de via y la
+     * habilitacion urbana.
+     *
+     * <p>Son de tenant, asi que {@code AislamientoMultiTenantTest} exige que la municipalidad A vea
+     * filas suyas en las cuatro: una tabla vacia haria que «no se ve nada de B» fuera cierto sin
+     * probar nada, que es el modo de fallo contra el que existe esa prueba.
+     *
+     * <p><b>La zona se dibuja alrededor del frente del predio</b>, sobre el mismo grado de longitud
+     * que {@code desplazamientoDe} le dio a esta municipalidad. Dos motivos, y los dos se miden:
+     * asi el predio de A cae DENTRO de la zona de A —que es lo que hace util la consulta de
+     * contencion en la prueba de frontera— y las zonas de las dos municipalidades no se solapan ni
+     * por casualidad, de modo que una fuga del filtro por marco se veria como filas de la otra y no
+     * como un empate ambiguo.
+     */
+    private static void sembrarUrbano(
+            Connection app, long muni, String sufijo, long viaId, long predioId)
+            throws SQLException {
+        String x = desplazamientoDe(sufijo);
+        long zonaId =
+                insertar(
+                        app,
+                        "INSERT INTO zonificacion (municipalidad_id, plan, ordenanza, codigo,"
+                                + " nombre, geometria, vigencia_desde, observacion,"
+                                + " usuario_registro)"
+                                + " VALUES (?, ?, ?, 'RDM', 'Residencial de densidad media',"
+                                + "  ST_GeogFromText('SRID=4326;MULTIPOLYGON(((' || ? || ' -4.91,'"
+                                + "   || ? || ' -4.91,' || ? || ' -4.89,' || ? || ' -4.89,'"
+                                + "   || ? || ' -4.91)))'),"
+                                + "  ?, 'zonificacion inicial de prueba', 'prueba') RETURNING id",
+                        muni,
+                        "PDU-" + sufijo,
+                        "ORD-001-" + sufijo,
+                        aLaIzquierda(x),
+                        aLaDerecha(x),
+                        aLaDerecha(x),
+                        aLaIzquierda(x),
+                        aLaIzquierda(x),
+                        VIGENCIA);
+        ejecutar(
+                app,
+                "INSERT INTO parametro_urbanistico (municipalidad_id, zonificacion_id, clave,"
+                        + " valor, unidad, observacion, usuario_registro)"
+                        + " VALUES (?, ?, 'altura_maxima', '5', 'pisos',"
+                        + "         'parametro inicial de prueba', 'prueba')",
+                muni,
+                zonaId);
+        ejecutar(
+                app,
+                "INSERT INTO seccion_via (municipalidad_id, via_id, tramo, plan, ordenanza,"
+                        + " clasificacion, ancho_via_m, ancho_calzada_m, ancho_vereda_m, retiro_m,"
+                        + " vigencia_desde, observacion, usuario_registro)"
+                        + " VALUES (?, ?, ?, ?, ?, 'COLECTORA', 20.00, 12.00, 3.00, 3.00, ?,"
+                        + "         'seccion inicial de prueba', 'prueba')",
+                muni,
+                viaId,
+                "cuadra 1 " + sufijo,
+                "PDU-" + sufijo,
+                "ORD-001-" + sufijo,
+                VIGENCIA);
+        ejecutar(
+                app,
+                "INSERT INTO habilitacion_urbana (municipalidad_id, codigo, denominacion,"
+                        + " resolucion, fecha_resolucion, estado, lotes_aprobados, area_bruta_m2,"
+                        + " geometria, observacion, usuario_registro)"
+                        + " VALUES (?, ?, ?, ?, ?, 'RECEPCIONADA', 40, 12000.00,"
+                        + "  ST_GeogFromText('SRID=4326;MULTIPOLYGON(((' || ? || ' -4.91,'"
+                        + "   || ? || ' -4.91,' || ? || ' -4.89,' || ? || ' -4.89,'"
+                        + "   || ? || ' -4.91)))'),"
+                        + "  'habilitacion inicial de prueba', 'prueba')",
+                muni,
+                "HU-" + sufijo,
+                "Urbanizacion de prueba " + sufijo,
+                "RES-010-" + sufijo,
+                VIGENCIA,
+                aLaIzquierda(x),
+                aLaDerecha(x),
+                aLaDerecha(x),
+                aLaIzquierda(x),
+                aLaIzquierda(x));
+        // Constancia de que el identificador encadenado se uso.
+        if (zonaId <= 0) {
+            throw new IllegalStateException("No se sembro ninguna zona");
+        }
+    }
+
+    /** Un grado a la izquierda del desplazamiento de esta municipalidad. */
+    private static String aLaIzquierda(String desplazamiento) {
+        return Double.toString(Double.parseDouble(desplazamiento) - 0.5) + " ";
+    }
+
+    /** Y medio grado a la derecha: la zona envuelve al frente del predio y no llega a la vecina. */
+    private static String aLaDerecha(String desplazamiento) {
+        return Double.toString(Double.parseDouble(desplazamiento) + 0.5) + " ";
     }
 
     /**
@@ -510,6 +775,117 @@ public final class DatosDePrueba {
      * vea como filas de la otra municipalidad y no como un empate que hay que interpretar. El
      * entorno es Sullana, asi que se parte de -80.
      */
+    /**
+     * Las cinco tablas del hallazgo catastral (V9, ADR-0035, #6).
+     *
+     * <p>Son de tenant, asi que {@code AislamientoMultiTenantTest} exige que la municipalidad A vea
+     * filas suyas en las cinco: una tabla vacia haria que «no se ve nada de B» fuera cierto sin
+     * probar nada, que es el modo de fallo contra el que esa prueba existe. Sin esto la migracion
+     * salia en verde y el aislamiento de las cinco no lo comprobaba nadie — medido: cinco rojos,
+     * uno por tabla, con «la municipalidad A debe ver sus propias filas».
+     *
+     * <p>El candidato y el hallazgo llevan <b>geometria de verdad</b>, y por el mismo motivo que el
+     * frente de predio: con la geometria nula las cuatro columnas del marco (ADR-0034) salen nulas
+     * y un filtro por marco no devolveria nada, o sea que pasaria en verde sin comprobar el camino
+     * que ADR-0034 obliga a usar. Cada municipalidad cae en un grado distinto de longitud.
+     *
+     * <p>El candidato se siembra <b>ya verificado en campo</b> porque el hallazgo cuelga de el: es
+     * la unica forma de que las dos filas existan a la vez, y de paso deja escrito en la fixture
+     * que un hallazgo sin candidato verificado no se puede escribir.
+     */
+    private static void sembrarFiscalizacion(
+            Connection app, long muni, String sufijo, long predioId, long fichaId)
+            throws SQLException {
+        long campaniaId =
+                insertar(
+                        app,
+                        "INSERT INTO campania (municipalidad_id, codigo, nombre, inicio, umbral,"
+                                + " observacion, usuario_registro)"
+                                + " VALUES (?, ?, ?, ?, 0.7000, 'campania de prueba', 'prueba')"
+                                + " RETURNING id",
+                        muni,
+                        "CAM-" + sufijo,
+                        "Campania de prueba " + sufijo,
+                        VIGENCIA);
+
+        long candidatoId =
+                insertar(
+                        app,
+                        "INSERT INTO candidato (municipalidad_id, campania_id, predio_id, clase,"
+                                + " origen, score, insumos, geometria, estado, observacion,"
+                                + " usuario_registro)"
+                                + " VALUES (?, ?, ?, 'SUBVALUADOR', 'ORTOFOTO', 0.9100,"
+                                + "         '{\"fuente\":\"fixture\"}'::jsonb,"
+                                + "         ST_GeogFromText('SRID=4326;MULTIPOLYGON(((' || ? || ' -4.90,'"
+                                + "                          || ? || ' -4.9002,' || ? || ' -4.9002,'"
+                                + "                          || ? || ' -4.90,' || ? || ' -4.90)))'),"
+                                + "         'VERIFICADO_EN_CAMPO', 'candidato de prueba', 'prueba')"
+                                + " RETURNING id",
+                        muni,
+                        campaniaId,
+                        predioId,
+                        desplazamientoDe(sufijo) + " ",
+                        desplazamientoDe(sufijo) + " ",
+                        desplazamientoDe(sufijo) + "01 ",
+                        desplazamientoDe(sufijo) + "01 ",
+                        desplazamientoDe(sufijo) + " ");
+
+        long hallazgoId =
+                insertar(
+                        app,
+                        "INSERT INTO hallazgo (municipalidad_id, candidato_id, clase, predio_id,"
+                                + " ficha_id, area_de_la_ficha, area_verificada, inspector,"
+                                + " verificado_en, geometria, observacion, usuario_registro)"
+                                + " VALUES (?, ?, 'SUBVALUADOR', ?, ?, 120.00, 180.00,"
+                                + "         'inspector.prueba', ?,"
+                                + "         ST_GeogFromText('SRID=4326;MULTIPOLYGON(((' || ? || ' -4.90,'"
+                                + "                          || ? || ' -4.9002,' || ? || ' -4.9002,'"
+                                + "                          || ? || ' -4.90,' || ? || ' -4.90)))'),"
+                                + "         'hallazgo de prueba', 'prueba')"
+                                + " RETURNING id",
+                        muni,
+                        candidatoId,
+                        predioId,
+                        fichaId,
+                        VIGENCIA,
+                        desplazamientoDe(sufijo) + " ",
+                        desplazamientoDe(sufijo) + " ",
+                        desplazamientoDe(sufijo) + "01 ",
+                        desplazamientoDe(sufijo) + "01 ",
+                        desplazamientoDe(sufijo) + " ");
+
+        // La huella lleva el sufijo dentro: `evidencia_sha256_uq` es POR municipalidad, asi que dos
+        // huellas iguales en dos municipalidades no chocarian — y justamente por eso se siembran
+        // distintas, para que la prueba de aislamiento no pueda confundir «no lo veo» con «choco».
+        ejecutar(
+                app,
+                "INSERT INTO evidencia (municipalidad_id, hallazgo_id, tipo, sha256, ruta,"
+                        + " capturado_en, recibido_en, dispositivo, observacion, usuario_registro)"
+                        + " VALUES (?, ?, 'FOTO', ?, ?, now() - interval '2 hours', now(),"
+                        + "         'tableta-01', 'evidencia de prueba', 'prueba')",
+                muni,
+                hallazgoId,
+                huellaDePrueba(sufijo),
+                "s3://evidencias/" + sufijo + "/foto-01.jpg");
+
+        ejecutar(
+                app,
+                "INSERT INTO acta (municipalidad_id, numero, hallazgo_id, fecha, inspector,"
+                        + " detalle, observacion, usuario_registro)"
+                        + " VALUES (?, ?, ?, ?, 'inspector.prueba', 'acta de prueba',"
+                        + "         'acta de prueba', 'prueba')",
+                muni,
+                "ACT-" + sufijo + "-001",
+                hallazgoId,
+                VIGENCIA);
+    }
+
+    /** Sesenta y cuatro hexadigitos distintos por municipalidad. No es un sha256 de nada. */
+    private static String huellaDePrueba(String sufijo) {
+        String semilla = Integer.toHexString(Math.floorMod(sufijo.hashCode(), 16));
+        return semilla.repeat(64);
+    }
+
     private static String desplazamientoDe(String sufijo) {
         return "-8" + (Math.floorMod(sufijo.hashCode(), 9) + 1) + ".0";
     }

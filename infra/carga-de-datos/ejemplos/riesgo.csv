@@ -1,0 +1,39 @@
+# Carta de restricciones de ejemplo — Catacaos (ubigeo 200104), la piloto de D-01.
+#
+# DOS CAPAS EN UN ARCHIVO, y la primera columna dice cual: PELIGRO son poligonos de la
+# carta de peligro de CENEPRED y FAJA_MARGINAL son los de la Autoridad Nacional del Agua.
+# Es como llega el dato -una exportacion del SIG de la municipalidad, con una columna que
+# dice de que capa es cada geometria- y es lo que permite que haya UN proceso, UNA
+# propiedad y UN guion en vez de tres juegos que hay que acordarse de correr en orden.
+#
+# LAS COLUMNAS DE LA OTRA CAPA VAN VACIAS, Y RELLENARLAS ES UN RECHAZO. Una faja marginal
+# con nivel MUY_ALTO es una fila que alguien escribio a mano creyendo que el nivel decidia
+# algo; guardarla en silencio dejaria el dato inventado dentro.
+#
+# `mitigable` NO ADMITE QUEDARSE VACIO en una fila PELIGRO, y esa es la unica columna de
+# la que cuelga una decision: una zona MUY ALTO mitigable no impide nada -se construye la
+# obra de mitigacion- y una no mitigable si. Un valor por omision autorizaria o negaria por
+# descuido, que son las dos formas de equivocarse.
+#
+# ESTOS POLIGONOS SON INVENTADOS y estan alrededor de Catacaos a proposito: hoy NO HAY NI
+# UN POLIGONO DE PREDIO cargado en ninguna instalacion (V61 trajo la columna y nada la
+# llena todavia), asi que este archivo no puede cruzar con nada real. Sirve para que el
+# analizador se ejerza contra filas de verdad y para que quien monte una instalacion vea la
+# forma exacta que su SIG tiene que producir. La carta de VERDAD la entrega CENEPRED y la
+# faja marginal la ANA; ninguna de las dos se digitaliza en ventanilla.
+#
+# NINGUNA CIFRA NORMATIVA: aqui no hay aranceles, ni valores unitarios, ni UIT. El ancho de
+# una faja marginal es una MEDIDA que fija una resolucion de la ANA, no un valor tributario.
+#
+# La geometria va en WKT MULTIPOLYGON, en WGS84 (EPSG:4326), longitud primero. Es lo mismo
+# que lee el cargador del plano catastral.
+#
+# Formato de ImportarCartaDeRiesgo (12 columnas):
+#   capa,codigo,fenomeno,nivel,mitigable,cuerpoDeAgua,anchoM,fuente,documentoOrigen,vigenciaDesde,vigenciaHasta,geometria
+capa,codigo,fenomeno,nivel,mitigable,cuerpoDeAgua,anchoM,fuente,documentoOrigen,vigenciaDesde,vigenciaHasta,geometria
+PELIGRO,ZR-001,INUNDACION,MUY_ALTO,NO,,,CENEPRED,Escenario de riesgo por inundacion fluvial 2025,2025-01-01,,"MULTIPOLYGON(((-80.6900 -5.2700,-80.6850 -5.2700,-80.6850 -5.2660,-80.6900 -5.2660,-80.6900 -5.2700)))"
+PELIGRO,ZR-002,INUNDACION,ALTO,SI,,,CENEPRED,Escenario de riesgo por inundacion fluvial 2025,2025-01-01,,"MULTIPOLYGON(((-80.6850 -5.2700,-80.6800 -5.2700,-80.6800 -5.2660,-80.6850 -5.2660,-80.6850 -5.2700)))"
+PELIGRO,ZR-003,SISMO,MEDIO,SI,,,CENEPRED,Microzonificacion sismica de Catacaos 2024,2024-06-01,,"MULTIPOLYGON(((-80.6800 -5.2760,-80.6700 -5.2760,-80.6700 -5.2700,-80.6800 -5.2700,-80.6800 -5.2760)))"
+PELIGRO,ZR-004,DESLIZAMIENTO,BAJO,SI,,,CENEPRED,Microzonificacion sismica de Catacaos 2024,2024-06-01,,"MULTIPOLYGON(((-80.6700 -5.2760,-80.6650 -5.2760,-80.6650 -5.2720,-80.6700 -5.2720,-80.6700 -5.2760)))"
+FAJA_MARGINAL,FM-001,,,,Rio Piura,25.00,ANA,RD 0122-2023-ANA-AAA.JZ-V,2023-08-15,,"MULTIPOLYGON(((-80.6920 -5.2680,-80.6860 -5.2680,-80.6860 -5.2665,-80.6920 -5.2665,-80.6920 -5.2680)))"
+FAJA_MARGINAL,FM-002,,,,Dren Sechura,15.00,ANA,RD 0122-2023-ANA-AAA.JZ-V,2023-08-15,,"MULTIPOLYGON(((-80.6790 -5.2745,-80.6720 -5.2745,-80.6720 -5.2735,-80.6790 -5.2735,-80.6790 -5.2745)))"

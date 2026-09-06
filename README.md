@@ -17,7 +17,7 @@ arancel de terreno. **Calcula el valor del predio; no calcula el impuesto.**
 | `docs/30-arquitectura/adr/` | **Existe**, con 3 ADR propio(s) y su indice ⚠ ver la nota de abajo |
 | `backend/` — siete modulos con el negocio dentro | **Existe.** P3 puso las barreras y **P5C trajo el contexto acotado entero**: `./gradlew build` en verde con **945 pruebas**, y `verificarArquitectura` y `verificarAislamiento` tambien |
 | `docs/40-datos/baselines/V1__baseline.sql` — su esquema | **NO esta aqui todavia.** Generado y verificado, vive en [`sgtm/docs/40-datos/baselines/catastro/`](https://github.com/hneyra/sgtm/blob/migracion-a-microservicios/docs/40-datos/baselines/catastro/V1__baseline.sql) hasta que la extraccion lo traiga |
-| Su frontend (`catastro-web`, ADR-0030 §1) | **NO existe** |
+| Su frontend (`catastro-web`, ADR-0030 §1) | **Existe desde #32**, en `frontend/`, y es el **armazon**: el marco del artwork con los seis modulos de este backend y sus 16 hojas. **No lee ni un endpoint real todavia** — los datos los pone un proxy que sustituye `fetch` y que se apaga con una bandera (ADR-0010). Ver [`frontend/README.md`](frontend/README.md) |
 | La imagen `ghcr.io/hneyra/kamayuk-catastro` | **NO existe.** El `Deployment` del descriptor la nombra igual: es correcto, y en esta etapa no se despliega nada |
 
 ## Por donde entrar

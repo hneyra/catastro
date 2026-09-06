@@ -109,6 +109,19 @@ class PublicacionDelPadronJdbcTest {
      */
     private static long municipalidadDelLote;
 
+    /**
+     * Una tercera, y la UNICA a la que se le siembra el «% actualizacion» que espera firma.
+     *
+     * <p>Va aparte porque su premisa no se cumple hoy: el archivo del corpus que respaldaria esa
+     * llave esta en {@code TRANSCRITO}. Sembrarla para todas dejaria el padron pareciendo
+     * valorizable, que es lo contrario de lo que este repositorio mide.
+     *
+     * <p>Y tiene que ser una que no haya corrido: una valuacion es un hecho SELLADO, asi que volver
+     * a correr el mismo ejercicio con otro resultado lo rechaza el buzon (ADR-0027 §1). Lo dijo la
+     * primera ejecucion de ese caso.
+     */
+    private static long municipalidadSinLaLlave;
+
     private static PublicacionDelPadron publicacion;
     private static BuzonDeSalida buzon;
     private static EntregaDeEventos entrega;
@@ -122,6 +135,12 @@ class PublicacionDelPadronJdbcTest {
         DatosDePrueba.sembrarTenant(base, municipalidad, parametroId, "PA");
         municipalidadDelLote = DatosDePrueba.crearMunicipalidad(base, "202202", "Municipalidad B");
         DatosDePrueba.sembrarTenant(base, municipalidadDelLote, parametroId, "PB");
+        // La TERCERA se siembra SIN el «% actualizacion», y es el contraste: mide que la corrida
+        // vuelve a pararse nombrando esa llave el dia que `normativa` deje de publicarla. Es el
+        // estado en que este sistema estuvo hasta el 2026-09-06, no una hipotesis.
+        municipalidadSinLaLlave =
+                DatosDePrueba.crearMunicipalidad(base, "202203", "Municipalidad C");
+        DatosDePrueba.sembrarTenant(base, municipalidadSinLaLlave, parametroId, "PC", false);
         unSegundoPredio();
         sellarElConjunto();
 
@@ -231,21 +250,86 @@ class PublicacionDelPadronJdbcTest {
 
     @Test
     @Order(3)
-    @DisplayName("hoy NINGUN predio se valoriza, y la valuacion dice cual es la llave que falta")
-    void hoyNingunoSeValoriza() {
+    @DisplayName("el motivo que publica la corrida es el del PREDIO, no el del sistema")
+    void elMotivoEsElDelPredio() {
         conContexto();
-        publicacion.correrLaValuacion(new Ejercicio(2026), CORTE);
+        PublicacionDelPadron.Informe informe =
+                publicacion.correrLaValuacion(new Ejercicio(2026), CORTE);
 
+        // ESTE ES EL ESTADO DE HOY, y hay que leerlo junto al contraste de abajo.
+        //
+        // #8 construyo la cuenta —el terreno se valoriza, y las ramas dicen predio a predio que le
+        // falta—, publico en `normativa` los dos cuadros nacionales, y se quedo esperando la
+        // segunda firma del `% actualizacion`, que paraba al padron entero antes de mirar un solo
+        // predio. Esa firma llego el 2026-09-06 y el ejercicio 2026 se sello, asi que la fixture
+        // trae la llave y la corrida llega a mirar ESTE predio.
+        //
+        // Y este predio TAMPOCO se valoriza, lo que es exactamente lo que hay que ver: lo que la
+        // firma cambia no es que todo se valorice, es que el motivo deje de ser el mismo para
+        // todos. Su construccion no declara la categoria de «TECHOS», asi que cae en la rama 6 —un
+        // dato que le falta A EL y que se arregla corrigiendo su ficha, no esperando una decision
+        // nacional—.
         String cuerpo = deTipo(TipoDeEventoDeCatastro.VALUACION_PUBLICADA).get(0).cuerpo();
         assertThat(cuerpo)
-                .as(
-                        "el padron sembrado trae cuadro de valores unitarios, depreciacion y"
-                                + " arancel, asi que la que decide es la de D-11")
-                .contains("\"llaveQueFalta\": \"PORCENTAJE_DE_ACTUALIZACION\"")
+                .as("la rama que se alcanza es la del PREDIO, y dice que le falta a el")
+                .contains("no declara la categoria de «TECHOS»")
                 .contains("\"valorDelPredio\": null");
+        assertThat(cuerpo)
+                .as("y la llave que paraba al padron entero ya no aparece por ninguna parte")
+                .doesNotContain("PORCENTAJE_DE_ACTUALIZACION");
         assertThat(cuerpo)
                 .as("y trae los titulares con su cuota vigente a la fecha de corte")
                 .contains("\"contribuyenteId\": 900001");
+
+        // El entregable de #8: el informe cuenta por llave, que es lo que convierte «no valoriza»
+        // en algo que la direccion puede mirar. Cuantos llegarian a la cifra sobre un padron de
+        // verdad lo cuenta `ElPadronDeDemostracionSeValorizaTest`: 4 de 23, y los otros 19 por
+        // RT-004.
+        assertThat(informe.valorizados()).isZero();
+        assertThat(informe.sinValorizar()).isEqualTo(1);
+        assertThat(informe.sinCifraPorLlave())
+                .containsExactly(java.util.Map.entry(PublicacionDelPadron.SIN_LLAVE, 1));
+    }
+
+    @Test
+    @Order(7)
+    @DisplayName("EL CONTRASTE: sin esa llave la corrida vuelve a pararse en el sistema")
+    void sinLaLlaveLaCorridaSeParaEnElSistema() {
+        // El contraste, y hace falta: sin el, «el motivo es el del predio» pasaria en verde
+        // aunque la llave no cambiara nada, porque nadie mediria la otra direccion. Lo que aqui
+        // se mide es el estado en que este sistema estuvo hasta el 2026-09-06 —cuando ninguna
+        // firma respaldaba el `% actualizacion` y ningun conjunto sellado podia traerlo—, y lo
+        // que volveria a ser el dia que `normativa` retirase la fila.
+        //
+        // Corre sobre una TERCERA municipalidad, sembrada sin la llave, y no sobre una que ya
+        // corrio: reejecutar la corrida de un ejercicio con otro resultado lo rechaza
+        // `BuzonDeSalida`, que es ADR-0027 §1 funcionando —«El hecho … ya se publico con la huella
+        // … y ahora se quiere publicar con …»—. Lo dijo la primera ejecucion de este caso.
+        TenantContext.fijar(new MunicipalidadId(municipalidadSinLaLlave));
+        PublicacionDelPadron.Informe informe =
+                publicacion.correrLaValuacion(new Ejercicio(2026), CORTE);
+
+        // La quinta rama es una PRECONDICION: se comprueba antes de tocar una sola cifra, asi que
+        // el predio ni llega a que le miren los techos. Por eso este motivo tapa al otro, y por
+        // eso mientras la firma falto no se veia cuantos predios esperaban de verdad a RT-004.
+        assertThat(informe.valorizados()).isZero();
+        assertThat(informe.sinCifraPorLlave())
+                .as("sin la llave, el motivo vuelve a ser el mismo para todo el padron")
+                .containsExactly(
+                        java.util.Map.entry(
+                                kamayuk.catastro.nucleo.dominio.ValorizacionDelPredio
+                                        .PORCENTAJE_DE_ACTUALIZACION,
+                                1));
+        // Y el evento lo dice con todas las letras: lo que falta es una FIRMA, no una cifra que
+        // nadie busco, y no hay valor por omision que la sustituya.
+        assertThat(deTipo(TipoDeEventoDeCatastro.VALUACION_PUBLICADA))
+                .singleElement()
+                .extracting(
+                        EventoDeCatastro::cuerpo,
+                        org.assertj.core.api.InstanceOfAssertFactories.STRING)
+                .contains("\"llaveQueFalta\": \"PORCENTAJE_DE_ACTUALIZACION\"")
+                .contains("art. 12")
+                .doesNotContain("no declara la categoria de «TECHOS»");
     }
 
     @Test
@@ -318,6 +402,28 @@ class PublicacionDelPadronJdbcTest {
                 .contains("PREDIO_PROYECTADO")
                 .contains("VALUACION_PUBLICADA")
                 .contains("CORRIDA_CERRADA");
+        // EL DIFF DE ESTE ARCHIVO ES LA DEMOSTRACION, Y YA OCURRIO.
+        //
+        // catastro#8 lo dejo escrito con estas palabras: «el dia que la firma llegue, este archivo
+        // cambia solo — y ese diff es exactamente la demostracion». La firma llego el 2026-09-06 y
+        // el archivo cambio solo. Ahora enseña LAS DOS FORMAS del evento, que es para lo que
+        // existe: un predio con sus cuatro cifras y otro con su motivo.
+        //
+        // **Y esa es la primera cifra que este sistema publica.** Hasta esa firma el lote tenia
+        // las dos valuaciones en `null` y las dos nombrando la misma llave, asi que el ingestor de
+        // `rentas` no tenia de donde leer la forma «con cifras» mas que de un ejemplo escrito a
+        // mano.
+        assertThat(lote)
+                .as("una valuacion con sus cuatro cifras, que es la forma que `rentas` ingesta")
+                .contains("\\\"valorTerreno\\\": \\\"")
+                .contains("\\\"llaveQueFalta\\\": null");
+        assertThat(lote)
+                .as("y la otra con su motivo, que es el del PREDIO y no el del sistema")
+                .contains("\\\"valorDelPredio\\\": null")
+                .contains("no declara la categoria de «TECHOS»");
+        assertThat(lote)
+                .as("y la llave que paraba al padron entero ya no aparece en el lote")
+                .doesNotContain("PORCENTAJE_DE_ACTUALIZACION");
         assertThat(instantesDe(lote))
                 .as(
                         "y los «emitidoEn» son TODOS el reloj fijo de esta prueba (C-12). Con el"

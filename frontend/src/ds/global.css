@@ -1,0 +1,126 @@
+/* El bloque <helmet> del artboard, portado literal (lineas 15-44 de
+   `CatastroV6.dc.html`), con los colores sustituidos por sus tokens. Solo se
+   quedan fuera los `@media` de las tres variantes del prototipo y el
+   `[data-marco-hide]`, que sirven al conmutador que «no es parte del producto».
+
+   Las clases `hov-*` existen porque React no tiene pseudoclases en linea: el
+   artboard las escribe como `style-hover="…"`. */
+@import './tokens/colores.css';
+@import './tokens/tipografia.css';
+@import './tokens/medidas.css';
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--fondo);
+  color: var(--tinta);
+  font-family: var(--fuente);
+  font-size: var(--texto-base);
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+a {
+  color: var(--azul);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--azul);
+  box-shadow: 0 0 0 3px #d3ebfa;
+  outline: none;
+}
+
+::placeholder {
+  color: var(--tinta-4);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--borde-campo);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #a7b7c4;
+}
+
+[data-sticky] th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+@media (max-width: 760px) {
+  [data-sm-hide] {
+    display: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+  }
+}
+
+/* Los `style-hover` del artboard. */
+.hov-suave:hover {
+  background: #eff7fc;
+}
+.hov-linea:hover {
+  background: var(--linea-2);
+  color: var(--tinta);
+}
+.hov-claro:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+.hov-azul:hover {
+  background: var(--azul-osc);
+}
+.hov-borde:hover {
+  border-color: #7e96a8;
+}

@@ -2,7 +2,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { Icono } from './Icono';
 import { ICO } from './iconos';
 import { RAIZ } from '../api/cliente';
-import type { ErrorDeApi, ParametroQueFalta } from '../api/cliente';
+import type { CodigoDeError, ErrorDeApi, ParametroQueFalta } from '../api/cliente';
 
 /**
  * Los primitivos del artboard, con sus estilos EN LINEA y sus valores tal cual.
@@ -467,7 +467,18 @@ export function LoQueFalta({ falta }: { falta: ParametroQueFalta }) {
   );
 }
 
-const titulosDeError: Partial<Record<string, string>> = {
+/**
+ * El titulo de cada codigo, y **uno por cada uno**.
+ *
+ * `Record<CodigoDeError, string>` completo y no `Partial<Record<string, string>>`:
+ * con el parcial, un codigo nuevo —los que `rutas.mjs` obliga a copiar del
+ * enumerado del backend— entraba en la union sin titulo, `tsc` no decia nada, y
+ * la pantalla caia al «No se pudo leer» generico. Eso es exactamente lo que
+ * distinguir codigos existe para impedir: «este predio espera a que se publique
+ * una cifra» leyendose como «se rompio algo». Con el registro completo, anadir
+ * un codigo sin su titulo **no compila**.
+ */
+const titulosDeError: Record<CodigoDeError, string> = {
   NO_AUTENTICADO: 'La sesion no vale',
   SIN_MUNICIPALIDAD: 'El token no dice de que municipalidad es',
   SIN_DOCUMENTO: 'El token no trae documento de identidad',

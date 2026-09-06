@@ -250,6 +250,47 @@ async function camposDelAltaEnElBackend(archivos) {
     .filter((nombre) => /^[a-z][A-Za-z]*$/.test(nombre ?? ''));
 }
 
+/**
+ * Las constantes de `CodigoDeError.java`, en su orden.
+ *
+ * Se lee el enumerado y no el archivo entero: la clase documenta cada codigo con
+ * un javadoc largo que nombra otros —«no es {@link #VALIDACION}», «tampoco es
+ * {@link #ERROR_INTERNO}»—, y una lectura ancha se traeria esas menciones como
+ * si fueran constantes. Se toma lo que precede a `(HttpStatus.`, que es la forma
+ * en que este enumerado declara las suyas y solo ellas.
+ */
+async function codigosDeErrorDelBackend(archivos) {
+  const camino = archivos.find((f) => f.endsWith('/CodigoDeError.java'));
+  if (!camino) return null;
+  const texto = await readFile(camino, 'utf8');
+  const cuerpo = texto.slice(texto.search(/enum CodigoDeError\s*\{/));
+  return [...cuerpo.matchAll(/^\s*([A-Z][A-Z0-9_]*)\(\s*HttpStatus\./gm)].map((c) => c[1]);
+}
+
+/**
+ * Los componentes de `record FichaResource(...)`, en su orden.
+ *
+ * Aparte de `camposDelAltaEnElBackend` porque este `record` **tiene cuerpo** —el
+ * del alta acaba en `{}`— y porque lo que se compara es el sentido contrario del
+ * cable: aquel es lo que la interfaz MANDA y este lo que RECIBE. El modo de
+ * fallo tambien es el contrario y por eso hace falta la comprobacion propia: un
+ * campo que el servidor manda y el tipo no declara **no da ningun error** —el
+ * JSON llega entero y `tsc` solo se queja cuando alguien intenta leerlo—, asi que
+ * el hueco es invisible hasta que hace falta.
+ */
+async function componentesDeLaFichaEnElBackend(archivos) {
+  const camino = archivos.find((f) => f.endsWith('/FichaResource.java'));
+  if (!camino) return null;
+  const texto = await readFile(camino, 'utf8');
+  const bloque = texto.match(/record FichaResource\(([\s\S]*?)\)\s*\{/);
+  if (!bloque) return null;
+  return bloque[1]
+    .replace(/\/\/[^\n]*/g, '')
+    .split(',')
+    .map((trozo) => trozo.trim().split(/\s+/).pop())
+    .filter((nombre) => /^[a-z][A-Za-z]*$/.test(nombre ?? ''));
+}
+
 /** Los codigos que `CatalogoDelSistema.opciones()` declara. */
 async function opcionesDelCatalogo(archivos) {
   const camino = archivos.find((f) => f.endsWith('/CatalogoDelSistema.java'));
@@ -272,13 +313,17 @@ const accesosBackend = await accesosDelBackend(archivos);
 const catalogo = await opcionesDelCatalogo(archivos);
 const declaradas = await rutasDeclaradas();
 const { ACCESOS, MODULOS } = await accesosDeclarados();
-const { ORDENES, COMPOSICION_DEL_CODIGO, CAMPOS_DEL_ALTA } = await leerModulo(
-  'src/api/catastro.ts',
-  '.registro-ordenes',
-);
+const { ORDENES, COMPOSICION_DEL_CODIGO, CAMPOS_DEL_ALTA, CAMPOS_DE_FICHA, CAMPOS_DE_FICHA_QUE_NO_SE_LEEN } =
+  await leerModulo('src/api/catastro.ts', '.registro-ordenes');
 const listasDeOrden = await listasBlancasDeOrden(archivos);
 const composicion = await composicionDelBackend(archivos);
 const camposDelAlta = await camposDelAltaEnElBackend(archivos);
+const codigosDelBackend = await codigosDeErrorDelBackend(archivos);
+const componentesDeLaFicha = await componentesDeLaFichaEnElBackend(archivos);
+const { CODIGOS_DE_ERROR, CODIGOS_DEL_BACKEND, CODIGOS_QUE_ANADE_EL_CLIENTE } = await leerModulo(
+  'src/api/cliente.ts',
+  '.registro-codigos',
+);
 
 const fallos = [];
 const sinParametros = (r) => r.replace(/\{\w+\}/g, '{}');
@@ -384,6 +429,123 @@ if (camposDelAlta === null || camposDelAlta.length === 0) {
   }
 }
 
+/**
+ * 7. Lo que la ficha RECIBE, contra los componentes de `FichaResource`.
+ *
+ * El punto 4 mide el sentido de ida —lo que el alta manda contra el `record` que
+ * lo recibe— y este el de vuelta, que falla al reves y en silencio: un componente
+ * que el servidor publica y el tipo no declara **llega igual en el JSON**, no da
+ * ningun error y `tsc` solo se queja el dia que alguien intenta leerlo. Entonces
+ * el hueco se cierra con un `as`, que es como un tipo escrito a mano empieza a
+ * mentir.
+ *
+ * No se exige declararlos todos: se exige que cada componente este **o en el
+ * tipo o en la lista de huecos con su motivo**. Un hueco declarado se puede
+ * discutir; uno callado se descubre cuando ya estorba.
+ */
+let componentesComprobados = 0;
+if (componentesDeLaFicha === null || componentesDeLaFicha.length === 0) {
+  fallos.push(
+    'No se pudo leer el `record` «FichaResource», asi que lo que la ficha recibe no se comparo con\n' +
+      '      nada: esta parte se estaria cumpliendo sola. Falla en vez de saltarsela.',
+  );
+} else {
+  const enElTipo = new Set(CAMPOS_DE_FICHA);
+  for (const componente of componentesDeLaFicha) {
+    componentesComprobados++;
+    if (enElTipo.has(componente)) continue;
+    const motivo = CAMPOS_DE_FICHA_QUE_NO_SE_LEEN[componente];
+    if (motivo === undefined || motivo.trim() === '') {
+      fallos.push(
+        `«FichaResource» publica «${componente}» y «Ficha» de «src/api/catastro.ts» no lo declara ni lo\n` +
+          '      nombra en «CAMPOS_DE_FICHA_QUE_NO_SE_LEEN».\n' +
+          '      No revienta en ningun sitio: el campo llega en el JSON y el tipo afirma que no existe, asi que\n' +
+          '      el dia que una pantalla lo necesite se cerrara con un «as» — y a partir de ahi el tipo miente.',
+      );
+    }
+  }
+  const publicados = new Set(componentesDeLaFicha);
+  for (const campo of CAMPOS_DE_FICHA) {
+    if (publicados.has(campo)) continue;
+    fallos.push(
+      `«Ficha» declara «${campo}» y «FichaResource» no lo publica: se leeria «undefined» siempre, y el\n` +
+        '      tipo afirma que no puede serlo.',
+    );
+  }
+  for (const hueco of Object.keys(CAMPOS_DE_FICHA_QUE_NO_SE_LEEN)) {
+    if (publicados.has(hueco)) continue;
+    fallos.push(
+      `«CAMPOS_DE_FICHA_QUE_NO_SE_LEEN» declara el hueco «${hueco}» y «FichaResource» ya no lo publica:\n` +
+        '      la declaracion sobra, y una lista de huecos que se queda vieja deja de decir cuales son.',
+    );
+  }
+}
+
+/**
+ * 6. Los codigos de error del cliente contra `CodigoDeError.java`.
+ *
+ * <h2>La relacion NO es igualdad, y esto decide la forma de la comprobacion</h2>
+ *
+ * El cliente tiene **doce** y el backend **once**. La diferencia es
+ * `SIN_RESPUESTA`, que **ningun servidor produce**: nombra que la peticion no
+ * llego a tener respuesta. Una guarda que exigiera conjuntos iguales pondria
+ * roja una diferencia que es correcta, y una guarda que grita en lo correcto se
+ * acaba apagando. Asi que se exigen las dos mitades por separado:
+ *
+ *   · **Los once del backend estan todos en el cliente**, en su orden. El modo
+ *     de fallo sin esto es silencioso: el backend anade un codigo, el cliente no
+ *     lo conoce, `esCodigoConocido` lo rechaza y `porEstado` lo degrada al que
+ *     toque por el estado HTTP. La pantalla sale con el titulo de OTRO codigo
+ *     —o con «No se pudo leer»—, `reintentable` contesta lo que no es, y no hay
+ *     ni un error de consola ni un tipo que se queje.
+ *   · **Lo que el cliente anade esta declarado con su motivo** en
+ *     `CODIGOS_QUE_ANADE_EL_CLIENTE`. Un codigo inventado sin motivo escrito es
+ *     indistinguible de uno que el backend borro.
+ *
+ * Y el orden se compara tambien porque el fuente lo afirma —«son los once de
+ * `CodigoDeError.java`, en su orden»—: una afirmacion que nadie comprueba es la
+ * mitad de este trabajo.
+ */
+if (codigosDelBackend === null || codigosDelBackend.length === 0) {
+  fallos.push(
+    'No se pudo leer el enumerado «CodigoDeError» del backend, asi que los codigos de error del cliente\n' +
+      '      no se compararon con nada: esta parte se estaria cumpliendo sola. Falla en vez de saltarsela,\n' +
+      '      porque una lista vacia haria pasar en verde justo el desajuste que se busca.',
+  );
+} else {
+  const enElCliente = new Set(CODIGOS_DE_ERROR);
+  for (const codigo of codigosDelBackend) {
+    if (enElCliente.has(codigo)) continue;
+    fallos.push(
+      `«${codigo}» esta en «CodigoDeError.java» y «CODIGOS_DE_ERROR» de «src/api/cliente.ts» no lo tiene.\n` +
+        '      No revienta en ningun sitio: `esCodigoConocido` lo rechaza y el error se degrada al codigo que\n' +
+        '      toque por el estado HTTP, asi que la pantalla ensena el titulo de OTRO codigo y «Reintentar»\n' +
+        '      aparece o no aparece por el motivo equivocado. Ni un error de consola, ni un tipo que se queje.',
+    );
+  }
+  for (const codigo of CODIGOS_DE_ERROR) {
+    if (codigosDelBackend.includes(codigo)) continue;
+    const motivo = CODIGOS_QUE_ANADE_EL_CLIENTE[codigo];
+    if (motivo === undefined || motivo.trim() === '') {
+      fallos.push(
+        `«${codigo}» esta en el cliente y no en «CodigoDeError.java», y no lo declara\n` +
+          '      «CODIGOS_QUE_ANADE_EL_CLIENTE». Un codigo que el cliente anade sin motivo escrito es\n' +
+          '      indistinguible de uno que el backend borro: o se declara por que existe, o sobra.',
+      );
+    }
+  }
+  const delBackendSegunElCliente = CODIGOS_DEL_BACKEND.join(',');
+  if (delBackendSegunElCliente !== codigosDelBackend.join(',')) {
+    fallos.push(
+      'El orden de los codigos del backend no es el mismo en los dos sitios.\n' +
+        `      «CodigoDeError.java»: ${codigosDelBackend.join(', ')}\n` +
+        `      «cliente.ts»:         ${delBackendSegunElCliente.split(',').join(', ')}\n` +
+        '      El fuente afirma que son «los once de CodigoDeError.java, en su orden», y una afirmacion que\n' +
+        '      nadie comprueba deja de ser verdad sin que nada lo diga.',
+    );
+  }
+}
+
 /* 5. Los campos de ordenacion que la interfaz ofrece. */
 let camposComprobados = 0;
 for (const [listado, orden] of Object.entries(ORDENES)) {
@@ -431,7 +593,11 @@ console.log(
     `${catalogo === null ? '?' : catalogo.size} opciones en el catalogo · ` +
     `${camposComprobados} campos de orden contra ${listasDeOrden.size} listas blancas · ` +
     `${tramosComprobados} tramos del codigo contra ${composicion === null ? '?' : composicion.length} · ` +
-    `${camposDelAltaComprobados} campos del alta contra ${camposDelAlta === null ? '?' : camposDelAlta.length}`,
+    `${camposDelAltaComprobados} campos del alta contra ${camposDelAlta === null ? '?' : camposDelAlta.length} · ` +
+    `${componentesComprobados} componentes de la ficha contra ${CAMPOS_DE_FICHA.length} del tipo ` +
+    `(+${Object.keys(CAMPOS_DE_FICHA_QUE_NO_SE_LEEN).length} huecos declarados) · ` +
+    `${CODIGOS_DE_ERROR.length} codigos de error contra ${codigosDelBackend === null ? '?' : codigosDelBackend.length} ` +
+    `(+${Object.keys(CODIGOS_QUE_ANADE_EL_CLIENTE).length} que el cliente anade y declara)`,
 );
 
 if (huerfanos.length) {
@@ -469,5 +635,7 @@ if (fallos.length) {
 }
 console.log(
   '\ntoda ruta declarada existe en el backend, todo acceso tambien, ningun orden ofrecido da 422,\n' +
-    'los ocho tramos del codigo cubren la composicion del backend y todo campo del alta esta en su `record`',
+    'los ocho tramos del codigo cubren la composicion del backend, todo campo del alta esta en su `record`,\n' +
+    'todo componente de «FichaResource» esta declarado o esta nombrado como hueco, y todo codigo de\n' +
+    '«CodigoDeError» lo conoce el cliente',
 );

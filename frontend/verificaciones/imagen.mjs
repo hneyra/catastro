@@ -70,9 +70,12 @@
  * <h2>Y se comprueba que la comprobacion mide algo</h2>
  *
  * Sale con **2** —y no con 0— si no encuentra ni un `location` con `add_header` propio,
- * si hay un `location` que no sabe sondear, o si nginx no llego a levantar. Un arnes
- * que se queda sin sujeto y pasa en verde es el defecto que esta serie ya encontro
- * cuatro veces.
+ * si hay un `location` que no sabe sondear, si el `Dockerfile` no copia el contexto
+ * entero, si nginx no llego a levantar, o si **el recorrido por HTTP no se hizo entero**.
+ * Un arnes que se queda sin sujeto y pasa en verde es el defecto que esta serie ya
+ * encontro cuatro veces, y este lo tenia: apartando el bloque que levanta nginx, el
+ * informe seguia diciendo «las cabeceras llegan en todas las rutas» con **cero**
+ * preguntas hechas, porque las comprobaciones de archivo salian limpias por su cuenta.
  *
  * Necesita Docker. **Sin Docker sale con 2, no se omite**: una comprobacion bloqueante
  * que se salta a si misma deja el flujo en verde sin haber verificado nada.
@@ -654,6 +657,20 @@ if (contenedor && sinMedir.length === 0) {
       }
     }
   }
+}
+
+// La ultima trampa es la del propio arnes, y se destapo apartando el bloque de arriba
+// para probar la mitad que no necesita Docker: **el informe seguia diciendo «las
+// cabeceras llegan en todas las rutas» con CERO preguntas hechas**, porque las tres
+// comprobaciones de archivo salian limpias y nadie contaba las sondas. Hoy ese camino
+// no es alcanzable —todo lo que salta el bloque pasa antes por `noSeMidio`—, pero eso
+// es una propiedad del orden de las lineas y no una afirmacion: se cuenta.
+if (sondeadas !== sondas.length || comprobadas === 0) {
+  noSeMidio(
+    `Se sondearon ${sondeadas} de las ${sondas.length} ruta(s) y se comprobaron ${comprobadas} cabecera(s):\n` +
+      '  el recorrido por HTTP no llego a hacerse entero, asi que no hay nada que afirmar de las\n' +
+      '  cabeceras. Un recorrido vacio no es un recorrido en el que todo estuviera bien.',
+  );
 }
 
 // ---------------------------------------------------------------------------

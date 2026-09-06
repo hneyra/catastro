@@ -138,9 +138,10 @@ mismo sistema. Aquí no lo son (ADR-0029), y la frontera de ADR-0024 le prohíbe
 motivo, en `src/datos/catastro.ts`:
 
 - **El autovalúo de cada fila del padrón.** No hay ninguna lectura de valuación
-  en este backend, y además su corrida no produce hoy ni un importe: le falta
-  `PORCENTAJE_DE_ACTUALIZACION`, que espera una firma (D-11). Donde el artboard
-  pone la cifra, la lista pone la manzana y el lote.
+  en este backend: ninguna ruta publica el hecho sellado de ADR-0027. La corrida
+  **sí produce cifras desde el 2026-09-06** —4 de los 23 predios del padrón de
+  demostración, en cuanto se firmó D-11—, y aun así no hay por dónde pedirlas.
+  Donde el artboard pone la cifra, la lista pone la manzana y el lote.
 - **La cobertura medida en «fichas conciliadas».** Lo dice el propio backend:
   `ConsultaController` declara `conciliadaConRentas` y **redirige** la petición
   que lo trae a `/catastro/fichas/conciliacion`, porque componer las dos mitades

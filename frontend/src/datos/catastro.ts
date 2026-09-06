@@ -96,7 +96,7 @@ export const MOTIVOS = {
     'El listado de predios no publica el titular, y no es un olvido: publicarlo convertiria «quien puede listar predios» en «quien puede cosechar la correlacion predio-persona de toda la municipalidad». Se resuelve al abrir el predio, de uno en uno.',
   /** Por que donde el artboard pone el autovaluo no hay ninguna cifra. */
   sinAutovaluo:
-    'Donde el artboard pone el autovaluo aqui no hay nada que poner. Este backend no publica ninguna lectura de valuacion, y ademas su corrida no produce hoy ni un importe: le falta una llave del conjunto sellado, «PORCENTAJE_DE_ACTUALIZACION», que espera una firma humana (D-11). Un cero aqui seria una base imponible inventada.',
+    'Donde el artboard pone el autovaluo aqui no hay nada que poner: este backend no publica ninguna lectura de valuacion, asi que no hay ruta de la que sacar la cifra. Su corrida si produce importes desde que se firmo D-11, y aun asi no llegan hasta aqui. Un cero seria una base imponible inventada.',
   /** Por que el selector de orden ofrece esas columnas y no otras. */
   ordenAcotado:
     'El selector solo ofrece las columnas que el servidor admite. Cualquier otra no ordena mal: contesta 422 «ORDEN_NO_ADMITIDO» y la lista no se dibuja. Por eso no estan «Autovaluo» ni «Titular», que son las otras dos del artboard.',

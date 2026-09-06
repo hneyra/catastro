@@ -42,7 +42,10 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
             Map.ofEntries(
                     Map.entry("kamayuk-catastro-contribuyentes", "rentas"),
                     Map.entry("kamayuk-catastro-nucleo", "catastro"),
+                    // #4: el segundo contexto acotado de este sistema.
                     Map.entry("kamayuk-catastro-urbano", "catastro"),
+                    // #5: y el tercero.
+                    Map.entry("kamayuk-catastro-grd", "catastro"),
                     Map.entry("kamayuk-catastro-rentas", "rentas"),
                     Map.entry("kamayuk-catastro-parametros", "normativa"),
                     Map.entry("kamayuk-catastro-fiscalizacion", "rentas"),
@@ -175,18 +178,22 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
                     "bien_comun",
                     "colindante_rural",
                     "construccion",
-                    // V7 (#4): la zonificacion. Se nombran las cuatro aunque este sistema sea el
-                    // dueno —y por eso mismo—: sin la entrada, el reparto las da por «replicadas»
-                    // y el escaner de la regla 11 DEJA DE MIRAR un cruce contra ellas, en verde
-                    // (la leccion de R-N).
-                    "habilitacion_urbana",
+                    "faja_marginal",
                     "ficha_catastral",
                     // V6: el frente del predio. Se nombra aunque este sistema no la tenga —y por
                     // eso
                     // mismo—: sin la entrada, el reparto la da por «replicada» y el escaner de la
                     // regla 11 DEJA DE MIRAR un cruce contra ella, en verde (la leccion de R-N).
                     "frente_predio",
+                    // V7 (#4): las cuatro de la zonificacion. Se nombran aunque este sistema sea
+                    // el dueno —y por eso mismo—: sin la entrada, el reparto las da por
+                    // «replicadas» y el escaner de la regla 11 DEJA DE MIRAR un cruce contra
+                    // ellas, en verde (la leccion de R-N).
+                    "habilitacion_urbana",
                     "inquilino",
+                    // #5: el certificado ITSE del predio. No se borra: entra ademas en
+                    // TablasDelSgtm.PROTEGIDAS.
+                    "itse",
                     "manzana",
                     "otra_instalacion",
                     "parametro_urbanistico",
@@ -197,6 +204,7 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
                     "tierra_rural",
                     "titularidad",
                     "via",
+                    "zona_riesgo",
                     "zonificacion");
 
     private static final Set<String> DE_NORMATIVA =
@@ -376,7 +384,11 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
                 "kamayuk.catastro.nucleo.dominio",
                 // El contexto acotado de #4, por lo mismo: sin nombrarlo, renombrar o vaciar su
                 // paquete de dominio no pondria roja ninguna guarda.
-                "kamayuk.catastro.urbano.dominio");
+                "kamayuk.catastro.urbano.dominio",
+                // Y el tercero, con #5: sin esta linea, renombrar o vaciar el paquete de dominio
+                // de `grd` no pondria roja ninguna guarda -las reglas acotadas a `..dominio..`
+                // seguirian encontrando las clases de los OTROS contextos y pasarian en verde-.
+                "kamayuk.catastro.grd.dominio");
     }
 
     @Override

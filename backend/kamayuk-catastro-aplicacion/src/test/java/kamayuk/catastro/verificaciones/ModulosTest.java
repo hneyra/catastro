@@ -61,6 +61,12 @@ class ModulosTest {
                         // padron por Java —solo por SQL, en la misma sentencia que el marco, que
                         // es lo que ADR-0034 regla 2 obliga—.
                         "urbano",
+                        // Y el tercero, con #5: la gestion del riesgo de desastres del predio.
+                        // No depende de `nucleo` -lo unico que necesita del predio es su poligono,
+                        // y ese cruce se resuelve dentro de una sola sentencia SQL-, asi que lo que
+                        // esta linea comprueba es que Modulith lo DETECTA: un contexto que no se
+                        // detecta no lo revisa `verify()`.
+                        "grd",
                         // Y sus dos puertas de salida: el padron de `rentas` y la normativa
                         // cacheada. Los dos son modulos para Modulith aunque sean puertos, y eso
                         // es lo que hace comprobable que `catastro` no toque un tipo interno

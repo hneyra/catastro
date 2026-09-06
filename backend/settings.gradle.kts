@@ -76,6 +76,10 @@ include("kamayuk-catastro-nucleo")
 // (`ciiu.zonificacion_compatible`), que es la frontera de ADR-0024.
 include("kamayuk-catastro-urbano")
 
+// El tercer contexto acotado (#5): la gestion del riesgo de desastres del predio. Zona de riesgo,
+// faja marginal y certificado ITSE. Publica el hecho; quien emite la licencia decide (ADR-0024).
+include("kamayuk-catastro-grd")
+
 // La copia local de usuarios, grupos y permisos, y su siembra (D-N5). No es un contexto
 // acotado: es el lector que autoriza y el sembrador que implanta. Las pantallas de
 // administracion de seguridad viven en `rentas` (ADR-0030 §3).

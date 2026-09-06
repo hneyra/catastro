@@ -72,6 +72,17 @@ public final class CatalogoDelSistema {
                     // sean el mismo conjunto: sin esta fila, el guardia negaria una pantalla a la
                     // que nadie podria dar permiso (RF-122).
                     new Opcion("CATASTRO", "Catastro", "zonificacion", "Zonificacion urbana"),
+                    // #5. Es la UNICA opcion de esta lista que no esta transcrita del catalogo
+                    // del manual, y se dice: el SGTM de Sullana no sabe lo que es una zona de
+                    // riesgo ni un ITSE, asi que no hay de donde copiarla. El codigo se elige aqui
+                    // y el nombre tambien; lo que no se elige es que exista, porque el endpoint la
+                    // declara y `CatalogoDelSistemaTest` compara los dos conjuntos: sin esta fila
+                    // el guardia negaria una pantalla que nadie puede autorizar (RF-122).
+                    new Opcion(
+                            "CATASTRO",
+                            "Catastro",
+                            "gestion_del_riesgo",
+                            "Gestion del riesgo de desastres del predio"),
                     new Opcion(
                             "CONSULTAS",
                             "Consultas",

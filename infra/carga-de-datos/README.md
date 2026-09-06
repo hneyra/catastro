@@ -24,20 +24,28 @@ inexistente se rechaza sola** — no revienta la carga. Dentro de `catastro` el 
 | 7 | `cargar-detalle-fichas-demo.sh` | `ejemplos/detalle-de-fichas.csv` | las fichas |
 | — | `cargar-zonificacion.sh` | `ejemplos/zonificacion.csv` | nada: no es un paso de la siembra |
 
-`cargar-predios.sh`, `cargar-arancel-vial.sh` y `cargar-zonificacion.sh` **no siembran datos de
-demostración**: el primero importa un catastro real desde un GeoPackage (ADR-0021), el segundo el
-arancel del MEF y el tercero el plan de zonificación aprobado por ordenanza (#4). Los tres escriben
-en municipalidades de verdad, y por eso ninguno lleva la guarda `SoloEnDemostracion`.
+`cargar-predios.sh`, `cargar-arancel-vial.sh`, `cargar-zonificacion.sh` y `cargar-riesgo.sh` **no
+siembran datos de demostración**: el primero importa un catastro real desde un GeoPackage
+(ADR-0021), el segundo el arancel del MEF, el tercero el plan de zonificación aprobado por ordenanza
+(#4) y el cuarto la carta de peligro de CENEPRED y la faja marginal de la ANA (#5). Los cuatro
+cargan **actos de terceros sobre el territorio de esa municipalidad**, no datos inventados, así que
+ninguno lleva la guarda `SoloEnDemostracion` — exigirla dejaría a una instalación de verdad sin
+forma de poblarlos, que es el hueco que #430 encontró para `area` y `caja`.
 
-**Y por eso `zonificacion.csv` no está en `pasos.tsv`, con lo que cuesta dicho aquí y no descubierto
-después.** La guarda `ejemplosHuerfanos()` de `infrastructure` da por sentado que todo CSV de
-`ejemplos/` es de la siembra y exige que un paso lo cargue; medido el 2026-09-05, con este archivo
-puesto dice `expected [ 'catastro/zonificacion.csv' ] to deeply equal []`, y el censo de guiones
-—una lista escrita a mano de doce— dice `expected [ …(13) ] to deeply equal [ …(12) ]` por
-`cargar-zonificacion.sh`. **Las dos son de `infrastructure` y se cierran allí**, con una línea en el
-censo y decidiendo si la zonificación entra o no en la siembra de demostración; desde aquí no se
-puede, y dejarlo sin decir sería el verde falso de siempre. `cargar-predios.sh` esquiva la primera
-sólo porque **no tiene** archivo de ejemplo.
+**Y por eso ni `zonificacion.csv` ni `riesgo.csv` están en `pasos.tsv`.** Un paso declara una
+comprobación —«esta tabla queda con N filas»—, así que meterlos ahí afirmaría que la municipalidad
+de demostración tiene un plan de zonificación aprobado y una carta de peligro. No los tiene. Los dos
+son ejemplos **para que el analizador se ejerza contra filas de verdad** y para que quien monte una
+instalación vea la forma exacta que su SIG tiene que producir; `sembrar-demostracion.sh` no los
+corre. Los polígonos de `riesgo.csv` sí son inventados, y conviene saberlo: hoy no hay ni un
+polígono de predio cargado en ninguna instalación y no había con qué cruzarlos.
+
+Que un CSV de `ejemplos/` **no** sea siembra es una premisa que `infrastructure` no tenía: su guarda
+`ejemplosHuerfanos()` daba por sentado que todo archivo de ese directorio lo carga un paso, y con
+estos dos puestos decía `expected [ 'catastro/riesgo.csv' ] to deeply equal []`. Se cierra allí, con
+`EJEMPLOS_QUE_NO_SIEMBRAN` —la lista declarada con su motivo, como ya existía `GUIONES_QUE_NO_SIEMBRAN`
+por el otro eje— y su contraste. `cargar-predios.sh` y `cargar-arancel-vial.sh` esquivaban esa guarda
+sólo porque **no tienen** archivo de ejemplo.
 
 **Los números 4, 5, 8, 9 y 10 no están aquí, y ése es el punto.** El orden completo —los diez pasos,
 con su dueño— vive en **un solo sitio**, y no es este repositorio:

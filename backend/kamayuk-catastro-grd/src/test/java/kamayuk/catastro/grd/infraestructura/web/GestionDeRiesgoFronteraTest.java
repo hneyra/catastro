@@ -257,6 +257,155 @@ class GestionDeRiesgoFronteraTest {
                 .doesNotContain("ZR-VIEJA");
     }
 
+    // ── #18: el riesgo A UNA FECHA ─────────────────────────────────────
+
+    /** El poligono que cubre el lote entero. Todas las zonas de #18 lo usan. */
+    private static final String CUBRE_EL_LOTE =
+            "MULTIPOLYGON(((-80.7000 -5.2800,-80.6800 -5.2800,-80.6800 -5.2600,"
+                    + "-80.7000 -5.2600,-80.7000 -5.2800)))";
+
+    @Test
+    @DisplayName(
+            "#18 AC-1 — la zona cerrada en 2024 sale al preguntar por 2024, y no al no pedirlo")
+    void laZonaCerradaEn2024SaleAlPreguntarPor2024() throws Exception {
+        zonaVigenteEntre(
+                municipalidadA,
+                "ZR-2024",
+                "MUY_ALTO",
+                false,
+                "2019-01-01",
+                "2024-12-31",
+                CUBRE_EL_LOTE);
+
+        assertThat(riesgoDe(predioConLote, "2024-06-15", 200))
+                .as(
+                        "quien evalua hoy una licencia denegada en 2024 necesita saber que decia la"
+                                + " carta ENTONCES, y con la ruta anterior esa pregunta no se podia"
+                                + " hacer")
+                .contains("\"codigo\":\"ZR-2024\"")
+                .contains("\"aLaFecha\":\"2024-06-15\"");
+
+        assertThat(riesgoDe(predioConLote, 200))
+                .as("y sin fecha sigue contestando HOY, del reloj inyectado y no de LocalDate.now")
+                .doesNotContain("ZR-2024")
+                .contains("\"aLaFecha\":\"2026-06-15\"");
+    }
+
+    @Test
+    @DisplayName("#18 AC-2 — vigencia_hasta es INCLUSIVA: el ultimo dia sale y el siguiente no")
+    void laVigenciaHastaEsInclusiva() throws Exception {
+        zonaVigenteEntre(
+                municipalidadA,
+                "ZR-CIERRA",
+                "ALTO",
+                true,
+                "2019-01-01",
+                "2024-12-31",
+                CUBRE_EL_LOTE);
+
+        assertThat(riesgoDe(predioConLote, "2024-12-31", 200))
+                .as(
+                        "el ultimo dia de vigencia SI cuenta: es el borde, y aqui se decide en cual cae")
+                .contains("ZR-CIERRA");
+        assertThat(riesgoDe(predioConLote, "2025-01-01", 200))
+                .as("y el dia siguiente ya no. Sin el extremo superior, este par no se distingue")
+                .doesNotContain("ZR-CIERRA");
+    }
+
+    @Test
+    @DisplayName("#18 AC-2 — y por el otro extremo: una zona que abre manana no sale hoy")
+    void laZonaQueAbreDespuesNoSaleAntes() throws Exception {
+        zonaVigenteEntre(
+                municipalidadA,
+                "ZR-FUTURA",
+                "MUY_ALTO",
+                false,
+                "2026-06-16",
+                "2030-12-31",
+                CUBRE_EL_LOTE);
+
+        assertThat(riesgoDe(predioConLote, "2026-06-15", 200))
+                .as(
+                        "una carta aprobada y con vigencia futura no puede decidir una licencia de"
+                                + " hoy: publicarla seria negar por una norma que aun no rige")
+                .doesNotContain("ZR-FUTURA");
+        assertThat(riesgoDe(predioConLote, "2026-06-16", 200))
+                .as("EL CONTRASTE: el primer dia de su vigencia si")
+                .contains("ZR-FUTURA");
+    }
+
+    @Test
+    @DisplayName("#18 AC-2 — la faja marginal acota por fecha IGUAL que la zona, en las dos puntas")
+    void laFajaMarginalTambienAcotaPorFecha() throws Exception {
+        fajaVigenteEntre(
+                municipalidadA,
+                "FM-DEROGADA",
+                "2019-01-01",
+                "2024-12-31",
+                "MULTIPOLYGON(((-80.6890 -5.2690,-80.6860 -5.2690,-80.6860 -5.2670,"
+                        + "-80.6890 -5.2670,-80.6890 -5.2690)))");
+
+        assertThat(riesgoDe(predioConLote, "2024-12-31", 200))
+                .as("una resolucion de la ANA se deroga, y hasta ese dia rige")
+                .contains("FM-DEROGADA");
+        assertThat(riesgoDe(predioConLote, "2025-01-01", 200))
+                .as(
+                        "y despues no. La faja tiene sus dos fechas igual que la zona, y una mitad"
+                                + " de la respuesta que no acotara seria la mitad que se lee mal")
+                .doesNotContain("FM-DEROGADA")
+                .contains("\"fajasMarginales\":[]");
+    }
+
+    @Test
+    @DisplayName("#18 AC-4 — hayRiesgoNoMitigable se recalcula a la fecha, y a veces se invierte")
+    void elRiesgoNoMitigableSeRecalculaALaFecha() throws Exception {
+        // El escenario que separa las dos respuestas: la carta de 2019 declaraba el lote MUY_ALTO
+        // NO mitigable; la de 2025 la sustituye y lo declara ALTO mitigable, porque entretanto se
+        // construyo la defensa riberena. El suelo es el mismo y la respuesta es la contraria.
+        zonaVigenteEntre(
+                municipalidadA,
+                "ZR-VIEJA-NM",
+                "MUY_ALTO",
+                false,
+                "2019-01-01",
+                "2024-12-31",
+                CUBRE_EL_LOTE);
+        zonaVigenteEntre(
+                municipalidadA,
+                "ZR-NUEVA-M",
+                "ALTO",
+                true,
+                "2025-01-01",
+                "2030-12-31",
+                CUBRE_EL_LOTE);
+
+        assertThat(riesgoDe(predioConLote, 200))
+                .as("hoy rige la nueva: hay riesgo, y se puede mitigar")
+                .contains("ZR-NUEVA-M")
+                .contains("\"hayRiesgoNoMitigable\":false");
+
+        assertThat(riesgoDe(predioConLote, "2024-06-15", 200))
+                .as(
+                        "y en 2024 regia la vieja: el dato que DECIDE es el contrario. Calculado"
+                                + " sobre las zonas de hoy, esta respuesta seria plausible y"
+                                + " estaria mal —el defecto que #5 encontro en el ITSE—")
+                .contains("ZR-VIEJA-NM")
+                .contains("\"hayRiesgoNoMitigable\":true");
+    }
+
+    @Test
+    @DisplayName("#18 AC-1 — una fecha ilegible en el riesgo es 422 y no «hoy» en silencio")
+    void laFechaIlegibleDelRiesgoEs422() throws Exception {
+        String problema = riesgoDe(predioConLote, "30-02-2026", 422);
+
+        assertThat(problema)
+                .as(
+                        "quien pidio el 30 de febrero recibiria la respuesta de hoy creyendo que es"
+                                + " la de febrero, y eso es peor que un error")
+                .contains("aLaFecha")
+                .contains("AAAA-MM-DD");
+    }
+
     @Test
     @DisplayName("la faja marginal que cruza el lote sale con su ancho, y en su propia lista")
     void laFajaMarginalSale() throws Exception {
@@ -469,11 +618,18 @@ class GestionDeRiesgoFronteraTest {
     // ------------------------------------------------------------------
 
     private static String riesgoDe(long predioId, int estadoEsperado) throws Exception {
-        MvcResult respuesta =
-                mvc.perform(
-                                get("/catastro/api/v1/grd/riesgo")
-                                        .param("predioId", String.valueOf(predioId)))
-                        .andReturn();
+        return riesgoDe(predioId, null, estadoEsperado);
+    }
+
+    /** El riesgo a una fecha; con {@code aLaFecha} nulo, sin mandar el parametro (#18). */
+    private static String riesgoDe(long predioId, String aLaFecha, int estadoEsperado)
+            throws Exception {
+        var peticion =
+                get("/catastro/api/v1/grd/riesgo").param("predioId", String.valueOf(predioId));
+        if (aLaFecha != null) {
+            peticion = peticion.param("aLaFecha", aLaFecha);
+        }
+        MvcResult respuesta = mvc.perform(peticion).andReturn();
         assertThat(respuesta.getResponse().getStatus())
                 .as("cuerpo: %s", respuesta.getResponse().getContentAsString())
                 .isEqualTo(estadoEsperado);
@@ -566,6 +722,71 @@ class GestionDeRiesgoFronteraTest {
                 sentencia.setLong(1, municipalidadId);
                 sentencia.setString(2, codigo);
                 sentencia.setString(3, wkt);
+                sentencia.executeUpdate();
+            }
+            app.commit();
+        }
+    }
+
+    /**
+     * Una zona con sus DOS fechas puestas, para poder preguntar por un dia y no por otro (#18).
+     *
+     * <p>{@code zonaVencida} sirve para «esto ya no vale hoy» y no para lo que #18 mide, que es que
+     * el mismo suelo conteste una cosa a una fecha y otra a otra.
+     */
+    private static void zonaVigenteEntre(
+            long municipalidadId,
+            String codigo,
+            String nivel,
+            boolean mitigable,
+            String desde,
+            String hasta,
+            String wkt)
+            throws SQLException {
+        try (Connection app = base.conexion(BaseDeDatosDePrueba.APP)) {
+            ContextoDeTenant.fijar(app, municipalidadId);
+            try (PreparedStatement sentencia =
+                    app.prepareStatement(
+                            "INSERT INTO zona_riesgo (municipalidad_id, codigo, fenomeno, nivel,"
+                                    + " mitigable, fuente, documento_origen, vigencia_desde,"
+                                    + " vigencia_hasta, geometria, observacion, usuario_registro)"
+                                    + " VALUES (?, ?, 'INUNDACION', ?, ?, 'CENEPRED',"
+                                    + "         'CARTA-DE-PRUEBA', CAST(? AS date),"
+                                    + "         CAST(? AS date), ST_GeogFromText(?),"
+                                    + "         'Siembra de la prueba', 'prueba')")) {
+                sentencia.setLong(1, municipalidadId);
+                sentencia.setString(2, codigo);
+                sentencia.setString(3, nivel);
+                sentencia.setBoolean(4, mitigable);
+                sentencia.setString(5, desde);
+                sentencia.setString(6, hasta);
+                sentencia.setString(7, wkt);
+                sentencia.executeUpdate();
+            }
+            app.commit();
+        }
+    }
+
+    /** Una faja marginal con sus dos fechas: la otra mitad de AC-2, que tambien las tiene. */
+    private static void fajaVigenteEntre(
+            long municipalidadId, String codigo, String desde, String hasta, String wkt)
+            throws SQLException {
+        try (Connection app = base.conexion(BaseDeDatosDePrueba.APP)) {
+            ContextoDeTenant.fijar(app, municipalidadId);
+            try (PreparedStatement sentencia =
+                    app.prepareStatement(
+                            "INSERT INTO faja_marginal (municipalidad_id, codigo, cuerpo_agua,"
+                                    + " ancho_m, fuente, documento_origen, vigencia_desde,"
+                                    + " vigencia_hasta, geometria, observacion, usuario_registro)"
+                                    + " VALUES (?, ?, 'Rio Piura', 25.00, 'ANA', 'RD-DE-PRUEBA',"
+                                    + "         CAST(? AS date), CAST(? AS date),"
+                                    + "         ST_GeogFromText(?), 'Siembra de la prueba',"
+                                    + "         'prueba')")) {
+                sentencia.setLong(1, municipalidadId);
+                sentencia.setString(2, codigo);
+                sentencia.setString(3, desde);
+                sentencia.setString(4, hasta);
+                sentencia.setString(5, wkt);
                 sentencia.executeUpdate();
             }
             app.commit();

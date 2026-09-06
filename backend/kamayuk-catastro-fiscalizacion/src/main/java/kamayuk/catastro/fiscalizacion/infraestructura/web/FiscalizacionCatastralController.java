@@ -263,6 +263,37 @@ public class FiscalizacionCatastralController {
                 HallazgoResource::de);
     }
 
+    /**
+     * Los hallazgos de UN predio, con su campania y su acta (#17, AC-1).
+     *
+     * <h2>Es una LECTURA, y no abre nada</h2>
+     *
+     * <p>No abre campanias, no verifica y no levanta actas: eso son las seis operaciones de arriba,
+     * cada una con su privilegio. Esta se sirve con la {@code LECTURA} que la clase declara.
+     *
+     * <h2>Nunca devuelve un omiso catastral, y hay que decirlo</h2>
+     *
+     * <p>Quien lea «los hallazgos del predio» va a suponer que estan todos los que a ese predio le
+     * tocan, y eso es cierto — pero un {@code OMISO_CATASTRAL} <b>no le toca a ningun predio</b>:
+     * {@code hallazgo_contraste_check} de {@code V9} le exige {@code predio_id} nulo, porque si lo
+     * tuviera no seria un omiso sino otra cosa. De modo que esta ruta no puede alcanzarlos por
+     * construccion, y quien busque omisos los encuentra en la pagina de su campania.
+     *
+     * <h2>Un predio sin hallazgos es 200 con lista vacia; uno que no esta, 404</h2>
+     *
+     * <p>AC-3. No son la misma respuesta y no se arreglan igual: el predio limpio cierra la
+     * revision y el identificador equivocado se teclea otra vez. Bajo RLS el predio de la
+     * municipalidad vecina cae en el {@code 404}, que es lo correcto: no es «prohibido», no existe.
+     */
+    @GetMapping("/predios/{predioId}/hallazgos")
+    public HallazgosDelPredioResource hallazgosDelPredio(@PathVariable long predioId) {
+        try {
+            return HallazgosDelPredioResource.de(predioId, consultaDeHallazgos.delPredio(predioId));
+        } catch (ConsultaDeHallazgos.PredioFueraDelPadron noEsDeAqui) {
+            throw new ProblemaDeNegocio(CodigoDeError.NO_ENCONTRADO, mensajeDe(noEsDeAqui));
+        }
+    }
+
     @PostMapping("/hallazgos/{hallazgoId}/evidencias")
     @ResponseStatus(HttpStatus.CREATED)
     @RequiereAcceso(acceso = "fiscalizacion_catastral", privilegio = Privilegio.REGISTRO)

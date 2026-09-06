@@ -1,6 +1,7 @@
 package kamayuk.catastro.fiscalizacion.infraestructura.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
@@ -48,11 +49,32 @@ class FiscalizacionCatastralControllerTest {
 
     private MockMvc mvc;
 
-    /** El padron sin ningun poligono: la situacion REAL de hoy en todas las instalaciones. */
-    private static final AreasDelPadron SIN_CARTOGRAFIA =
-            (tolerancia, tope) -> {
+    /**
+     * El padron sin ningun poligono: la situacion REAL de hoy en todas las instalaciones.
+     *
+     * <p>Y <b>con</b> sus predios: sin cartografia lo que falta son los planos, no los predios, asi
+     * que {@code estaEnElPadron} dice que si. Las pruebas que necesitan el predio ausente usan
+     * {@link #SIN_ESE_PREDIO}, que es el otro doble.
+     */
+    private static final AreasDelPadron SIN_CARTOGRAFIA = padronCon(true);
+
+    /** Un padron en el que ese predio no esta: es lo que separa el 404 de la lista vacia (AC-3). */
+    private static final AreasDelPadron SIN_ESE_PREDIO = padronCon(false);
+
+    private static AreasDelPadron padronCon(boolean tieneElPredio) {
+        return new AreasDelPadron() {
+            @Override
+            public List<kamayuk.catastro.fiscalizacion.dominio.ContrasteDeAreas> contrastar(
+                    kamayuk.catastro.fiscalizacion.dominio.Tolerancia tolerancia, int tope) {
                 throw new AreasDelPadron.SinCartografia();
-            };
+            }
+
+            @Override
+            public boolean estaEnElPadron(long predioId) {
+                return tieneElPredio;
+            }
+        };
+    }
 
     private static final LectorDeFichas NINGUNA_FICHA =
             new LectorDeFichas() {
@@ -70,31 +92,31 @@ class FiscalizacionCatastralControllerTest {
 
     @BeforeEach
     void montarElBorde() {
-        FiscalizacionRepository repositorio = new RepositorioQueNadieLlama();
+        mvc = bordeCon(new RepositorioQueNadieLlama(), SIN_CARTOGRAFIA);
+    }
+
+    /** El mismo borde, con el repositorio y el padron que la prueba necesite. */
+    private static MockMvc bordeCon(FiscalizacionRepository repositorio, AreasDelPadron padron) {
         Auditoria auditoria = registro -> {};
 
-        mvc =
-                MockMvcBuilders.standaloneSetup(
-                                new FiscalizacionCatastralController(
-                                        new AbrirCampania(repositorio, auditoria, RELOJ),
-                                        new DetectarSubvaluadores(
-                                                repositorio, SIN_CARTOGRAFIA, auditoria, RELOJ),
-                                        new VerificarEnGabinete(repositorio, auditoria, RELOJ),
-                                        new VerificarEnCampo(
-                                                repositorio, NINGUNA_FICHA, auditoria, RELOJ),
-                                        new RegistrarEvidencia(repositorio, auditoria, RELOJ),
-                                        new LevantarActa(repositorio, auditoria, RELOJ),
-                                        new ConsultaDeCandidatos(repositorio),
-                                        new ConsultaDeHallazgos(repositorio)))
-                        .setControllerAdvice(new ManejadorDeErrores())
-                        .setMessageConverters(
-                                new JacksonJsonHttpMessageConverter(
-                                        JsonMapper.builder()
-                                                .addModule(
-                                                        new ConfiguracionDeJson()
-                                                                .moduloDeObjetosDeValor())
-                                                .build()))
-                        .build();
+        return MockMvcBuilders.standaloneSetup(
+                        new FiscalizacionCatastralController(
+                                new AbrirCampania(repositorio, auditoria, RELOJ),
+                                new DetectarSubvaluadores(repositorio, padron, auditoria, RELOJ),
+                                new VerificarEnGabinete(repositorio, auditoria, RELOJ),
+                                new VerificarEnCampo(repositorio, NINGUNA_FICHA, auditoria, RELOJ),
+                                new RegistrarEvidencia(repositorio, auditoria, RELOJ),
+                                new LevantarActa(repositorio, auditoria, RELOJ),
+                                new ConsultaDeCandidatos(repositorio),
+                                new ConsultaDeHallazgos(repositorio, padron)))
+                .setControllerAdvice(new ManejadorDeErrores())
+                .setMessageConverters(
+                        new JacksonJsonHttpMessageConverter(
+                                JsonMapper.builder()
+                                        .addModule(
+                                                new ConfiguracionDeJson().moduloDeObjetosDeValor())
+                                        .build()))
+                .build();
     }
 
     @Test
@@ -257,6 +279,10 @@ class FiscalizacionCatastralControllerTest {
                         CampaniaResource.class,
                         CandidatoResource.class,
                         HallazgoResource.class,
+                        // Los dos de #17: un recurso nuevo que nadie mete en esta lista es la
+                        // puerta por la que el primer importe entra sin ruido.
+                        HallazgoDelPredioResource.class,
+                        HallazgosDelPredioResource.class,
                         EvidenciaResource.class,
                         ActaResource.class,
                         TasaDeDescarteResource.class);
@@ -290,6 +316,109 @@ class FiscalizacionCatastralControllerTest {
         assertThat(sinCampania.getResponse().getStatus())
                 .as("no hay ruta que devuelva los candidatos de todas las campanias juntas")
                 .isEqualTo(404);
+    }
+
+    // ── #17 — los hallazgos de UN predio ───────────────────────────────
+
+    @Test
+    @DisplayName("#17 AC-1 — los hallazgos del predio salen con su campania, su ficha y su acta")
+    void losHallazgosDelPredioSalenConSuCampaniaYSuActa() throws Exception {
+        MvcResult respuesta =
+                mvc.perform(get("/catastro/api/v1/fiscalizacion/predios/11/hallazgos")).andReturn();
+
+        assertThat(respuesta.getResponse().getStatus()).isEqualTo(200);
+        String cuerpo = respuesta.getResponse().getContentAsString();
+
+        assertThat(cuerpo)
+                .as("el sobre dice de que predio contesta: un array desnudo no lo diria")
+                .contains("\"predioId\":11")
+                .contains("\"clase\":\"SUBVALUADOR\"")
+                .contains("\"estado\":\"FIRME\"")
+                .as("la campania: en cual se hallo, por su codigo y no solo por su numero")
+                .contains("\"campaniaId\":3")
+                .contains("\"campaniaCodigo\":\"CAM-2026\"")
+                .as("QUE VERSION se contrasto: sin ella el exceso no significa nada (regla 9)")
+                .contains("\"fichaId\":7")
+                .as("y su acta, si la tiene")
+                .contains("\"numero\":\"ACT-2026-009\"");
+
+        assertThat(cuerpo)
+                .as("dos superficies y su resta, y ni un importe (ADR-0024)")
+                .contains("\"areaDeLaFicha\":\"120.00\"")
+                .contains("\"areaVerificada\":\"180.50\"")
+                .contains("\"excesoVerificado\":\"60.50\"");
+    }
+
+    @Test
+    @DisplayName("#17 AC-3 — un predio SIN hallazgos es 200 con lista vacia, no 404")
+    void unPredioSinHallazgosEs200ConListaVacia() throws Exception {
+        MvcResult respuesta =
+                mvc.perform(get("/catastro/api/v1/fiscalizacion/predios/12/hallazgos")).andReturn();
+
+        assertThat(respuesta.getResponse().getStatus())
+                .as(
+                        "el predio existe y no tiene hallazgos, que no es lo mismo que no existir:"
+                                + " lo primero cierra una revision y lo segundo se arregla"
+                                + " tecleando bien el identificador")
+                .isEqualTo(200);
+        assertThat(respuesta.getResponse().getContentAsString())
+                .contains("\"predioId\":12")
+                .contains("\"hallazgos\":[]");
+    }
+
+    @Test
+    @DisplayName("#17 AC-3 — y un predio que NO esta en el padron si es 404")
+    void unPredioQueNoEstaEnElPadronEs404() throws Exception {
+        MockMvc sinEsePredio = bordeCon(new RepositorioQueNadieLlama(), SIN_ESE_PREDIO);
+
+        MvcResult respuesta =
+                sinEsePredio
+                        .perform(get("/catastro/api/v1/fiscalizacion/predios/11/hallazgos"))
+                        .andReturn();
+
+        assertThat(respuesta.getResponse().getStatus())
+                .as(
+                        "EL CONTRASTE de la anterior: sin el, «200 con lista vacia» pasaria en"
+                                + " verde con una ruta que contesta lo mismo a todo")
+                .isEqualTo(404);
+        assertThat(respuesta.getResponse().getContentAsString())
+                .as("y dice por que, para que quien atiende sepa que revisar")
+                .contains("no esta en el padron de esta municipalidad");
+    }
+
+    @Test
+    @DisplayName(
+            "#17 AC-4 — el recurso del predio declara predioId NO anulable: aqui no hay omisos")
+    void elRecursoDelPredioNoAdmiteUnOmiso() {
+        java.lang.reflect.RecordComponent predioId =
+                java.util.Arrays.stream(HallazgoDelPredioResource.class.getRecordComponents())
+                        .filter(c -> "predioId".equals(c.getName()))
+                        .findFirst()
+                        .orElseThrow();
+
+        assertThat(predioId.getType())
+                .as(
+                        "un OMISO_CATASTRAL tiene predio_id NULO por hallazgo_contraste_check (V9),"
+                                + " asi que esta ruta no puede alcanzarlo: publicarlo anulable"
+                                + " invitaria a leerla como si los trajera")
+                .isEqualTo(long.class);
+
+        assertThatThrownBy(
+                        () ->
+                                new kamayuk.catastro.fiscalizacion.dominio.HallazgoDelPredio(
+                                        kamayuk.catastro.fiscalizacion.dominio.Hallazgo
+                                                .deOmisoCatastral(
+                                                        77L,
+                                                        AreaM2.de("240.00"),
+                                                        "mlopez",
+                                                        java.time.LocalDate.of(2026, 5, 12),
+                                                        null),
+                                        3L,
+                                        "CAM-2026",
+                                        null))
+                .as("y el registro lo rechaza antes de llegar al borde")
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("OMISO_CATASTRAL");
     }
 
     /**
@@ -391,6 +520,45 @@ class FiscalizacionCatastralControllerTest {
         public kamayuk.catastro.compartido.Pagina<kamayuk.catastro.fiscalizacion.dominio.Hallazgo>
                 hallazgos(long campaniaId, kamayuk.catastro.compartido.Paginacion paginacion) {
             throw noSeLlama();
+        }
+
+        /**
+         * El predio 11 tiene un hallazgo con su acta; cualquier otro, ninguno.
+         *
+         * <p>Es el minimo que separa las tres respuestas de AC-3 sin base de datos: <b>con</b>
+         * hallazgos, <b>sin</b> hallazgos y <b>sin</b> predio —esta ultima no llega hasta aqui,
+         * porque la para el padron—.
+         */
+        @Override
+        public java.util.List<kamayuk.catastro.fiscalizacion.dominio.HallazgoDelPredio>
+                hallazgosDelPredio(long predioId) {
+            if (predioId != 11L) {
+                return java.util.List.of();
+            }
+            return java.util.List.of(
+                    new kamayuk.catastro.fiscalizacion.dominio.HallazgoDelPredio(
+                            new kamayuk.catastro.fiscalizacion.dominio.Hallazgo(
+                                    31L,
+                                    77L,
+                                    kamayuk.catastro.fiscalizacion.dominio.ClaseDeHallazgo
+                                            .SUBVALUADOR,
+                                    11L,
+                                    7L,
+                                    AreaM2.de("120.00"),
+                                    AreaM2.de("180.50"),
+                                    "mlopez",
+                                    java.time.LocalDate.of(2026, 5, 12),
+                                    kamayuk.catastro.fiscalizacion.dominio.EstadoDelHallazgo.FIRME,
+                                    null),
+                            3L,
+                            "CAM-2026",
+                            new kamayuk.catastro.fiscalizacion.dominio.Acta(
+                                    9L,
+                                    "ACT-2026-009",
+                                    31L,
+                                    java.time.LocalDate.of(2026, 5, 20),
+                                    "mlopez",
+                                    "Ampliacion no declarada en el segundo nivel")));
         }
 
         @Override

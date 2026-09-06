@@ -16,6 +16,7 @@ import kamayuk.catastro.fiscalizacion.dominio.EtapaDeVerificacion;
 import kamayuk.catastro.fiscalizacion.dominio.Evidencia;
 import kamayuk.catastro.fiscalizacion.dominio.FiscalizacionRepository;
 import kamayuk.catastro.fiscalizacion.dominio.Hallazgo;
+import kamayuk.catastro.fiscalizacion.dominio.HallazgoDelPredio;
 import kamayuk.catastro.fiscalizacion.dominio.TasaDeDescarte;
 
 /**
@@ -159,6 +160,27 @@ final class FiscalizacionEnMemoria implements FiscalizacionRepository {
             }
         }
         return Pagina.de(encontrados, paginacion, encontrados.size());
+    }
+
+    @Override
+    public List<HallazgoDelPredio> hallazgosDelPredio(long predioId) {
+        List<HallazgoDelPredio> encontrados = new ArrayList<>();
+        for (Hallazgo hallazgo : hallazgos.values()) {
+            Long suyo = hallazgo.predioId();
+            if (suyo == null || suyo != predioId) {
+                continue;
+            }
+            Candidato candidato = candidatos.get(hallazgo.candidatoId());
+            Campania campania = candidato == null ? null : campanias.get(candidato.campaniaId());
+            encontrados.add(
+                    new HallazgoDelPredio(
+                            hallazgo,
+                            candidato == null ? 0L : candidato.campaniaId(),
+                            campania == null ? "" : campania.codigo(),
+                            actaDelHallazgo(hallazgo.id() == null ? -1L : hallazgo.id())
+                                    .orElse(null)));
+        }
+        return encontrados;
     }
 
     @Override

@@ -130,6 +130,23 @@ public class AreasDelPadronJdbc extends RepositorioJdbc implements AreasDelPadro
     }
 
     /**
+     * Si el predio esta en el padron de esta municipalidad (#17, AC-3).
+     *
+     * <p>{@code EXISTS} y sin {@code WHERE municipalidad_id}: quien acota es la politica RLS con lo
+     * que {@code SET LOCAL} fijo (regla 2). Sobre el predio de otra municipalidad la respuesta es
+     * {@code false} —bajo RLS no es «prohibido», <b>no existe</b>—, y el borde la traduce a {@code
+     * 404}. Preguntar por la clave primaria y no por {@code count(*)}: la respuesta es si o no.
+     */
+    @Override
+    public boolean estaEnElPadron(long predioId) {
+        return Boolean.TRUE.equals(
+                jdbc().sql("SELECT EXISTS (SELECT 1 FROM predio WHERE id = :predioId)")
+                        .param("predioId", predioId)
+                        .query(Boolean.class)
+                        .single());
+    }
+
+    /**
      * Si esta municipalidad tiene algun predio con geometria.
      *
      * <p>Es una consulta aparte y no un {@code count} del cruce, y es la diferencia entera: el

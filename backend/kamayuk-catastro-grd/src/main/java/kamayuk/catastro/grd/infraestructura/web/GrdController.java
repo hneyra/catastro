@@ -47,10 +47,17 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <h2>La fecha</h2>
  *
- * <p>{@code /itse} la recibe en {@code ?aLaFecha=}; sin ella, hoy segun el {@link Clock} inyectado.
- * {@code /riesgo} <b>no</b> la recibe —el AC-3 declara un solo parametro y un parametro de mas que
- * nadie lee es el defecto que C-1 midio—, pero su respuesta la lleva igual: las cartas de peligro
- * tienen vigencia, y una respuesta sin fecha es una que dentro de un mes es otra (regla 9).
+ * <p><b>Las dos la reciben en {@code ?aLaFecha=}</b>; sin ella, hoy segun el {@link Clock}
+ * inyectado y nunca {@code LocalDate.now()}. Las dos la devuelven dentro, que es la regla 9: una
+ * respuesta sin fecha es una que dentro de un mes es otra sin que nadie pueda decir cual se dio.
+ *
+ * <p><b>{@code /riesgo} no la admitia hasta #18</b>, y no era simetria lo que faltaba: quien evalua
+ * hoy una licencia denegada en 2024 necesita saber que decia la carta de peligro <b>entonces</b>, y
+ * con la ruta anterior esa pregunta no se podia hacer. Las zonas y las fajas ya tenian sus dos
+ * fechas en {@code V8} y el repositorio ya filtraba por ellas; lo que faltaba era <b>dejar
+ * pedirla</b>. El nombre es {@code aLaFecha} y no {@code fecha} porque es el que ya usan {@code
+ * /itse} y {@code /urbano/zonificacion}, y el que el consumidor manda: dos nombres para el mismo
+ * criterio es como uno de los dos acaba descartandose en silencio (C-1).
  */
 @RestController
 @RequestMapping(Api.RAIZ + "/grd")
@@ -73,11 +80,21 @@ public class GrdController {
         this.reloj = reloj;
     }
 
-    /** Las zonas de riesgo y las fajas marginales que intersectan el lote (AC-3). */
+    /**
+     * Las zonas de riesgo y las fajas marginales que intersectaban el lote <b>a una fecha</b> (#5
+     * AC-3, #18 AC-1).
+     *
+     * <p>Sin {@code aLaFecha}, hoy segun el reloj inyectado. Con ella, lo que estaba vigente ese
+     * dia: una zona cerrada antes no sale y una que abre despues tampoco, en las dos tablas — y con
+     * ellas cambia {@code hayRiesgoNoMitigable}, que es el dato del que cuelga la decision y que
+     * por eso se deriva de <b>estas</b> zonas y no de las de hoy (#18, AC-4).
+     */
     @GetMapping("/riesgo")
-    public RiesgoDelPredioResource riesgo(@RequestParam long predioId) {
+    public RiesgoDelPredioResource riesgo(
+            @RequestParam long predioId,
+            @RequestParam(required = false) @Nullable String aLaFecha) {
         try {
-            return RiesgoDelPredioResource.de(riesgo.delPredio(predioId, LocalDate.now(reloj)));
+            return RiesgoDelPredioResource.de(riesgo.delPredio(predioId, fechaDe(aLaFecha)));
         } catch (PredioSinGeometria sinPlano) {
             // 422 y no 200 con lista vacia: ver el javadoc de la clase y el de PredioSinGeometria.
             throw new ProblemaDeNegocio(CodigoDeError.VALIDACION, sinPlano.mensaje());

@@ -59,6 +59,25 @@ public interface FiscalizacionRepository {
 
     Pagina<Hallazgo> hallazgos(long campaniaId, Paginacion paginacion);
 
+    /**
+     * Los hallazgos de UN predio, con su campania y su acta (#17, AC-1 y AC-2).
+     *
+     * <p>Va por {@code hallazgo.predio_id} y no recorriendo campanias: filtrar del lado de Java una
+     * pagina de {@link #hallazgos} devolveria los que cupieron en ella, que sobre una campania de
+     * cuatro mil candidatos es una respuesta plausible, incompleta y muda.
+     *
+     * <p><b>Nunca devuelve un omiso catastral</b>, y no porque lo filtre: {@code
+     * hallazgo_contraste_check} de {@code V9} le exige {@code predio_id} nulo a un {@link
+     * ClaseDeHallazgo#OMISO_CATASTRAL} —si lo tuviera no seria un omiso—, asi que un {@code WHERE
+     * predio_id = ?} no puede alcanzarlo. Se dice porque quien lea «los hallazgos del predio» va a
+     * suponer que estan todos.
+     *
+     * <p>Sin paginacion: un candidato produce como mucho un hallazgo ({@code
+     * hallazgo_candidato_uq}) y un predio entra como candidato una vez por campania, asi que son
+     * unidades. Paginar obligaria a recorrer paginas para contestar «¿tiene alguno?».
+     */
+    List<HallazgoDelPredio> hallazgosDelPredio(long predioId);
+
     // ── Evidencia y acta ───────────────────────────────────────────────
 
     Evidencia guardar(Evidencia evidencia);

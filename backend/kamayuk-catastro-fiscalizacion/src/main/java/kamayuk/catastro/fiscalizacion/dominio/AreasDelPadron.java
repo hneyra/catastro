@@ -5,8 +5,11 @@ import java.util.List;
 /**
  * El contraste entre lo que la ficha dice y lo que el poligono mide (AC 8 de #6, ADR-0021).
  *
- * <p>Es el <b>unico</b> insumo que este contexto lee del padron, y esta separado de {@link
- * FiscalizacionRepository} para que se vea: lo demas es de aqui, esto no.
+ * <p>Es lo <b>unico</b> que este contexto lee del padron, y esta separado de {@link
+ * FiscalizacionRepository} para que se vea: lo demas es de aqui, esto no. Son dos preguntas y las
+ * dos son sobre el predio ajeno —donde difiere el area, y si el predio siquiera esta—, asi que
+ * viven en el mismo puerto: un segundo puerto para una sola consulta esconderia justo lo que este
+ * separa.
  *
  * <h2>Por que es una consulta y no un puerto por predio</h2>
  *
@@ -41,6 +44,22 @@ public interface AreasDelPadron {
      * @throws SinCartografia si la municipalidad no tiene ni un predio con geometria
      */
     List<ContrasteDeAreas> contrastar(Tolerancia tolerancia, int tope);
+
+    /**
+     * Si el predio esta en el padron de esta municipalidad (#17, AC-3).
+     *
+     * <p>Lo necesita la lectura de hallazgos por predio, y por una razon que se ve en las dos
+     * respuestas que separa: un predio que <b>esta</b> y no tiene hallazgos contesta {@code 200}
+     * con lista vacia, y uno que <b>no esta</b> contesta {@code 404}. Sin esta pregunta las dos se
+     * contestarian igual —lista vacia—, y entonces «este predio esta limpio» seria indistinguible
+     * de «te equivocaste de identificador»: la primera cierra una revision y la segunda se arregla
+     * tecleando bien.
+     *
+     * <p>Bajo RLS el predio de otra municipalidad no es «prohibido»: <b>no existe</b>, asi que este
+     * metodo devuelve {@code false} sobre el y el borde contesta {@code 404}. Es la misma respuesta
+     * que da {@code grd} sobre un lote ajeno, y por el mismo motivo.
+     */
+    boolean estaEnElPadron(long predioId);
 
     /**
      * La municipalidad no tiene un solo poligono cargado.

@@ -115,11 +115,26 @@ jobs:
       # no lo cazo porque la ruta se componia en trozos, que es su falso negativo declarado; ahora
       # esa prueba la escribe en un solo literal y esta guarda si la ve.
       #
-      # El `ref` NO es decorativo. El cuadro esta hoy en `normativa@beta` y no en su `main`: es la
-      # etapa 1, que se integra en `beta` en los cinco repositorios a la vez. Un PR contra `beta`
-      # trae `beta`; todo lo demas trae `main`. La consecuencia querida es que un PR de `beta` a
-      # `main` se ponga ROJO mientras `normativa` no haya fusionado el suyo — que es exactamente el
-      # orden que hay que respetar, dicho por CI en vez de descubierto en produccion.
+      # El `ref` NO es decorativo, y la regla que expresa es general: UN PR CONTRA UNA RAMA TRAE ESA
+      # MISMA RAMA DEL HERMANO; todo lo demas trae `main`. Lo que compra es que una tanda que se
+      # integra en una rama compartida se mida contra el estado de esa tanda, y no contra `main`.
+      #
+      # Mientras la etapa 1 se integro en `beta` —en los cinco repositorios a la vez—, la
+      # consecuencia querida era que un PR de `beta` a `main` se pusiera ROJO hasta que `normativa`
+      # fusionara el suyo. Funciono: paso exactamente eso, se respeto el orden y el rojo desaparecio
+      # solo cuando `normativa` mezclo primero.
+      #
+      # HOY `beta` YA NO EXISTE: se borro al mezclar la etapa 1. Medido con
+      # `git ls-remote --heads origin beta`, da CERO en `catastro`, en `rentas` y en
+      # `infrastructure`; de `normativa` y `caja` no se midio aqui, y lo que si consta es que
+      # `normativa` fusiono su etapa 1 ANTES que este repositorio. Asi que esta expresion resuelve
+      # hoy a `main` —que es lo correcto, porque ahi esta el cuadro— y el condicional se conserva
+      # porque la etapa 2 puede volver a integrarse en una rama compartida (#16).
+      #
+      # Y queda dicha la trampa, que es lo unico que este condicional puede hacer mal: si alguien
+      # recrea `beta` AQUI y no en `normativa`, el checkout pide una rama que alli no existe y falla
+      # con «Not Found» — un error que no habla de su causa. Recrear `beta` es recrearla en los
+      # cinco, o en ninguno.
       - name: Traer el cuadro que firma «normativa»
         uses: actions/checkout@v4
         with:

@@ -372,12 +372,10 @@ public final class ValorizacionDelPredio {
             return new SinValorizar(
                     "El conjunto sellado del ejercicio "
                             + insumos.ejercicio()
-                            + " no trae el «% actualizacion» (D-11). Para 2026 su fundamento esta"
-                            + " escrito —el supuesto del art. 12 del TUO LTM no se cumple ese ano"
-                            + " porque se publicaron los aranceles y los precios unitarios— y le"
-                            + " falta la SEGUNDA FIRMA de ADR-0007, que es un acto de una persona:"
-                            + " hasta que llegue, ningun conjunto puede traer esta llave. Y no hay"
-                            + " valor por omision",
+                            + " no trae el «% actualizacion» (D-11). Su fundamento —el supuesto"
+                            + " del art. 12 del TUO LTM no se cumple— esta escrito y le falta la"
+                            + " segunda firma de ADR-0007, que es un acto de una persona, y no"
+                            + " hay valor por omision",
                     PORCENTAJE_DE_ACTUALIZACION);
         }
         return loQueImpideValorizarLoConstruido(insumos, ficha);
@@ -397,24 +395,21 @@ public final class ValorizacionDelPredio {
             // (`depreciacion.md` §3). Se nombra con el USO para que la direccion pueda contar los
             // predios por uso y ver que decide cada linea.
             return new SinValorizar(
-                    "No esta decidido que tabla de depreciacion del Anexo I del Reglamento"
-                            + " Nacional de Tasaciones le corresponde al uso «"
+                    "No esta decidido que tabla de depreciacion del Anexo I del RNT le"
+                            + " corresponde al uso «"
                             + ficha.uso()
-                            + "» (RT-004). El Anexo publica cuatro y las cuatro estan selladas;"
-                            + " traducir el uso de la ficha al numero de tabla es criterio y no"
-                            + " transcripcion, y depreciar una oficina con el porcentaje de una"
-                            + " vivienda es un error que ninguna consulta delata",
+                            + "» (RT-004). Las cuatro estan selladas; traducir el uso al numero de"
+                            + " tabla es criterio y no transcripcion, y depreciar de mas no lo"
+                            + " delata ninguna consulta",
                     TABLA_DE_DEPRECIACION + ":" + ficha.uso());
         }
         if (ficha.obrasComplementarias() > 0) {
             return new SinValorizar(
                     "El predio declara "
                             + ficha.obrasComplementarias()
-                            + " obra(s) complementaria(s) o instalacion(es) fija(s) y no hay con"
-                            + " que valorizarlas: el Anexo III de la R.M. 277-2025-VIVIENDA no"
-                            + " esta transcrito en el corpus y la ficha no declara ningun valor"
-                            + " —«otra_instalacion» guarda descripcion, unidad y cantidad, y"
-                            + " ninguna columna de importe—",
+                            + " obra(s) complementaria(s) y no hay con que valorizarlas: el"
+                            + " Anexo III de la R.M. 277-2025-VIVIENDA no esta transcrito, y"
+                            + " «otra_instalacion» no tiene columna de importe",
                     VALOR_UNITARIO_OBRA_COMPLEMENTARIA + ":" + insumos.ejercicio());
         }
         return null;

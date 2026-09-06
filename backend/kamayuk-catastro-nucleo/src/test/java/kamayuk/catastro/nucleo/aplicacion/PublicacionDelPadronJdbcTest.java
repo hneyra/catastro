@@ -268,7 +268,7 @@ class PublicacionDelPadronJdbcTest {
                 .contains("\"valorDelPredio\": null");
         assertThat(cuerpo)
                 .as("y el motivo dice que lo que falta es una FIRMA, no una cifra que nadie busco")
-                .contains("SEGUNDA FIRMA")
+                .contains("segunda firma")
                 .contains("art. 12")
                 .contains("no hay valor por omision");
         assertThat(cuerpo)

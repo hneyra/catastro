@@ -18,13 +18,20 @@
  *      **nombra los que ningun `CatalogoDelSistema` declara**, en vez de
  *      callarlos: una lista escrita a mano que nadie contrasta es el segundo
  *      sitio donde el catalogo puede estar mal.
+ *   3. **Todo campo de ordenacion que la interfaz OFRECE esta en la lista blanca
+ *      del backend.** No es cosmetica: `ordenarPor` no lo valida Spring sino
+ *      `OrdenSeguro`, que lanza **422 `ORDEN_NO_ADMITIDO`** con cualquier campo
+ *      que no declare. Un desplegable con una columna de mas no ordena raro: deja
+ *      la lista sin dibujar. Y el campo admitido no siempre se llama como el que
+ *      publica el `record` —`tipo_via` se pide `tipoVia` y la fila dice `tipo`—,
+ *      asi que la lista blanca se lee del backend en vez de deducirla.
  *
  * No abre navegador y no necesita backend levantado: lee fuentes.
  */
 import { readFile, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { leerRegistro } from './registro.mjs';
+import { leerModulo, leerRegistro } from './registro.mjs';
 
 const RAIZ_DEL_FRONTEND = new URL('../', import.meta.url);
 const BACKEND = new URL('../../backend/', import.meta.url).pathname;
@@ -150,6 +157,43 @@ async function accesosDelBackend(archivos) {
   return accesos;
 }
 
+/**
+ * Las listas blancas de ordenacion del backend, por constante.
+ *
+ * `private static final OrdenSeguro ORDEN_X = OrdenSeguro.sobre("a", "b_c");` en
+ * `ClaseJdbc.java` -> `{'ClaseJdbc.ORDEN_X': ['a', 'b_c']}`. Se admite el salto
+ * de linea porque el formateador parte las declaraciones largas.
+ */
+async function listasBlancasDeOrden(archivos) {
+  const listas = new Map();
+  for (const camino of archivos) {
+    const texto = await readFile(camino, 'utf8');
+    if (!texto.includes('OrdenSeguro.sobre(')) continue;
+    const clase = camino.split('/').pop().replace('.java', '');
+    const patron = /static\s+final\s+OrdenSeguro\s+(\w+)\s*=\s*OrdenSeguro\s*\.sobre\(([^;]*?)\)/gs;
+    for (const casa of texto.matchAll(patron)) {
+      const columnas = [...casa[2].matchAll(/"([^"]+)"/g)].map((c) => c[1]);
+      listas.set(`${clase}.${casa[1]}`, columnas);
+    }
+  }
+  return listas;
+}
+
+/** El mismo `camelCase` que `OrdenSeguro.aCamelCase`, caracter a caracter. */
+function aCamelCase(columna) {
+  let resultado = '';
+  let enMayuscula = false;
+  for (const caracter of columna) {
+    if (caracter === '_') {
+      enMayuscula = true;
+      continue;
+    }
+    resultado += enMayuscula ? caracter.toUpperCase() : caracter.toLowerCase();
+    enMayuscula = false;
+  }
+  return resultado;
+}
+
 /** Los codigos que `CatalogoDelSistema.opciones()` declara. */
 async function opcionesDelCatalogo(archivos) {
   const camino = archivos.find((f) => f.endsWith('/CatalogoDelSistema.java'));
@@ -172,6 +216,8 @@ const accesosBackend = await accesosDelBackend(archivos);
 const catalogo = await opcionesDelCatalogo(archivos);
 const declaradas = await rutasDeclaradas();
 const { ACCESOS, MODULOS } = await accesosDeclarados();
+const { ORDENES } = await leerModulo('src/api/catastro.ts', '.registro-ordenes');
+const listasDeOrden = await listasBlancasDeOrden(archivos);
 
 const fallos = [];
 const sinParametros = (r) => r.replace(/\{\w+\}/g, '{}');
@@ -208,6 +254,36 @@ for (const acceso of ACCESOS) {
   }
 }
 
+/* 3. Los campos de ordenacion que la interfaz ofrece. */
+let camposComprobados = 0;
+for (const [listado, orden] of Object.entries(ORDENES)) {
+  const columnas = listasDeOrden.get(orden.constante);
+  if (columnas === undefined) {
+    fallos.push(
+      `«${orden.constante}», que declara el orden de «${listado}», no existe en el backend.\n` +
+        '      Sin ella no se puede comprobar ni un campo, y la comprobacion se cumpliria sola: por eso\n' +
+        '      falla en vez de saltarse el listado.',
+    );
+    continue;
+  }
+  const admitidos = new Set(columnas.flatMap((c) => [c, aCamelCase(c)]));
+  for (const campo of orden.campos) {
+    camposComprobados++;
+    if (admitidos.has(campo)) continue;
+    fallos.push(
+      `«${listado}» ofrece ordenar por «${campo}» y «${orden.constante}» no lo admite.\n` +
+        `      Admite: ${[...admitidos].sort().join(', ')}.\n` +
+        '      No ordena raro: el servidor contesta 422 ORDEN_NO_ADMITIDO y la lista no se dibuja.',
+    );
+  }
+}
+if (camposComprobados === 0) {
+  fallos.push(
+    'No se comprobo ni un campo de ordenacion: «ORDENES» de «src/api/catastro.ts» llego vacio, asi\n' +
+      '      que esta parte del arnes se estaria cumpliendo sola.',
+  );
+}
+
 /* Lo que NO es un fallo pero hay que decir: los accesos que existen y que ningun
    catalogo declara. No se callan — es el segundo sitio donde el catalogo puede
    estar mal, y callarlo es como se descubre dos veces el mismo hallazgo. */
@@ -216,7 +292,8 @@ const huerfanos = catalogo === null ? [] : [...accesosBackend].filter((a) => !a.
 console.log(
   `${declaradas.length} rutas declaradas contra ${delBackend.size} del backend · ` +
     `${ACCESOS.length} accesos contra ${accesosBackend.size} · ` +
-    `${catalogo === null ? '?' : catalogo.size} opciones en el catalogo`,
+    `${catalogo === null ? '?' : catalogo.size} opciones en el catalogo · ` +
+    `${camposComprobados} campos de orden contra ${listasDeOrden.size} listas blancas`,
 );
 
 if (huerfanos.length) {
@@ -240,4 +317,4 @@ if (fallos.length) {
   for (const f of fallos) console.error('  - ' + f + '\n');
   process.exit(1);
 }
-console.log('\ntoda ruta declarada existe en el backend, y todo acceso tambien');
+console.log('\ntoda ruta declarada existe en el backend, todo acceso tambien, y ningun orden ofrecido da 422');

@@ -61,7 +61,12 @@ type Manejador = (contexto: Contexto) => Respuesta;
 
 const esperar = (ms: number) => new Promise((listo) => setTimeout(listo, ms));
 
-function problema(codigo: string, estado: number, mensaje: string): Respuesta {
+function problema(
+  codigo: string,
+  estado: number,
+  mensaje: string,
+  parametroQueFalta?: { ejercicio: number; llave?: string },
+): Respuesta {
   /* Con la forma COMPLETA del `ManejadorDeErrores` —con `type` y `detail`—
      porque estos rechazos vienen de un controlador y no de un filtro. Los 401 y
      403 de los filtros salen mas cortos, y quien los lee no puede confiar en
@@ -75,6 +80,11 @@ function problema(codigo: string, estado: number, mensaje: string): Respuesta {
       detail: mensaje,
       codigo,
       mensaje,
+      /* `ManejadorDeErrores` lo pone con `setProperty` **solo cuando el problema
+         lo trae**, y por eso significa algo: un rechazo con este miembro no se
+         arregla desde la pantalla —hay que sellar el conjunto o publicar la
+         fila—. Se omite cuando no lo hay, en vez de mandarlo nulo. */
+      ...(parametroQueFalta === undefined ? {} : { parametroQueFalta }),
     },
   };
 }
@@ -351,14 +361,26 @@ const TABLA: readonly { metodo: string; ruta: string; responder: Manejador }[] =
   },
 ];
 
-/** Un cuadro del ejercicio: solo el sellado lo tiene; los demas, 404. */
+/**
+ * Un cuadro del ejercicio: solo el sellado lo tiene; los demas, 404.
+ *
+ * **Con su `parametroQueFalta`, y sin `llave`.** Es lo que el backend emite,
+ * medido: los tres controladores solo atrapan
+ * `LectorDeParametros.EjercicioSinSellar`, cuyo `llave()` es `Optional.empty()`,
+ * asi que estas tres rutas nunca nombran una fila del corpus — lo que falta es
+ * el conjunto entero del ano. Omitir el miembro aqui dejaria a la pantalla sin
+ * el unico discriminador que separa «falta un campo de la peticion», que quien
+ * atiende arregla, de «falta publicar», que no arregla nadie desde la pantalla.
+ */
 function cuadroDe(contexto: Contexto, filas: readonly unknown[]): Respuesta {
   const ejercicio = Number(contexto.consulta.get('ejercicio') ?? '');
   if (ejercicio !== D.EJERCICIO) {
     return problema(
       'NO_ENCONTRADO',
       404,
-      `El ejercicio ${ejercicio} no tiene un conjunto de parametros sellado del que leer este cuadro`,
+      `El ejercicio ${ejercicio} no tiene un conjunto de parametros sellado. Calcular con uno abierto` +
+        ' produciria una cifra que manana puede ser otra, y el contribuyente ya tendria el recibo (ADR-0007)',
+      { ejercicio },
     );
   }
   return ok(filas);
@@ -406,7 +428,50 @@ function compilar(ruta: string): { patron: RegExp; nombres: string[] } {
   return { patron: new RegExp(`^${RAIZ.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}${escapado}$`), nombres };
 }
 
-const COMPILADAS = TABLA.map((entrada) => ({ ...entrada, ...compilar(entrada.ruta) }));
+/** Cuantos `{parametro}` tiene una ruta del contrato. */
+function cuantosParametros(ruta: string): number {
+  return (ruta.match(/\{\w+\}/g) ?? []).length;
+}
+
+/**
+ * La tabla, ordenada de lo LITERAL a lo parametrizado.
+ *
+ * <h2>Un defecto que se encontro midiendo, y cuyo sintoma era una respuesta
+ * plausible</h2>
+ *
+ * El encaminamiento recorria la tabla en el orden en que esta escrita, y
+ * `/catastro/predios/{predioId}` esta ANTES que `/catastro/predios/plano`. Asi
+ * que `GET /catastro/predios/plano` casaba con el primero, `Number('plano')`
+ * daba `NaN`, y el proxy contestaba **404 «No hay ningun predio con ese
+ * identificador»** a la lectura del plano catastral.
+ *
+ * Lo caro no es el 404: es que en ESA pantalla un 404 se lee como una respuesta
+ * correcta —«aqui no hay lotes» y «no existe» se parecen mucho cuando lo que se
+ * espera es un plano vacio—, asi que la pantalla llevaba desde #32 ensenando el
+ * error de otra ruta y nadie tenia como notarlo. `/catastro/predios/plano/marco`
+ * se salvaba de milagro: tiene un segmento mas y ningun patron lo tapa.
+ *
+ * Se ordena por numero de parametros y **se comprueba que el orden funciona**:
+ * toda ruta sin parametros tiene que casar consigo misma y no con otra. Un
+ * arreglo por reordenacion se deshace solo en cuanto alguien anade una entrada
+ * al final, y esta comprobacion lo dice al importar el modulo, no en produccion.
+ */
+const COMPILADAS = TABLA.map((entrada) => ({ ...entrada, ...compilar(entrada.ruta) })).sort(
+  (a, b) => cuantosParametros(a.ruta) - cuantosParametros(b.ruta),
+);
+
+for (const entrada of COMPILADAS) {
+  if (cuantosParametros(entrada.ruta) > 0) continue;
+  const camino = RAIZ + entrada.ruta;
+  const primera = COMPILADAS.find((otra) => otra.metodo === entrada.metodo && otra.patron.test(camino));
+  if (primera !== entrada) {
+    throw new Error(
+      `El proxy encamina «${entrada.metodo} ${entrada.ruta}» a «${primera?.ruta}»: una ruta literal la` +
+        ' esta tapando un patron con parametro. Ordenar por numero de parametros no basta para este par,' +
+        ' y contestar la respuesta de otra ruta es un fallo que la pantalla lee como si fuera suyo.',
+    );
+  }
+}
 
 /** Cuantas operaciones responde el proxy. */
 export const OPERACIONES_SIMULADAS = COMPILADAS.length;

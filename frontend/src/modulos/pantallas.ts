@@ -34,3 +34,22 @@ export const PANTALLAS: Record<string, ComponentType<PantallaProps>> = {
   'consultas/ficha-contribuyente': FichaDelContribuyente,
   'parametros/ejercicio': Ejercicio,
 };
+
+/**
+ * Los destinos que se dibujan **a sangre**: sin el margen del `<main>`.
+ *
+ * Son los tres del artboard que ocupan el alto entero y llevan su propio
+ * desplazamiento: los dos maestro-detalle —Predios y Territorio— y la hoja de
+ * cuadros, cuya cabecera de tabla se queda fija mientras el cuerpo baja. Con el
+ * margen de 18 px del armazon, el `data-split` no puede medir su alto y las dos
+ * columnas se desplazan por separado dentro de un tercer desplazamiento.
+ *
+ * Es una lista y no una bandera de la pantalla porque quien pone el margen es el
+ * armazon: la pantalla no puede quitarselo desde dentro sin margenes negativos,
+ * que es como se rompe al primer cambio de medida.
+ */
+export const A_SANGRE: ReadonlySet<string> = new Set([
+  'catastro/predios',
+  'catastro/territorio',
+  'catastro/valores',
+]);

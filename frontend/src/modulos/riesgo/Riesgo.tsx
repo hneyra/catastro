@@ -1,7 +1,7 @@
 import type { PantallaProps } from '../../App';
 import * as api from '../../api/grd';
 import { useRecurso } from '../../api/useRecurso';
-import { Aviso, Campo, Dato, Insignia, Lectura, Rejilla, Seccion, Tabla } from '../../ds/componentes';
+import { Aviso, Campo, Dato, Insignia, Lectura, Rejilla, Seccion, Servida, Tabla } from '../../ds/componentes';
 
 function predioDe(sujeto: string): number | null {
   return /^\d+$/.test(sujeto) ? Number(sujeto) : null;
@@ -95,6 +95,11 @@ export function RiesgoDelPredio({ ruta, onSujeto }: PantallaProps) {
         <strong>no hay ni un poligono cargado</strong>. El servidor contesta que el predio existe y le falta la
         geometria, en vez de decir que no existe.
       </Aviso>
+
+      <Servida
+        lee={[api.RUTAS.riesgo]}
+        falta="Ninguna ruta de este backend publica la carta de peligro entera ni permite cargarla: las zonas entran por el cargador batch «cargar-riesgo», que vive en «infra/carga-de-datos»."
+      />
     </div>
   );
 }
@@ -146,6 +151,11 @@ export function Itse({ ruta, onSujeto }: PantallaProps) {
         El ITSE cuelga del predio y no de su geometria, asi que no le afecta que no haya cartografia cargada. Su
         vecina, el riesgo, si.
       </Aviso>
+
+      <Servida
+        lee={[api.RUTAS.itse]}
+        falta="No hay ninguna lectura que liste TODOS los certificados de la municipalidad: se piden por predio, asi que esta pantalla pide el predio."
+      />
     </div>
   );
 }

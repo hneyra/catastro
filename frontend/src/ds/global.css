@@ -95,6 +95,29 @@ textarea:focus {
   z-index: 2;
 }
 
+/* Los dos cortes del maestro-detalle, literales del artboard (lineas 33-37).
+   El primero estrecha la lista; el segundo la pone encima del detalle, porque
+   por debajo de 900 px dos columnas dejan las dos ilegibles. */
+@media (max-width: 1240px) {
+  [data-lista] {
+    flex: 0 0 320px !important;
+    width: 320px !important;
+  }
+}
+
+@media (max-width: 900px) {
+  [data-split] {
+    flex-direction: column !important;
+  }
+  [data-lista] {
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    max-height: 300px;
+    border-right: 0 !important;
+    border-bottom: 1px solid var(--linea) !important;
+  }
+}
+
 @media (max-width: 760px) {
   [data-sm-hide] {
     display: none !important;

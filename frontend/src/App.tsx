@@ -4,7 +4,7 @@ import type { Pestania } from './shell/Shell';
 import { DESTINO_INICIAL, destinoDe } from './shell/modulos';
 import { RUTA_VACIA, escribirRuta, leerRuta } from './shell/ruta';
 import type { Ruta } from './shell/ruta';
-import { PANTALLAS } from './modulos/pantallas';
+import { A_SANGRE, PANTALLAS } from './modulos/pantallas';
 
 /** Lo que recibe cada pantalla. Ninguna toca el hash directamente. */
 export type PantallaProps = {
@@ -13,6 +13,16 @@ export type PantallaProps = {
   onSujeto: (sujeto: string) => void;
   /** Cambia los filtros. Va por `replaceState`: no llena el historial. */
   onFiltros: (filtros: Record<string, string>) => void;
+  /**
+   * Ir a OTRO destino, llevandole su sujeto y sus filtros.
+   *
+   * Es lo que hacen las entradas de la cola de trabajo del panel: cada una lleva
+   * a la lista de predios **con su filtro puesto**, que es lo que la vuelve una
+   * cola y no un rotulo. El `ir` del armazon no sirve para eso: borra el sujeto
+   * y los filtros a proposito, porque un codigo de predio que se miraba en
+   * Zonificacion no nombra nada en Territorio.
+   */
+  onIr: (modulo: string, destino: string, filtros?: Record<string, string>, sujeto?: string) => void;
   /** El ejercicio de la barra global, que es global a la sesion. */
   ejercicio: number;
 };
@@ -131,13 +141,27 @@ export default function App() {
     [navegar, ruta],
   );
 
+  const irCon = useCallback(
+    (modulo: string, destinoNuevo: string, filtros: Record<string, string> = {}, sujeto = '') =>
+      navegar({ modulo, destino: destinoNuevo, sujeto, filtros }),
+    [navegar],
+  );
+
   const destino = destinoDe(ruta.modulo, ruta.destino);
   const Pantalla = PANTALLAS[`${ruta.modulo}/${ruta.destino}`];
 
   const contenido = useMemo(() => {
     if (!Pantalla) return null;
-    return <Pantalla ruta={ruta} onSujeto={onSujeto} onFiltros={onFiltros} ejercicio={Number(ejercicio)} />;
-  }, [Pantalla, ruta, onSujeto, onFiltros, ejercicio]);
+    return (
+      <Pantalla
+        ruta={ruta}
+        onSujeto={onSujeto}
+        onFiltros={onFiltros}
+        onIr={irCon}
+        ejercicio={Number(ejercicio)}
+      />
+    );
+  }, [Pantalla, ruta, onSujeto, onFiltros, irCon, ejercicio]);
 
   return (
     <Shell
@@ -150,6 +174,7 @@ export default function App() {
       onCerrar={cerrar}
       titulo={destino ? destino.hoja.label : 'Destino desconocido'}
       subtitulo={destino ? `${destino.modulo.label} · ${destino.hoja.nota}` : ruta.destino}
+      aSangre={A_SANGRE.has(`${ruta.modulo}/${ruta.destino}`)}
     >
       {contenido ?? <Desconocido ruta={ruta} />}
     </Shell>

@@ -1,7 +1,7 @@
 import type { PantallaProps } from '../../App';
 import * as api from '../../api/parametros';
 import { useRecurso } from '../../api/useRecurso';
-import { Aviso, Dato, Insignia, Lectura, Rejilla, Seccion } from '../../ds/componentes';
+import { Aviso, Dato, Insignia, Lectura, Rejilla, Seccion, Servida } from '../../ds/componentes';
 
 /** Si el ejercicio de la barra global tiene conjunto sellado, y cual. */
 export function Ejercicio({ ejercicio }: PantallaProps) {
@@ -46,6 +46,11 @@ export function Ejercicio({ ejercicio }: PantallaProps) {
         como una opcion inventada— porque una opcion que el catalogo no tiene es un permiso que nadie puede
         conceder.
       </Aviso>
+
+      <Servida
+        lee={[api.RUTAS.ejercicio]}
+        falta="Sellar el conjunto no lo sirve ninguna ruta de este backend: se sella en «normativa», y aqui solo se lee la copia local."
+      />
     </div>
   );
 }

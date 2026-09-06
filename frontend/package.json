@@ -15,8 +15,10 @@
     "reglas": "node verificaciones/reglas.mjs",
     "node": "node verificaciones/node.mjs",
     "rutas": "node verificaciones/rutas.mjs",
+    "datos": "node verificaciones/datos.mjs",
     "mirar": "node verificaciones/mirar.mjs",
     "sin-red": "node verificaciones/sin-red.mjs",
+    "impedimentos": "node verificaciones/impedimentos.mjs",
     "paleta": "node verificaciones/paleta.mjs"
   },
   "dependencies": {

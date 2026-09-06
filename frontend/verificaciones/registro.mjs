@@ -15,9 +15,20 @@ import { pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
 
 export async function leerRegistro(nombre = '.registro') {
+  return leerModulo('src/shell/modulos.ts', nombre);
+}
+
+/**
+ * Cualquier modulo de `src/`, compilado al vuelo y cargado.
+ *
+ * Vale para lo mismo que el registro y por el mismo motivo: lo que un arnes
+ * compara tiene que salir del fuente que la aplicacion usa, no de una copia
+ * escrita al lado.
+ */
+export async function leerModulo(entrada, nombre = '.modulo') {
   const temporal = new URL(`./${nombre}.mjs`, import.meta.url);
   await build({
-    entryPoints: ['src/shell/modulos.ts'],
+    entryPoints: [entrada],
     outfile: temporal.pathname,
     bundle: true,
     format: 'esm',

@@ -30,9 +30,35 @@ import { chromium } from 'playwright-core';
 import { spawn } from 'node:child_process';
 import { readFile, readdir, rm } from 'node:fs/promises';
 import { leerRegistro } from './registro.mjs';
+import { VISTAS, comprobarVistas, hashDe } from './vistas.mjs';
 
 const { DESTINOS } = await leerRegistro('.registro-sin-red');
 const soloModulo = process.argv[2]?.startsWith('--') ? null : process.argv[2];
+
+const desajustes = comprobarVistas(DESTINOS);
+if (desajustes.length) {
+  console.error(`\n${desajustes.length} vista(s) no cuadran con el registro:\n\n  ${desajustes.join('\n  ')}`);
+  process.exit(2);
+}
+
+/* Los destinos y ademas sus ESTADOS: el detalle de un maestro-detalle y la
+   pestana de una matriz no se dibujan con el destino a secas, y una cifra del
+   simulado escondida ahi pasaria este arnes en verde. */
+const RECORRIDO = [
+  ...DESTINOS.map((d) => ({ modulo: d.modulo, hash: `#/${d.modulo}/${d.hoja}` })),
+  ...VISTAS.map((v) => ({ modulo: v.modulo, hash: hashDe(v) })),
+];
+
+/**
+ * La raiz de la API, tal como sale escrita en pantalla.
+ *
+ * Con el backend caido, una pantalla que solo diga «no se pudo leer» no dice el
+ * QUE: la mitad util de una pantalla sin datos es nombrar la ruta que se lo
+ * habria contestado. Lo pone `Servida`, que recibe las rutas de `src/api/*.ts`
+ * —donde `rutas.mjs` las contrasta contra el backend—, asi que aqui basta con
+ * comprobar que la pantalla nombra alguna.
+ */
+const RAIZ_EN_PANTALLA = '/catastro/api/v1';
 
 const SALIDA = 'dist-sin-red';
 const PUERTO = Number(process.env.CATASTRO_PUERTO_SIN_RED ?? 5211);
@@ -212,9 +238,9 @@ async function desplegarlo() {
 const sucias = [];
 let vistas = 0;
 
-for (const d of DESTINOS) {
+for (const d of RECORRIDO) {
   if (soloModulo && d.modulo !== soloModulo) continue;
-  const ruta = `#/${d.modulo}/${d.hoja}`;
+  const ruta = d.hash;
   await pagina.goto(`${BASE}/${ruta}`, { waitUntil: 'domcontentloaded' });
   await pagina.waitForTimeout(900);
   vistas++;
@@ -238,6 +264,17 @@ for (const d of DESTINOS) {
     .catch(() => '');
   if (cuerpo.trim().length < 40) {
     sucias.push({ ruta, nombre: 'muda', halladas: ['el <main> se queda en blanco'], total: 1 });
+  }
+
+  /* Y que diga QUE no pudo leer. «No se pudo contactar con el servidor» sin la
+     ruta deja a quien mira sin nada que comprobar ni a quien preguntar. */
+  if (!cuerpo.includes(RAIZ_EN_PANTALLA)) {
+    sucias.push({
+      ruta,
+      nombre: 'anonima',
+      halladas: ['no nombra ninguna ruta del backend'],
+      total: 1,
+    });
   }
 }
 

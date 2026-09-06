@@ -1,7 +1,8 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { Icono } from './Icono';
 import { ICO } from './iconos';
-import type { ErrorDeApi } from '../api/cliente';
+import { RAIZ } from '../api/cliente';
+import type { ErrorDeApi, ParametroQueFalta } from '../api/cliente';
 
 /**
  * Los primitivos del artboard, con sus estilos EN LINEA y sus valores tal cual.
@@ -435,12 +436,7 @@ export function Fallo({ error, reintentar }: { error: ErrorDeApi; reintentar: ()
             ))}
           </ul>
         ) : null}
-        {error.faltaUnaCifraNormativa ? (
-          <p style={{ margin: '6px 0 0' }}>
-            Falta publicar «{error.parametroQueFalta}». No se arregla desde esta pantalla: hay que sellar el
-            conjunto o publicar la cifra.
-          </p>
-        ) : null}
+        {error.parametroQueFalta ? <LoQueFalta falta={error.parametroQueFalta} /> : null}
         {error.incidencia ? (
           <p style={{ margin: '6px 0 0', fontVariantNumeric: 'tabular-nums' }}>
             Incidencia {error.incidencia}
@@ -448,6 +444,26 @@ export function Fallo({ error, reintentar }: { error: ErrorDeApi; reintentar: ()
         ) : null}
       </Aviso>
     </div>
+  );
+}
+
+/**
+ * Que hay que publicar, dicho con lo que el backend publica y nada mas.
+ *
+ * Son **dos frases distintas**, y la diferencia es el trabajo: con `llave`, lo
+ * que falta es una fila concreta del corpus y se puede nombrar; sin ella, lo
+ * que falta es el conjunto sellado del ejercicio entero y **no hay ninguna
+ * llave que nombrar** — inventar una aqui seria mandar a publicar algo que
+ * nadie ha pedido. Las tres lecturas de cuadro caen siempre en la segunda.
+ */
+export function LoQueFalta({ falta }: { falta: ParametroQueFalta }) {
+  return (
+    <p style={{ margin: '6px 0 0' }}>
+      {falta.llave
+        ? `Falta publicar «${falta.llave}» del ejercicio ${falta.ejercicio}.`
+        : `Falta sellar el conjunto de parametros del ejercicio ${falta.ejercicio}; el servidor no nombra ninguna llave, porque lo que falta es el conjunto entero y no una fila suya.`}{' '}
+      No se arregla desde esta pantalla: se sella en «normativa».
+    </p>
   );
 }
 
@@ -467,6 +483,62 @@ const titulosDeError: Partial<Record<string, string>> = {
 };
 
 /** Lo que la pantalla dice mientras espera a que alguien escriba el sujeto. */
+/**
+ * Que ruta del backend sirve esta pantalla, y que le falta al backend.
+ *
+ * <h2>Las rutas NO se escriben aqui</h2>
+ *
+ * Se pasan desde `src/api/*.ts`, que es donde estan declaradas con la misma
+ * cadena que el `@RequestMapping` del backend y donde `verificaciones/rutas.mjs`
+ * las contrasta. Escribirlas a mano en la pantalla crearia un segundo sitio con
+ * la misma verdad —la forma de defecto que C-17 encontro cinco veces— y ademas
+ * dejaria de estar comprobado que la ruta nombrada existe.
+ *
+ * <h2>Y sigue diciendolo con el backend caido</h2>
+ *
+ * Es texto, no una lectura. Con la red cortada la pantalla no puede ensenar ni
+ * una cifra y **sigue nombrando lo que le habria contestado**, que es la mitad
+ * util de una pantalla sin datos: sin ella, «no se pudo leer» no dice el que.
+ */
+export function Servida({
+  lee,
+  falta,
+}: {
+  /** Las rutas del contrato que esta pantalla lee, como las declara `src/api`. */
+  lee: readonly string[];
+  /** Lo que el backend no publica, y por eso esta pantalla no lo dibuja. */
+  falta?: ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        padding: '11px 16px',
+        background: 'var(--sup)',
+        border: '1px solid var(--linea)',
+        borderRadius: 8,
+        fontSize: 12.5,
+        lineHeight: 1.55,
+        color: 'var(--tinta-3)',
+        textWrap: 'pretty',
+      }}
+    >
+      <p style={{ margin: 0 }}>
+        {lee.length === 1 ? 'La sirve' : 'La sirven'}{' '}
+        {lee.map((ruta, i) => (
+          <span key={ruta}>
+            {i > 0 ? ' · ' : ''}
+            <code style={{ fontSize: 12, color: 'var(--tinta-2)' }}>
+              GET {RAIZ}
+              {ruta}
+            </code>
+          </span>
+        ))}
+      </p>
+      {falta ? <p style={{ margin: '6px 0 0' }}>{falta}</p> : null}
+    </div>
+  );
+}
+
 export function EnEspera({ children }: { children: ReactNode }) {
   return (
     <div style={{ padding: '26px 16px', display: 'grid', placeItems: 'center' }}>

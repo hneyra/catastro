@@ -32,6 +32,79 @@ export const RUTAS = {
   depreciacion: '/catastro/tablas/depreciacion',
 } as const;
 
+/**
+ * Por que campos deja ordenar cada listado, y **de donde sale la lista**.
+ *
+ * <h2>Ofrecer una columna que da 422 es ofrecer un error</h2>
+ *
+ * `ParametrosDePaginacion.ordenarPor` no lo valida Spring: lo valida
+ * `OrdenSeguro`, que tiene una lista blanca por consulta y lanza
+ * `OrdenNoAdmitido` —**422 `ORDEN_NO_ADMITIDO`**— con cualquier otro campo. Un
+ * desplegable que ofrezca «Autovaluo» no ordena mal: revienta la lectura.
+ *
+ * <h2>Los nombres son los CAMELCASE, y esta medido por que valen</h2>
+ *
+ * `OrdenSeguro.sobre("cod_ref_catastral", …)` mete cada columna **dos veces**:
+ * la cruda y su `aCamelCase`. Asi que `codRefCatastral` es un campo admitido de
+ * verdad y no una traduccion que esta interfaz se invente.
+ *
+ * **Y hay una trampa medida en las vias**: la columna es `tipo_via`, o sea que
+ * el campo admitido es `tipoVia`, mientras que el `record` publica `tipo`.
+ * Pedir `ordenarPor=tipo` —el nombre que se ve en la tabla— da 422. Es el
+ * desajuste que `OrdenSeguro.publicandoComo` existe para arreglar y que en esta
+ * consulta no se aplica; aqui se declara el nombre que el backend admite.
+ *
+ * `constante` nombra la constante del backend de la que sale cada lista, para
+ * que `verificaciones/rutas.mjs` compare las dos y no una copia con otra copia.
+ */
+export type OrdenAdmitido = {
+  readonly constante: string;
+  readonly campos: readonly string[];
+};
+
+export const ORDENES = {
+  predios: {
+    constante: 'CatastroRepositoryJdbc.ORDEN_CATASTRO',
+    campos: ['codRefCatastral', 'direccion', 'predioId'],
+  },
+  fichas: {
+    constante: 'FichaCatastralRepositoryJdbc.ORDEN_CONSULTA',
+    campos: ['codRefCatastral', 'direccion', 'uso', 'vigenciaDesde', 'id'],
+  },
+  sectores: {
+    constante: 'CatastroRepositoryJdbc.ORDEN_SECTOR',
+    campos: ['codigo', 'nombre', 'zona', 'id'],
+  },
+  manzanas: { constante: 'CatastroRepositoryJdbc.ORDEN_MANZANA', campos: ['codigo', 'id'] },
+  vias: { constante: 'ViaRepositoryJdbc.ORDEN', campos: ['codigo', 'nombre', 'tipoVia', 'id'] },
+} as const satisfies Record<string, OrdenAdmitido>;
+
+/**
+ * El tamano maximo de pagina que el backend admite.
+ *
+ * `Paginacion.TAMANO_MAXIMO`. Pedir mas es un 422 `VALIDACION`, asi que una
+ * pantalla que quiera contar sobre el padron entero tiene que saber si le cabe:
+ * cuando `totalElementos` supera lo que trajo la pagina, la cuenta **no se
+ * hace** y se dice, en vez de contar sobre un trozo y llamarlo total.
+ */
+export const TAMANO_MAXIMO = 500;
+
+/** Los dos estados de un predio, letra por letra como los nombra `EstadoPredio`. */
+export const ESTADOS_DE_PREDIO = ['ACTIVO', 'DADO_DE_BAJA'] as const;
+export type EstadoDePredio = (typeof ESTADOS_DE_PREDIO)[number];
+
+/** Los dos tipos de predio (`TipoPredio`). */
+export const TIPOS_DE_PREDIO = ['URBANO', 'RUSTICO'] as const;
+
+/**
+ * Lo que admite el filtro `titularidad` (`TitularidadDelPredio`).
+ *
+ * El controlador lo pasa por `toUpperCase` y contesta 422 a cualquier otra
+ * cosa, asi que se ofrecen estos tres y ninguno mas.
+ */
+export const TITULARIDADES = ['SIN_TITULAR', 'INCOMPLETA', 'COMPLETA'] as const;
+export type Titularidad = (typeof TITULARIDADES)[number];
+
 /* ── El padron ──────────────────────────────────────────────────────────── */
 
 export type PredioDelCatastro = {
@@ -220,11 +293,20 @@ export type Via = {
   activa: boolean;
 };
 
+/**
+ * Lo que esta interfaz puede mandar a `GET /catastro/vias`.
+ *
+ * **`sector` NO esta, y es a proposito.** El controlador lo declara y lo
+ * **rechaza**: `ViaController` lanza 422 `VALIDACION` en cuanto llega con valor
+ * —«el filtro 'sector' no se sirve: la tabla de vias no guarda el sector y esta
+ * lectura no lo publica»—, y lo hace en vez de ignorarlo porque una lista sin
+ * filtrar bajo un filtro tecleado se lee como filtrada. Dejarlo en este tipo
+ * seria dejar a mano el unico parametro de esta ruta que revienta la lectura.
+ */
 export type FiltrosDeVias = {
   codigoDeVia?: string;
   nombreDeCalle?: string;
   tipoDeVia?: string;
-  sector?: string;
   activa?: boolean;
 };
 

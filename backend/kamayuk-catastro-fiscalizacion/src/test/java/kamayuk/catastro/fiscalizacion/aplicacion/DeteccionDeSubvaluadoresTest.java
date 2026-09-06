@@ -57,12 +57,31 @@ class DeteccionDeSubvaluadoresTest {
 
     /** El padron sin ningun poligono: la situacion REAL de hoy en todas las instalaciones. */
     private static final AreasDelPadron SIN_CARTOGRAFIA =
-            (tolerancia, tope) -> {
-                throw new AreasDelPadron.SinCartografia();
+            new AreasDelPadron() {
+                @Override
+                public List<ContrasteDeAreas> contrastar(Tolerancia tolerancia, int tope) {
+                    throw new AreasDelPadron.SinCartografia();
+                }
+
+                @Override
+                public boolean estaEnElPadron(long predioId) {
+                    // Sin cartografia el padron sigue teniendo predios: lo que falta son planos.
+                    return true;
+                }
             };
 
     private static AreasDelPadron con(ContrasteDeAreas... contrastes) {
-        return (tolerancia, tope) -> List.of(contrastes);
+        return new AreasDelPadron() {
+            @Override
+            public List<ContrasteDeAreas> contrastar(Tolerancia tolerancia, int tope) {
+                return List.of(contrastes);
+            }
+
+            @Override
+            public boolean estaEnElPadron(long predioId) {
+                return true;
+            }
+        };
     }
 
     private static ContrasteDeAreas contraste(

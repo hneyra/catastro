@@ -23,6 +23,7 @@ import kamayuk.catastro.fiscalizacion.dominio.EtapaDeVerificacion;
 import kamayuk.catastro.fiscalizacion.dominio.Evidencia;
 import kamayuk.catastro.fiscalizacion.dominio.FiscalizacionRepository;
 import kamayuk.catastro.fiscalizacion.dominio.Hallazgo;
+import kamayuk.catastro.fiscalizacion.dominio.HallazgoDelPredio;
 import kamayuk.catastro.fiscalizacion.dominio.HuellaDeEvidencia;
 import kamayuk.catastro.fiscalizacion.dominio.OrigenDelCandidato;
 import kamayuk.catastro.fiscalizacion.dominio.Score;
@@ -74,6 +75,54 @@ public class FiscalizacionRepositoryJdbc extends RepositorioJdbc
     private static final String COLUMNAS_HALLAZGO =
             "id, candidato_id, clase, predio_id, ficha_id, area_de_la_ficha, area_verificada,"
                     + " inspector, verificado_en, estado, ST_AsText(geometria) AS geometria_wkt";
+
+    /**
+     * Los hallazgos de UN predio, con su campania y su acta (#17, AC-1 y AC-2).
+     *
+     * <p><b>Se le pide a esta constante y no a una copia</b>: la prueba de plan mide la sentencia
+     * que corre en produccion, y una copia escrita en la prueba seguiria en verde el dia que
+     * alguien cambiara esta.
+     *
+     * <h2>Por que llega al indice, medido y no supuesto</h2>
+     *
+     * <p>{@code hallazgo_predio_ix} —{@code (municipalidad_id, predio_id) WHERE predio_id IS NOT
+     * NULL}— ya existe desde {@code V9}, y AC-2 pedia decidir <b>midiendo</b> si hacia falta otro.
+     * Se midio: con volumen, el plan lo elige y pone las dos columnas en el {@code Index Cond}
+     * junto con la condicion de la politica. No se anade ninguno: un indice que nadie consulta se
+     * paga en cada escritura y ademas COMPITE —la leccion de {@code zonificacion_vigencia_ix} en
+     * #4—.
+     *
+     * <p>El {@code = :predioId} satisface por si solo el predicado parcial del indice: un valor
+     * comparado con {@code =} no es nulo, asi que el planificador puede usarlo sin que la consulta
+     * escriba {@code IS NOT NULL}.
+     *
+     * <h2>Los JOIN llevan su municipalidad, aunque la politica ya la garantice</h2>
+     *
+     * <p>Igual que {@code GestionDeRiesgoRepositoryJdbc}: sin la igualdad de {@code
+     * municipalidad_id} el plan no tiene por donde enlazar las tablas por su clave primaria —que es
+     * {@code (municipalidad_id, id)} en las cuatro—, y el bucle acaba comparando en el {@code Join
+     * Filter} lo que deberia estar en el {@code Index Cond}.
+     *
+     * <p>El acta entra con {@code LEFT JOIN} y no con una segunda consulta por fila: un hallazgo
+     * firme sin acta es un estado legitimo del recorrido, y preguntarla aparte por cada hallazgo
+     * seria N+1 sobre una lectura que existe para contestarse de una vez.
+     */
+    public static final String HALLAZGOS_DEL_PREDIO =
+            "SELECT h.id, h.candidato_id, h.clase, h.predio_id, h.ficha_id, h.area_de_la_ficha,"
+                    + " h.area_verificada, h.inspector, h.verificado_en, h.estado,"
+                    + " ST_AsText(h.geometria) AS geometria_wkt,"
+                    + " c.campania_id, m.codigo AS campania_codigo,"
+                    + " a.id AS acta_id, a.numero AS acta_numero, a.fecha AS acta_fecha,"
+                    + " a.inspector AS acta_inspector, a.detalle AS acta_detalle"
+                    + " FROM hallazgo h"
+                    + " JOIN candidato c"
+                    + "   ON c.municipalidad_id = h.municipalidad_id AND c.id = h.candidato_id"
+                    + " JOIN campania m"
+                    + "   ON m.municipalidad_id = c.municipalidad_id AND m.id = c.campania_id"
+                    + " LEFT JOIN acta a"
+                    + "   ON a.municipalidad_id = h.municipalidad_id AND a.hallazgo_id = h.id"
+                    + " WHERE h.predio_id = :predioId"
+                    + " ORDER BY h.verificado_en DESC, h.id DESC";
 
     private static final String COLUMNAS_EVIDENCIA =
             "id, hallazgo_id, tipo, sha256, ruta, capturado_en, recibido_en, dispositivo";
@@ -400,6 +449,42 @@ public class FiscalizacionRepositoryJdbc extends RepositorioJdbc
                 paginacion,
                 ORDEN_HALLAZGOS,
                 FiscalizacionRepositoryJdbc::mapearHallazgo);
+    }
+
+    @Override
+    public List<HallazgoDelPredio> hallazgosDelPredio(long predioId) {
+        return jdbc().sql(HALLAZGOS_DEL_PREDIO)
+                .param("predioId", predioId)
+                .query(FiscalizacionRepositoryJdbc::mapearHallazgoDelPredio)
+                .list();
+    }
+
+    /**
+     * Una fila de {@link #HALLAZGOS_DEL_PREDIO}: el hallazgo, su campania y —si la hay— su acta.
+     *
+     * <p>El acta se reconoce por {@code acta_id} nulo y no por su numero: el {@code LEFT JOIN} deja
+     * todas sus columnas nulas cuando no hay fila, y {@code numero} es {@code NOT NULL} en la tabla
+     * — asi que preguntarle a la clave es preguntarle a lo unico que no puede ser nulo por otro
+     * motivo.
+     */
+    private static HallazgoDelPredio mapearHallazgoDelPredio(ResultSet fila, int numero)
+            throws SQLException {
+        long actaId = fila.getLong("acta_id");
+        Acta acta =
+                fila.wasNull()
+                        ? null
+                        : new Acta(
+                                actaId,
+                                fila.getString("acta_numero"),
+                                fila.getLong("id"),
+                                fila.getObject("acta_fecha", java.time.LocalDate.class),
+                                fila.getString("acta_inspector"),
+                                fila.getString("acta_detalle"));
+        return new HallazgoDelPredio(
+                mapearHallazgo(fila, numero),
+                fila.getLong("campania_id"),
+                fila.getString("campania_codigo"),
+                acta);
     }
 
     // ── Evidencia y acta: solo entran, nunca cambian ───────────────────

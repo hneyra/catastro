@@ -158,7 +158,7 @@ class ValorizacionDelPredioTest {
                 .as(
                         "y dice que lo que falta es una FIRMA y no una cifra, y que no hay valor"
                                 + " por omision: es lo que separa «no lo se» de «pongo cero»")
-                .contains("SEGUNDA FIRMA")
+                .contains("segunda firma")
                 .contains("art. 12")
                 .contains("no hay valor por omision");
     }
@@ -229,7 +229,7 @@ class ValorizacionDelPredioTest {
         assertThat(valuacion.motivo())
                 .as("no hay ni cuadro ni declaracion de donde sacar la cifra")
                 .contains("Anexo III")
-                .contains("ninguna columna de importe");
+                .contains("no tiene columna de importe");
     }
 
     // ------------------------------------------------------------------

@@ -19,7 +19,8 @@
     "mirar": "node verificaciones/mirar.mjs",
     "sin-red": "node verificaciones/sin-red.mjs",
     "impedimentos": "node verificaciones/impedimentos.mjs",
-    "paleta": "node verificaciones/paleta.mjs"
+    "paleta": "node verificaciones/paleta.mjs",
+    "imagen": "node verificaciones/imagen.mjs"
   },
   "dependencies": {
     "react": "^19.1.0",

@@ -39,18 +39,23 @@ import org.junit.jupiter.api.Test;
  * <h2>Se cuenta TRES VECES, y la diferencia entre las tres es el entregable</h2>
  *
  * <ol>
- *   <li><b>Hoy</b>, con el {@code % actualizacion} <b>ausente</b>. Es el estado real del sistema:
- *       su archivo del corpus esta en {@code TRANSCRITO} —le falta la segunda firma de ADR-0007, y
- *       ninguna maquina puede ponerla— asi que ningun conjunto sellado puede traer esa llave.
- *   <li><b>El dia que una persona firme §1.6</b>, con el {@code % actualizacion} en el valor que
- *       ese fundamento sella: <b>cero</b>. Es un contrafactual y se dice que lo es.
- *   <li><b>El mismo contrafactual con un porcentaje distinto de cero</b>, que no es ningun
- *       ejercicio real: existe para medir <b>que cifra de las cuatro depende de la llave</b>.
+ *   <li><b>Hoy</b>, con el {@code % actualizacion} <b>sellado</b>. Desde el <b>2026-09-06</b> una
+ *       persona firmo §1.6 de {@code predial-porcentaje-de-actualizacion.md}, su archivo esta en
+ *       {@code VERIFICADO} y su fila viaja en el conjunto sellado de 2026. <b>El valor no se
+ *       escribe aqui</b>: se lee del derivado publicable del clon de {@code normativa}, igual que
+ *       el cuadro, para que este censo no pueda seguir en verde con un valor que aquel repositorio
+ *       dejo de publicar.
+ *   <li><b>Si esa fila faltara</b>, que es el estado en que el sistema estuvo hasta esa firma. No
+ *       es una hipotesis academica: es lo que paso, y lo que volveria a pasar si alguien retirara
+ *       la fila. Se sigue contando porque es la unica forma de leer <b>lo que la firma valio</b>.
+ *   <li><b>Con un porcentaje distinto de cero</b>, que no es ningun ejercicio real: existe para
+ *       medir <b>que cifra de las cuatro depende de la llave</b>.
  * </ol>
  *
- * <p>La diferencia entre (1) y (2) es <b>lo que cuesta esa firma</b>, y se lee sin interpretar
- * nada. La diferencia entre (2) y (3) es la <b>observacion de frontera</b> que este censo declara y
- * no arregla: ver abajo.
+ * <p>La diferencia entre (1) y (2) es <b>lo que valio esa firma</b>, y se lee sin interpretar nada:
+ * <b>4 predios pasan de no valorizarse a valorizarse, y otros 19 pasan de esperar a D-11 a esperar
+ * a RT-004</b>, que es otra decision y de otra clase. La diferencia entre (1) y (3) es la
+ * <b>observacion de frontera</b> que este censo declara y no arregla: ver abajo.
  *
  * <h2>La observacion de frontera, medida y NO arreglada (es D-21 y no es de este issue)</h2>
  *
@@ -59,8 +64,13 @@ import org.junit.jupiter.api.Test;
  * sitio</b>: el incremento del autovaluo, que solo se aplica si el porcentaje no es cero. De modo
  * que con el valor que 2026 sella, <b>ninguna de las cuatro cifras del hecho sellado depende de
  * ella</b>: el terreno, la construccion y las obras no la tocan nunca, y el valor del predio sale
- * identico al del terreno. Esta prueba lo mide comparando (2) contra (3): con {@code p != 0} cambia
+ * identico al del terreno. Esta prueba lo mide comparando (1) contra (3): con {@code p != 0} cambia
  * <b>una sola</b> de las cuatro.
+ *
+ * <p><b>Y ahora esa observacion pesa mas, no menos.</b> Mientras la llave falto, se le podia
+ * atribuir el bloqueo entero del padron; con ella sellada se ve que lo que desbloquea son 4 predios
+ * y que a las cuatro cifras no les aporta un centimo. Sigue sin moverse de sitio —D-21 no es de
+ * este issue—, pero ya no hay ninguna urgencia que confundir con un argumento.
  *
  * <p>Eso es exactamente lo que ADR-0024 pone del lado de {@code rentas}: un incremento sobre el
  * autovaluo que no cambia el valor del predio es de la base imponible, no de la valuacion, y vive
@@ -88,8 +98,15 @@ class ElPadronDeDemostracionSeValorizaTest {
     /** Ver el javadoc: el valor no decide ninguna rama, solo que la via tenga arancel. */
     private static final ValorNormativo ARANCEL_SUPUESTO = ValorNormativo.de("1");
 
-    /** El valor que §1.6 sella cuando alguien la firme. Contrafactual, y se dice que lo es. */
-    private static final ValorNormativo SI_ALGUIEN_FIRMA = ValorNormativo.de("0");
+    /**
+     * El derivado publicable del clon hermano, del que se lee el {@code % actualizacion} sellado.
+     *
+     * <p>En UN SOLO literal y empezando por el nombre del hermano, por lo mismo que {@link
+     * #EL_CUADRO_DEL_CLON_DE_NORMATIVA}: es lo que {@code ClonesHermanosDelWorkflowTest} sabe
+     * reconocer, y partirlo en trozos deja al workflow sin {@code checkout} con la guarda en verde.
+     */
+    private static final String EL_DERIVADO_DEL_CLON_DE_NORMATIVA =
+            "normativa/docs/10-negocio/valores-normativos/publicacion/parametros-2026.csv";
 
     /**
      * Ningun ejercicio real. Existe para medir que cifra de las cuatro depende de la llave.
@@ -113,47 +130,57 @@ class ElPadronDeDemostracionSeValorizaTest {
                 .as("las 24 casillas con cifra del Anexo I.2, tal como `normativa` las firma")
                 .hasSize(24);
 
-        Censo hoy = censar(padron, cuadro, null);
-        Censo siAlguienFirma = censar(padron, cuadro, SI_ALGUIEN_FIRMA);
+        // El valor NO se escribe aqui: sale del derivado que `normativa` publica y firma. El dia
+        // que esa fila se retire, esta linea falla nombrandola en vez de seguir en verde con un
+        // cero escrito a mano — que es exactamente el defecto que costo una entrega rechazada.
+        ValorNormativo sellado = leerElPorcentajeSelladoDeNormativa();
+
+        Censo hoy = censar(padron, cuadro, sellado);
+        Censo siFaltara = censar(padron, cuadro, null);
         Censo conUnPorcentaje = censar(padron, cuadro, UN_PORCENTAJE_CUALQUIERA);
 
         // Las cifras del entregable, escritas para que se lean de un vistazo en el registro.
         System.out.println(
                 "CENSO DEL PADRON DE DEMOSTRACION ("
                         + padron.size()
-                        + " predios)\n  HOY, con el «% actualizacion» AUSENTE:   "
+                        + " predios)\n  HOY, con el «% actualizacion» SELLADO en "
+                        + sellado.valor()
+                        + ": "
                         + hoy
-                        + "\n  SI ALGUIEN FIRMA §1.6 (contrafactual): "
-                        + siAlguienFirma);
+                        + "\n  SI ESA FILA FALTARA (lo que la firma valio): "
+                        + siFaltara);
 
         // ------------------------------------------------------------------
-        // (1) HOY: el estado real del sistema
+        // (2) SI ESA FILA FALTARA: el estado en que el sistema estuvo hasta la firma
         // ------------------------------------------------------------------
-        // `predial-porcentaje-de-actualizacion.md` esta en TRANSCRITO: tiene su fundamento escrito
-        // y le falta la segunda firma de ADR-0007, que es un acto de una PERSONA. Sin ella, ningun
-        // conjunto sellado trae la llave, y la quinta rama para a los 23 predios antes de calcular
-        // nada. Es la rotura R9 de este issue convertida en el estado permanente del sistema.
-        assertThat(hoy.valorizados()).isZero();
-        assertThat(hoy.porLlave())
+        // Mientras `predial-porcentaje-de-actualizacion.md` estuvo en TRANSCRITO —con su
+        // fundamento escrito y sin la segunda firma de ADR-0007, que es un acto de una PERSONA—
+        // ningun conjunto sellado podia traer la llave, y la quinta rama paraba a los 23 predios
+        // antes de calcular nada. Se sigue contando porque es la unica forma de leer lo que la
+        // firma valio, y porque volveria a ser el estado real si alguien retirara la fila.
+        assertThat(siFaltara.valorizados()).isZero();
+        assertThat(siFaltara.porLlave())
                 .as("los 23, por la misma llave, y no repartidos entre varias")
                 .containsExactly(entry(ValorizacionDelPredio.PORCENTAJE_DE_ACTUALIZACION, 23));
 
         // ------------------------------------------------------------------
-        // (2) EL DIA QUE ALGUIEN FIRME: lo que esa firma desbloquea
+        // (1) HOY: lo que la firma desbloqueo
         // ------------------------------------------------------------------
         // 4 predios sin ninguna construccion declarada: se valorizan con su terreno, y con
         // construccion y obras en cero — cero porque no hay nada declarado, no porque falte una
-        // cifra, que es la distincion que #48 existe para sostener.
-        assertThat(siAlguienFirma.valorizados()).isEqualTo(4);
+        // cifra, que es la distincion que #48 existe para sostener. Son las PRIMERAS cuatro cifras
+        // que este sistema produce: hasta la firma no publicaba ninguna.
+        assertThat(hoy.valorizados()).isEqualTo(4);
         // Y los 19 restantes salen TODOS por la misma llave, que es la cifra que este censo existe
         // para poner delante: **RT-004**, que tabla del Anexo I del Reglamento Nacional de
         // Tasaciones le toca a cada uso de ficha. `normativa` sella las cuatro tablas; lo que
         // falta es la traduccion, y `depreciacion.md` §3 dice que es criterio y no transcripcion.
-        // Una sola decision desbloquea 19 de 23 predios — el dia que la primera este firmada.
+        // Una sola decision desbloquea 19 de 23 predios, y ahora es LA UNICA que los para: hasta
+        // el 2026-09-06 estos 19 ni se veian, porque D-11 los detenia antes.
         //
         // Se cuenta POR USO y no en bloque porque el uso es lo que esa decision tiene que
         // traducir: la lista de abajo es, literalmente, el trabajo que RT-004 tiene por delante.
-        assertThat(siAlguienFirma.porLlave())
+        assertThat(hoy.porLlave())
                 .as("el reparto entero, sin agrupar nada bajo «otros»")
                 .containsExactlyInAnyOrderEntriesOf(
                         Map.of(
@@ -178,12 +205,12 @@ class ElPadronDeDemostracionSeValorizaTest {
         // los predios que las tienen tienen tambien construcciones, y la rama de RT-004 va antes.
         // Se dice porque la ausencia de esa llave no significa que el Anexo III sobre — significa
         // que hoy no llega a estorbar.
-        assertThat(siAlguienFirma.porLlave())
+        assertThat(hoy.porLlave())
                 .doesNotContainKey(
                         ValorizacionDelPredio.VALOR_UNITARIO_OBRA_COMPLEMENTARIA + ":2026");
-        assertThat(siAlguienFirma.porLlave().values().stream().mapToInt(Integer::intValue).sum())
+        assertThat(hoy.porLlave().values().stream().mapToInt(Integer::intValue).sum())
                 .as("y suma exactamente lo que no se valorizo: ningun predio se queda sin contar")
-                .isEqualTo(padron.size() - siAlguienFirma.valorizados());
+                .isEqualTo(padron.size() - hoy.valorizados());
 
         // ------------------------------------------------------------------
         // (3) LA OBSERVACION DE FRONTERA: que cifra de las cuatro depende de la llave
@@ -191,7 +218,7 @@ class ElPadronDeDemostracionSeValorizaTest {
         // Con el porcentaje en el valor que §1.6 sella —cero—, el autovaluo es IDENTICO al valor
         // del terreno: la llave que para a los 23 predios no aporta un centimo a ninguna de las
         // cuatro cifras. Es una precondicion, no un insumo del calculo.
-        for (ValuacionDelPredio valuacion : siAlguienFirma.cifras().values()) {
+        for (ValuacionDelPredio valuacion : hoy.cifras().values()) {
             assertThat(valuacion.valorDelPredio())
                     .as("predio %d: con p = 0 el autovaluo es el terreno", valuacion.predioId())
                     .isEqualTo(valuacion.valorTerreno());
@@ -202,8 +229,8 @@ class ElPadronDeDemostracionSeValorizaTest {
         // valuacion, o sea de `rentas`, junto al «% propiedad» de D-21. Aqui NO se mueve.
         assertThat(conUnPorcentaje.cifras().keySet())
                 .as("el porcentaje no cambia QUIEN se valoriza, solo cuanto")
-                .isEqualTo(siAlguienFirma.cifras().keySet());
-        for (Map.Entry<Long, ValuacionDelPredio> caso : siAlguienFirma.cifras().entrySet()) {
+                .isEqualTo(hoy.cifras().keySet());
+        for (Map.Entry<Long, ValuacionDelPredio> caso : hoy.cifras().entrySet()) {
             ValuacionDelPredio conCero = caso.getValue();
             ValuacionDelPredio conPorcentaje = conUnPorcentaje.cifras().get(caso.getKey());
             assertThat(conPorcentaje.valorTerreno()).isEqualTo(conCero.valorTerreno());
@@ -345,6 +372,45 @@ class ElPadronDeDemostracionSeValorizaTest {
                             "Anexo I.2 de la R.M. 277-2025-VIVIENDA"));
         }
         return new ValorizacionDelPredio.CuadroDeValoresUnitarios(celdas);
+    }
+
+    /**
+     * El {@code % actualizacion} de 2026, leido del derivado publicable del clon de {@code
+     * normativa}.
+     *
+     * <p>Se lee y no se escribe aqui por el mismo motivo que el cuadro, y por uno mas: esta llave
+     * ya estuvo publicada una vez con una firma que nadie puso, y volvio a salir del derivado
+     * cuando la direccion lo rechazo. Un cero escrito en esta clase habria dejado el censo diciendo
+     * «4 de 23» durante todo ese intervalo, que es justo cuando la respuesta real era «0 de 23».
+     *
+     * <p>Si la fila no esta, <b>falla nombrandola</b> en vez de replegarse a un valor por omision:
+     * el corpus prohibe por escrito que la ausencia de esta cifra se lea como cero, porque el cero
+     * de 2026 es un HECHO —el supuesto del art. 12 del TUO LTM no se cumple ese ejercicio— y no un
+     * valor neutro que valga para cualquier año.
+     */
+    private static ValorNormativo leerElPorcentajeSelladoDeNormativa() throws IOException {
+        Path derivado = raizDelRepositorio().getParent().resolve(EL_DERIVADO_DEL_CLON_DE_NORMATIVA);
+        if (!Files.exists(derivado)) {
+            throw new IllegalStateException(
+                    "Falta el clon hermano de `normativa`, y sin el este censo no puede leer el"
+                            + " «% actualizacion» que ese repositorio publica. Remedio: git clone"
+                            + " https://github.com/hneyra/normativa "
+                            + derivado);
+        }
+        for (String linea : datos(derivado)) {
+            String[] campos = linea.split(",", -1);
+            if (ValorizacionDelPredio.PORCENTAJE_DE_ACTUALIZACION.equals(campos[0])) {
+                return ValorNormativo.de(campos[4]);
+            }
+        }
+        throw new IllegalStateException(
+                "`normativa` no publica ninguna fila «"
+                        + ValorizacionDelPredio.PORCENTAJE_DE_ACTUALIZACION
+                        + "» en "
+                        + derivado
+                        + ". Si volvio a salir del derivado, el censo de este padron ya no es «4 de"
+                        + " 23» sino «0 de 23», y lo que hay que mirar es la cabecera de"
+                        + " predial-porcentaje-de-actualizacion.md (ADR-0007), no este archivo.");
     }
 
     /** El padron de demostracion: sus fichas y el detalle de cada una. */

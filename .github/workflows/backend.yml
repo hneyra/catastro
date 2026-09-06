@@ -95,10 +95,20 @@ jobs:
             infra/carga-de-datos/ejemplos
           sparse-checkout-cone-mode: false
 
-      # Lo que este sistema lee del clon de «normativa»: UN archivo, el cuadro de valores unitarios
-      # derivado del Anexo I.2 que `ElPadronDeDemostracionSeValorizaTest` usa para valorizar los 23
-      # predios del padron de demostracion (#8). No se copia aqui a proposito —una copia de una
-      # cifra normativa es un segundo sitio donde puede estar mal—, asi que el clon tiene que venir.
+      # Lo que este sistema lee del clon de «normativa»: DOS archivos, y los dos por el mismo motivo
+      # —una copia de una cifra normativa es un segundo sitio donde puede estar mal—, asi que el
+      # clon tiene que venir.
+      #
+      #   fuentes/valores-unitarios-2026   el cuadro derivado del Anexo I.2, con el que
+      #                                    `ElPadronDeDemostracionSeValorizaTest` valoriza los 23
+      #                                    predios del padron de demostracion (#8).
+      #   publicacion/parametros-2026.csv  el derivado publicable, del que ese mismo censo lee el
+      #                                    «% actualizacion» SELLADO en vez de escribirlo aqui. Esa
+      #                                    llave ya estuvo publicada una vez con una firma que nadie
+      #                                    puso y volvio a salir del derivado cuando la direccion lo
+      #                                    rechazo: un cero escrito en la prueba habria dejado el
+      #                                    censo diciendo «4 de 23» durante todo ese intervalo,
+      #                                    cuando la respuesta real era «0 de 23».
       #
       # Faltaba desde que #8 aterrizo en `beta`, y el rojo que producia no hablaba de su causa:
       # «Falta el clon hermano de `normativa`» en el paso de `build`. `ClonesHermanosDelWorkflowTest`
@@ -121,6 +131,7 @@ jobs:
           token: ${{ secrets.GH_CLONE_KEY || github.token }}
           sparse-checkout: |
             docs/10-negocio/valores-normativos/fuentes/valores-unitarios-2026
+            docs/10-negocio/valores-normativos/publicacion/parametros-2026.csv
           sparse-checkout-cone-mode: false
 
       # ADR-0001 fija Java 25. Se comprueba en vez de suponerse: si alguien cambiara la propiedad,

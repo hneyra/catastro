@@ -143,6 +143,24 @@ public final class DatosDePrueba {
     public static void sembrarTenant(
             BaseDeDatosDePrueba base, long muni, long parametroId, String sufijo)
             throws SQLException {
+        sembrarTenant(base, muni, parametroId, sufijo, true);
+    }
+
+    /**
+     * Lo mismo, pudiendo dejar FUERA el {@code % actualizacion} del conjunto sellado.
+     *
+     * <p>La unica razon legitima para pasar {@code false} es <b>medir el contraste</b>: que la
+     * corrida vuelva a pararse nombrando esa llave si {@code normativa} dejara de publicarla. Ese
+     * fue el estado real del sistema hasta el 2026-09-06 y no es hipotetico, asi que se sigue
+     * pudiendo reproducir; lo que no se puede es que sea el estado por omision de la fixture.
+     */
+    public static void sembrarTenant(
+            BaseDeDatosDePrueba base,
+            long muni,
+            long parametroId,
+            String sufijo,
+            boolean conElPorcentajeDeActualizacion)
+            throws SQLException {
         try (Connection app = base.conexion(BaseDeDatosDePrueba.APP)) {
             ContextoDeTenant.fijar(app, muni);
 
@@ -167,7 +185,7 @@ public final class DatosDePrueba {
             // cache, y sembrar al reves la disparaba — lo cual, dicho de paso, es la primera
             // demostracion de que muerde: la fixture cayo con «El conjunto de parametros 1 esta
             // sellado» antes de que ninguna prueba la mirara.
-            sembrarCacheDeNormativa(app, muni, conjuntoId);
+            sembrarCacheDeNormativa(app, muni, conjuntoId, conElPorcentajeDeActualizacion);
             sembrarSeguridad(app, muni, sufijo);
 
             // Constancia de que los identificadores encadenados se usaron.
@@ -215,7 +233,8 @@ public final class DatosDePrueba {
      * <p>Las cifras son de relleno y estan marcadas como tales en su documento fuente. Ninguna se
      * puede leer como un valor normativo: los de verdad los publica {@code normativa}.
      */
-    private static void sembrarCacheDeNormativa(Connection app, long muni, long conjuntoId)
+    private static void sembrarCacheDeNormativa(
+            Connection app, long muni, long conjuntoId, boolean conElPorcentajeDeActualizacion)
             throws SQLException {
         ejecutar(
                 app,
@@ -247,21 +266,37 @@ public final class DatosDePrueba {
                 muni,
                 conjuntoId,
                 VIGENCIA);
-        // EL «% ACTUALIZACION» NO SE SIEMBRA AQUI, Y ES LA PARTE QUE HAY QUE LEER.
+        // EL «% ACTUALIZACION», Y POR QUE HOY SE SIEMBRA CUANDO ANTES NO.
         //
-        // Esta fixture es la copia local de un conjunto SELLADO, y `normativa` hoy no puede sellar
-        // ninguno que traiga esa llave: su archivo del corpus
-        // —`predial-porcentaje-de-actualizacion.md`— esta en `TRANSCRITO`, le falta la segunda
-        // firma de ADR-0007, y `verificar-publicacion.mjs` no publica desde ese estado. Sembrarla
-        // aqui seria describir un estado del mundo que no existe, que es la clase de mentira que
-        // una fixture no puede contar: las cifras de relleno son relleno declarado, pero una
-        // llave que no se puede sellar no es relleno, es una premisa falsa.
+        // Esta fixture es la copia local de un conjunto SELLADO, asi que solo puede traer lo que
+        // `normativa` pueda sellar. Hasta el 2026-09-06 no podia sellar esta llave: su archivo del
+        // corpus —`predial-porcentaje-de-actualizacion.md`— estaba en `TRANSCRITO`, le faltaba la
+        // segunda firma de ADR-0007 y `verificar-publicacion.mjs` no publica desde ese estado.
+        // Sembrarla entonces habria sido describir un estado del mundo que no existia, que es la
+        // clase de mentira que una fixture no puede contar: una cifra de relleno es relleno
+        // declarado, pero una llave que no se puede sellar es una premisa falsa.
         //
-        // catastro#8 llego a sembrarla apoyandose en una firma que nadie puso; la direccion lo
-        // rechazo, y esto es la consecuencia medida. Quien quiera ver la corrida produciendo sus
-        // cuatro cifras la siembra en SU municipalidad y lo dice —lo hace
-        // `PublicacionDelPadronJdbcTest.conLaLlaveSelladaLaCorridaProduceCifras`—, en vez de
-        // dejarla puesta para todas y que el padron parezca valorizable.
+        // Ese dia una persona firmo §1.6, la fila entro en `parametros-2026.csv` y el ejercicio se
+        // sello (`ElEjercicio2026SeSellaTest`). La premisa dejo de ser falsa y la fixture pasa a
+        // traerla, con el valor que ese fundamento sella —CERO, y no un valor por omision: el
+        // supuesto del art. 12 del TUO LTM no se cumple en 2026 porque se publicaron los aranceles
+        // y los precios unitarios—.
+        //
+        // catastro#8 llego a sembrarla ANTES, apoyandose en una firma que nadie habia puesto; la
+        // direccion lo rechazo y la fixture volvio a no traerla. Que hoy la traiga no borra ese
+        // episodio: lo que cambio no es el razonamiento, es quien responde por el.
+        if (conElPorcentajeDeActualizacion) {
+            ejecutar(
+                    app,
+                    "INSERT INTO normativa_parametro (municipalidad_id, conjunto_id, tipo, clave,"
+                            + " valor_numerico, vigencia_desde, vigencia_hasta, documento_fuente)"
+                            + " VALUES (?, ?, 'PORCENTAJE_DE_ACTUALIZACION', NULL, 0.000000, ?,"
+                            + "         DATE '2026-12-31',"
+                            + "         'TUO de la Ley de Tributacion Municipal, art. 12')",
+                    muni,
+                    conjuntoId,
+                    VIGENCIA);
+        }
         ejecutar(
                 app,
                 "INSERT INTO normativa_valor_unitario (municipalidad_id, conjunto_id, partida,"

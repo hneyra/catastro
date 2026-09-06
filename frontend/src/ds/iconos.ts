@@ -45,6 +45,8 @@ export const ICO = {
   /* Del surtido comun del artboard: la lupa, la cruz, el chevron, la campana. */
   lupa: ['M17.4 11a6.4 6.4 0 1 1-12.8 0 6.4 6.4 0 0 1 12.8 0', 'M15.8 15.8 20.6 20.6'],
   cruz: ['M6 6l12 12M18 6L6 18'],
+  /* El mas de la accion primaria: registrar un predio. */
+  mas: ['M12 5v14M5 12h14'],
   chevron: ['M6 9.5l6 6 6-6'],
   barras: ['M4 7h16M4 12h16M4 17h16'],
   campana: ['M18 15.6V10.5a6 6 0 0 0-12 0v5.1L4.4 18h15.2z', 'M9.8 18a2.2 2.2 0 0 0 4.4 0'],

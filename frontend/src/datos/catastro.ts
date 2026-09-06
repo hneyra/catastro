@@ -166,6 +166,10 @@ export const VISTAS_DEL_PREDIO = [
 
 export const PREDIOS = {
   marcador: 'Codigo de referencia catastral, por prefijo',
+  /* La accion primaria de la lista, que es de donde se abre el alta. Es la
+     UNICA escritura que el artboard dibuja, y por eso el boton esta aqui y no
+     entre las acciones de un predio ya abierto. */
+  registrar: 'Registrar un predio',
   sinSeleccion: 'Elija un predio de la lista',
   sinSeleccionDetalle: 'La ficha se abre aqui al lado, sin salir de la lista.',
   sinCoincidencias: 'Ningun predio coincide',

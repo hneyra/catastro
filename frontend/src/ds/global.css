@@ -77,6 +77,16 @@ textarea:focus {
   color: var(--tinta-4);
 }
 
+/* El marcador de posicion de un tramo del codigo de referencia catastral: un
+   punto medio por digito, separados. Es del artboard (linea 31) y no es cromo:
+   con el, un tramo vacio se lee como «faltan tres digitos» en vez de como un
+   campo estrecho cualquiera, que es lo que hace que se pueda componer el codigo
+   sin saberse de memoria la longitud de cada tramo. */
+[data-tramo]::placeholder {
+  color: var(--borde-campo);
+  letter-spacing: 0.2em;
+}
+
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;

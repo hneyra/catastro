@@ -24,6 +24,27 @@ export const VISTAS = [
   { modulo: 'catastro', hoja: 'predios', sujeto: '1', filtros: { ver: 'ficha' }, nombre: 'ficha del predio' },
   { modulo: 'catastro', hoja: 'predios', sujeto: '1', filtros: { ver: 'frentes' }, nombre: 'frentes del predio' },
   { modulo: 'catastro', hoja: 'predios', filtros: { fichado: 'false' }, nombre: 'cola de predios sin ficha' },
+  /* El alta (#34): es un ESTADO de Predios y no un destino, asi que sin estas
+     tres entradas los arneses informan en verde sobre la unica escritura de
+     esta interfaz. Van los tres pasos que dibujan cosas distintas: el primero
+     —donde el boton «Anterior» nace apagado—, el de la via del catalogo, y el
+     ULTIMO, que es el unico donde el primario aparece y donde vive el resumen.
+     Con el destino a secas no se dibuja ninguno. */
+  { modulo: 'catastro', hoja: 'predios', sujeto: 'nuevo', nombre: 'alta de ficha' },
+  {
+    modulo: 'catastro',
+    hoja: 'predios',
+    sujeto: 'nuevo',
+    filtros: { paso: 'ubic' },
+    nombre: 'alta de ficha en ubicacion',
+  },
+  {
+    modulo: 'catastro',
+    hoja: 'predios',
+    sujeto: 'nuevo',
+    filtros: { paso: 'verif' },
+    nombre: 'alta de ficha en verificacion',
+  },
   { modulo: 'catastro', hoja: 'territorio', sujeto: '02', nombre: 'manzanas de otro sector' },
   { modulo: 'catastro', hoja: 'territorio', sujeto: 'vias', nombre: 'catalogo vial' },
   { modulo: 'catastro', hoja: 'valores', filtros: { cuadro: 'unitarios' }, nombre: 'matriz de valores unitarios' },

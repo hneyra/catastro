@@ -1,0 +1,19 @@
+/* Las alturas del armazon, medidas sobre `CatastroV6.dc.html`.
+
+   **El ancho del panel: 252 px, y el issue dice 246.** Es una discrepancia real
+   y se resuelve del lado del artboard, que es la especificacion (PORTAR.md,
+   regla 1: los valores del artboard se copian tal cual). Medido con `grep` sobre
+   el archivo: «252» aparece UNA vez, en `panel.asideStyle` —`flex:0 0 252px;
+   width:252px`, linea 1479—, y «246» aparece **cero veces como medida**: sus dos
+   ocurrencias son el arancel `246.00` de la calle Tarapaca en dos tablas de
+   datos. Los 246 px son del OTRO frontend —`sgtm/frontend`, cuyo README dice
+   «panel de destinos de 246 px»—, y esa es la paleta que el AC-3 manda no
+   copiar. Las otras tres alturas del AC-3 si estan literales en el artboard:
+   `height:52px` en la barra global, `min-height:44px` en las pestanas y
+   `min-height:52px` en la barra de titulo. */
+:root {
+  --barra-global: 52px;
+  --pestanas: 44px;
+  --barra-titulo: 52px;
+  --panel: 252px;
+}

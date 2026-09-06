@@ -499,6 +499,8 @@ public final class DatosDePrueba {
         // valor_unitario_edificacion y depreciacion ya no se siembran aqui: desde D-13 (V55) son
         // nacionales, las carga rol_carga_parametros y viven en crearParametroNacional. El arancel
         // si se queda: se carga y se corrige por municipalidad.
+
+        sembrarFiscalizacion(app, muni, sufijo, predioId, fichaId);
         return predioId;
     }
 
@@ -510,6 +512,117 @@ public final class DatosDePrueba {
      * vea como filas de la otra municipalidad y no como un empate que hay que interpretar. El
      * entorno es Sullana, asi que se parte de -80.
      */
+    /**
+     * Las cinco tablas del hallazgo catastral (V9, ADR-0035, #6).
+     *
+     * <p>Son de tenant, asi que {@code AislamientoMultiTenantTest} exige que la municipalidad A vea
+     * filas suyas en las cinco: una tabla vacia haria que «no se ve nada de B» fuera cierto sin
+     * probar nada, que es el modo de fallo contra el que esa prueba existe. Sin esto la migracion
+     * salia en verde y el aislamiento de las cinco no lo comprobaba nadie — medido: cinco rojos,
+     * uno por tabla, con «la municipalidad A debe ver sus propias filas».
+     *
+     * <p>El candidato y el hallazgo llevan <b>geometria de verdad</b>, y por el mismo motivo que el
+     * frente de predio: con la geometria nula las cuatro columnas del marco (ADR-0034) salen nulas
+     * y un filtro por marco no devolveria nada, o sea que pasaria en verde sin comprobar el camino
+     * que ADR-0034 obliga a usar. Cada municipalidad cae en un grado distinto de longitud.
+     *
+     * <p>El candidato se siembra <b>ya verificado en campo</b> porque el hallazgo cuelga de el: es
+     * la unica forma de que las dos filas existan a la vez, y de paso deja escrito en la fixture
+     * que un hallazgo sin candidato verificado no se puede escribir.
+     */
+    private static void sembrarFiscalizacion(
+            Connection app, long muni, String sufijo, long predioId, long fichaId)
+            throws SQLException {
+        long campaniaId =
+                insertar(
+                        app,
+                        "INSERT INTO campania (municipalidad_id, codigo, nombre, inicio, umbral,"
+                                + " observacion, usuario_registro)"
+                                + " VALUES (?, ?, ?, ?, 0.7000, 'campania de prueba', 'prueba')"
+                                + " RETURNING id",
+                        muni,
+                        "CAM-" + sufijo,
+                        "Campania de prueba " + sufijo,
+                        VIGENCIA);
+
+        long candidatoId =
+                insertar(
+                        app,
+                        "INSERT INTO candidato (municipalidad_id, campania_id, predio_id, clase,"
+                                + " origen, score, insumos, geometria, estado, observacion,"
+                                + " usuario_registro)"
+                                + " VALUES (?, ?, ?, 'SUBVALUADOR', 'ORTOFOTO', 0.9100,"
+                                + "         '{\"fuente\":\"fixture\"}'::jsonb,"
+                                + "         ST_GeogFromText('SRID=4326;MULTIPOLYGON(((' || ? || ' -4.90,'"
+                                + "                          || ? || ' -4.9002,' || ? || ' -4.9002,'"
+                                + "                          || ? || ' -4.90,' || ? || ' -4.90)))'),"
+                                + "         'VERIFICADO_EN_CAMPO', 'candidato de prueba', 'prueba')"
+                                + " RETURNING id",
+                        muni,
+                        campaniaId,
+                        predioId,
+                        desplazamientoDe(sufijo) + " ",
+                        desplazamientoDe(sufijo) + " ",
+                        desplazamientoDe(sufijo) + "01 ",
+                        desplazamientoDe(sufijo) + "01 ",
+                        desplazamientoDe(sufijo) + " ");
+
+        long hallazgoId =
+                insertar(
+                        app,
+                        "INSERT INTO hallazgo (municipalidad_id, candidato_id, clase, predio_id,"
+                                + " ficha_id, area_de_la_ficha, area_verificada, inspector,"
+                                + " verificado_en, geometria, observacion, usuario_registro)"
+                                + " VALUES (?, ?, 'SUBVALUADOR', ?, ?, 120.00, 180.00,"
+                                + "         'inspector.prueba', ?,"
+                                + "         ST_GeogFromText('SRID=4326;MULTIPOLYGON(((' || ? || ' -4.90,'"
+                                + "                          || ? || ' -4.9002,' || ? || ' -4.9002,'"
+                                + "                          || ? || ' -4.90,' || ? || ' -4.90)))'),"
+                                + "         'hallazgo de prueba', 'prueba')"
+                                + " RETURNING id",
+                        muni,
+                        candidatoId,
+                        predioId,
+                        fichaId,
+                        VIGENCIA,
+                        desplazamientoDe(sufijo) + " ",
+                        desplazamientoDe(sufijo) + " ",
+                        desplazamientoDe(sufijo) + "01 ",
+                        desplazamientoDe(sufijo) + "01 ",
+                        desplazamientoDe(sufijo) + " ");
+
+        // La huella lleva el sufijo dentro: `evidencia_sha256_uq` es POR municipalidad, asi que dos
+        // huellas iguales en dos municipalidades no chocarian — y justamente por eso se siembran
+        // distintas, para que la prueba de aislamiento no pueda confundir «no lo veo» con «choco».
+        ejecutar(
+                app,
+                "INSERT INTO evidencia (municipalidad_id, hallazgo_id, tipo, sha256, ruta,"
+                        + " capturado_en, recibido_en, dispositivo, observacion, usuario_registro)"
+                        + " VALUES (?, ?, 'FOTO', ?, ?, now() - interval '2 hours', now(),"
+                        + "         'tableta-01', 'evidencia de prueba', 'prueba')",
+                muni,
+                hallazgoId,
+                huellaDePrueba(sufijo),
+                "s3://evidencias/" + sufijo + "/foto-01.jpg");
+
+        ejecutar(
+                app,
+                "INSERT INTO acta (municipalidad_id, numero, hallazgo_id, fecha, inspector,"
+                        + " detalle, observacion, usuario_registro)"
+                        + " VALUES (?, ?, ?, ?, 'inspector.prueba', 'acta de prueba',"
+                        + "         'acta de prueba', 'prueba')",
+                muni,
+                "ACT-" + sufijo + "-001",
+                hallazgoId,
+                VIGENCIA);
+    }
+
+    /** Sesenta y cuatro hexadigitos distintos por municipalidad. No es un sha256 de nada. */
+    private static String huellaDePrueba(String sufijo) {
+        String semilla = Integer.toHexString(Math.floorMod(sufijo.hashCode(), 16));
+        return semilla.repeat(64);
+    }
+
     private static String desplazamientoDe(String sufijo) {
         return "-8" + (Math.floorMod(sufijo.hashCode(), 9) + 1) + ".0";
     }

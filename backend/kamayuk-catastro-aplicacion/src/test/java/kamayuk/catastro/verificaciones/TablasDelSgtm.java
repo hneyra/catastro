@@ -157,6 +157,18 @@ final class TablasDelSgtm {
                     // el
                     // UPDATE sobre `estado` y sobre ninguna otra.
                     "declaracion_jurada",
+                    // Con #6 (ADR-0035 punto 5): el candidato y el hallazgo. Borrar un candidato
+                    // descartado no es limpieza — es borrar la unica cifra con la que se puede
+                    // saber si el umbral de deteccion sirve, y con ella la explicacion de por que
+                    // no se persiguio a alguien. Y borrar un hallazgo dejaria su acta —que es
+                    // INMUTABLE— colgando de nada.
+                    //
+                    // No entran en INMUTABLES, y es deliberado: el estado de los dos SI cambia en
+                    // el sitio, que es lo que son las dos compuertas. Lo que impide tocar las demas
+                    // columnas no es este escaner sino los metodos del repositorio, que actualizan
+                    // el estado y ninguna otra cosa.
+                    "candidato",
+                    "hallazgo",
                     "auditoria");
 
     /**
@@ -167,6 +179,16 @@ final class TablasDelSgtm {
             Set.of(
                     "cuenta_corriente_asiento",
                     "auditoria",
+                    // Con #6 (ADR-0035 punto 3): la evidencia y el acta del hallazgo catastral.
+                    //
+                    // `evidencia` porque su sha256 se calculo EN EL DISPOSITIVO: corregir la fila
+                    // en el sitio la deja describiendo un archivo que ya no es el que llego, y
+                    // entonces la huella deja de sustentar nada. `acta` por lo mismo que el recibo:
+                    // el administrado se lleva el papel, y editarla deja al papel y al sistema
+                    // diciendo cosas distintas —quien tenga el papel gana la discusion—. `V9` les
+                    // revoca el UPDATE, y esto lo rompe antes, en el build.
+                    "evidencia",
+                    "acta",
                     "papeleta_cambio_numero",
                     // Una diligencia de notificacion y un pase a coactiva son actos, no estados de
                     // un proceso: no se corrigen en el sitio. Un intento no hallado se reintenta

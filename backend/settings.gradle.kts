@@ -70,6 +70,12 @@ include("kamayuk-catastro-contribuyentes")
 // lo que cambia es el nombre del contexto.
 include("kamayuk-catastro-nucleo")
 
+// El hallazgo catastral: campania, candidato, hallazgo, evidencia y acta (ADR-0035, #6).
+// Es fiscalizacion CATASTRAL y no tributaria: no liquida, no determina y no emite un valor —eso
+// es `rentas` (ADR-0024)—. Lo que hace es completar la mitad de ADR-0021 que faltaba: que las dos
+// areas no coincidan es un hallazgo que se INFORMA, y hasta ahora no habia donde informarlo.
+include("kamayuk-catastro-fiscalizacion")
+
 // La copia local de usuarios, grupos y permisos, y su siembra (D-N5). No es un contexto
 // acotado: es el lector que autoriza y el sembrador que implanta. Las pantallas de
 // administracion de seguridad viven en `rentas` (ADR-0030 §3).

@@ -56,6 +56,9 @@ class ModulosTest {
                         // segmento del paquete, asi que renombrar el paquete lo renombra aqui — y
                         // esta lista es lo que lo puso en rojo al hacerlo.
                         "nucleo",
+                        // El segundo contexto acotado, con #6: el hallazgo catastral (ADR-0035).
+                        // No es la fiscalizacion TRIBUTARIA, que vive entera en `rentas`.
+                        "fiscalizacion",
                         // Y sus dos puertas de salida: el padron de `rentas` y la normativa
                         // cacheada. Los dos son modulos para Modulith aunque sean puertos, y eso
                         // es lo que hace comprobable que `catastro` no toque un tipo interno

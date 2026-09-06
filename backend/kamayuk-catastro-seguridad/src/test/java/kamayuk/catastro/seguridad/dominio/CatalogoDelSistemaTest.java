@@ -96,7 +96,11 @@ class CatalogoDelSistemaTest {
 
     private static Path raizDelRepositorio() {
         Path candidato = Path.of("").toAbsolutePath();
-        while (candidato != null && !Files.isDirectory(candidato.resolve(".git"))) {
+        // `Files.exists` y no `Files.isDirectory`: en un *worktree* de git el `.git` de la raiz
+        // es un ARCHIVO con «gitdir: ...» dentro, no un directorio. Con `isDirectory` esta
+        // busqueda no encontraba la raiz y la guarda moria con «No se encontro la raiz del
+        // repositorio», o sea que no se podia correr donde este proyecto SI trabaja.
+        while (candidato != null && !Files.exists(candidato.resolve(".git"))) {
             candidato = candidato.getParent();
         }
         if (candidato == null) {

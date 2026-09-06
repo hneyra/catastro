@@ -149,7 +149,9 @@ class ClonesHermanosDelWorkflowTest {
     /** El directorio del clon de este repositorio: el primer ancestro con un `.git`. */
     private static Path raizDelClon() {
         Path actual = Path.of("").toAbsolutePath();
-        while (actual != null && !Files.isDirectory(actual.resolve(".git"))) {
+        // `Files.exists` y no `Files.isDirectory`: en un *worktree* de git el `.git` de la raiz
+        // es un ARCHIVO con «gitdir: ...» dentro. Ver el mismo cambio en CatalogoDelSistemaTest.
+        while (actual != null && !Files.exists(actual.resolve(".git"))) {
             actual = actual.getParent();
         }
         if (actual == null) {

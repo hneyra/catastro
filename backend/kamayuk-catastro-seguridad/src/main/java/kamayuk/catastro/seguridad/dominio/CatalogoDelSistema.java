@@ -67,6 +67,16 @@ public final class CatalogoDelSistema {
                             "valores_unitarios",
                             "Valores unitarios de edificacion"),
                     new Opcion("CATASTRO", "Catastro", "depreciacion", "Tabla de depreciacion"),
+                    // Con #6 (ADR-0035). Es UNA opcion y no cinco: el recorrido —campania,
+                    // candidatos, las dos compuertas, evidencia y acta— lo hace la misma area con
+                    // los mismos permisos, y lo que separa quien puede hacer que dentro de el es el
+                    // PRIVILEGIO (lectura para la cola, modificacion para las compuertas, ejecucion
+                    // para la deteccion), no una opcion de menu por paso.
+                    new Opcion(
+                            "CATASTRO",
+                            "Catastro",
+                            "fiscalizacion_catastral",
+                            "Fiscalizacion catastral: hallazgos y actas"),
                     new Opcion(
                             "CONSULTAS",
                             "Consultas",

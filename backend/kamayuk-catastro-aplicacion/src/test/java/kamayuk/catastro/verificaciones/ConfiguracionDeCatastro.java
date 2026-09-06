@@ -44,7 +44,12 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
                     Map.entry("kamayuk-catastro-nucleo", "catastro"),
                     Map.entry("kamayuk-catastro-rentas", "rentas"),
                     Map.entry("kamayuk-catastro-parametros", "normativa"),
-                    Map.entry("kamayuk-catastro-fiscalizacion", "rentas"),
+                    // CATASTRO desde #6, y hasta entonces era una entrada MUERTA heredada del
+                    // monolito: no habia ningun modulo con ese nombre. Ahora lo hay, y es de este
+                    // sistema —el hallazgo catastral de ADR-0035, que no liquida nada—, asi que
+                    // dejarla en `rentas` habria acusado a sus repositorios de cruzar la frontera
+                    // por leer `predio` y `ficha_catastral`, que son suyas.
+                    Map.entry("kamayuk-catastro-fiscalizacion", "catastro"),
                     Map.entry("kamayuk-catastro-sanciones", "rentas"),
                     Map.entry("kamayuk-catastro-cuentacorriente", "rentas"),
                     // Se PARTE: 84 clases a caja y 33 a rentas (GOB-05 §1.3). El modulo se declara
@@ -170,16 +175,23 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
     private static final Set<String> DE_CATASTRO =
             Set.of(
                     "actividad_economica",
+                    // V9 (#6, ADR-0035): las cinco del hallazgo catastral. `acta` es la de
+                    // CATASTRO y no `acta_fiscalizacion`, que es de `rentas` y sigue siendo suya.
+                    "acta",
                     "arancel",
+                    "campania",
+                    "candidato",
                     "bien_comun",
                     "colindante_rural",
                     "construccion",
+                    "evidencia",
                     "ficha_catastral",
                     // V6: el frente del predio. Se nombra aunque este sistema no la tenga —y por
                     // eso
                     // mismo—: sin la entrada, el reparto la da por «replicada» y el escaner de la
                     // regla 11 DEJA DE MIRAR un cruce contra ella, en verde (la leccion de R-N).
                     "frente_predio",
+                    "hallazgo",
                     "inquilino",
                     "manzana",
                     "otra_instalacion",
@@ -309,6 +321,29 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
         return TablasDelSgtm.INMUTABLES;
     }
 
+    /**
+     * Los dos envoltorios de decimal que anade este sistema (#6).
+     *
+     * <p>La regla existe para que ninguna regla de negocio maneje {@code BigDecimal} suelto, no
+     * para impedir que el tipo que lo guarda pueda devolverlo — su propio javadoc lo dice—. {@link
+     * kamayuk.catastro.fiscalizacion.dominio.Score} y {@link
+     * kamayuk.catastro.fiscalizacion.dominio.Tolerancia} son exactamente eso: dos fracciones de 0 a
+     * 1 con su rango comprobado en el constructor, y la alternativa —pasarlas como {@code
+     * BigDecimal}— es justo lo que la regla quiere impedir, porque a la vista 0,10 y 10 son la
+     * misma tolerancia escrita de dos maneras.
+     *
+     * <p><b>Ninguna de las dos es una cifra tributaria</b> (regla 5): no entran en nada que se
+     * cobre. Lo unico que deciden es a quien mira primero una persona.
+     */
+    @Override
+    public Set<String> envoltoriosDeDecimal() {
+        Set<String> heredados = ConfiguracionDeLasVerificaciones.super.envoltoriosDeDecimal();
+        Set<String> propios =
+                Set.of(".fiscalizacion.dominio.Score", ".fiscalizacion.dominio.Tolerancia");
+        return java.util.stream.Stream.concat(heredados.stream(), propios.stream())
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+    }
+
     @Override
     public Set<String> componenElAreaAManoConMotivo() {
         return Set.of(
@@ -329,7 +364,24 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
                 // serializador. El JSON del evento SI lo escribe `ConfiguracionDeJson`, con el
                 // `AreaM2` tipado. Y escribe la cifra sola: con la unidad dentro, la huella
                 // dejaria de poder compararse contra nada que hable de la misma area.
-                "ComponedorDeHechos");
+                "ComponedorDeHechos",
+                // Los dos JSON escritos a mano de la fiscalizacion catastral (#6), y por el mismo
+                // motivo que `ActualizarFichaCatastral`: ahi el area no es un campo tipado sino una
+                // INSTANTANEA DE TEXTO LIBRE, y se escribe sin la unidad para que diga lo mismo que
+                // el resto.
+                //
+                // `DetectarSubvaluadores` compone los `insumos` del candidato: es el registro de
+                // por
+                // que se sospecho, y tiene que poder explicarse solo dentro de un ano —cuando la
+                // ficha ya este versionada tres veces y el area de entonces no exista en ninguna
+                // parte—. `VerificarEnCampo` compone el «antes/despues» de la bitacora, que es el
+                // mismo caso.
+                //
+                // Lo que SI va tipado es `HallazgoResource`: sus tres areas son `AreaM2` y las
+                // escribe el serializador de `ConfiguracionDeJson`, que es donde #607 dice que
+                // tienen que escribirse.
+                "DetectarSubvaluadores",
+                "VerificarEnCampo");
     }
 
     /**
@@ -343,7 +395,13 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
     @Override
     public Set<String> ambitosAusentes() {
         return Set.of(
-                "fiscalizacion",
+                // `fiscalizacion` SALE de esta lista con #6. Estuvo aqui mientras este sistema no
+                // tenia contexto de fiscalizacion catastral, y mientras estuvo,
+                // NINGUN_HALLAZGO_CORRIGE_LA_FICHA y
+                // SOLO_LA_TRANSFERENCIA_ESCRIBE_FUERA_DE_FISCALIZACION vivian aqui SOLO de su clase
+                // de muestra. Desde que el modulo existe, las dos miran codigo real — y el censo de
+                // `ArquitecturaTestBase` no deja quitarlo a medias: declarar ausente un ambito que
+                // SI tiene clases sale rojo, y declararlo presente sin ellas tambien.
                 "indicadores",
                 "cuentacorriente",
                 "tesoreria",
@@ -364,7 +422,11 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
                 // El contexto acotado principal, anadido en R-N: sin el, renombrar el paquete del
                 // modulo mas grande del sistema no ponia roja esta guarda —se conformaba con que
                 // estuvieran los tres de infraestructura—. `caja` ya lo declaraba desde P5D.
-                "kamayuk.catastro.nucleo.dominio");
+                "kamayuk.catastro.nucleo.dominio",
+                // El segundo contexto acotado (#6). Se nombra por el mismo motivo que el primero:
+                // sin la entrada, renombrar o vaciar su paquete de dominio no pondria roja ninguna
+                // guarda.
+                "kamayuk.catastro.fiscalizacion.dominio");
     }
 
     @Override

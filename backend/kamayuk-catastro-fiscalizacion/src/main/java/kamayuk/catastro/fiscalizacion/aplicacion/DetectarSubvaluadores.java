@@ -5,8 +5,10 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import kamayuk.catastro.auditoria.Auditoria;
+import kamayuk.catastro.auditoria.DatosDeAuditoria;
 import kamayuk.catastro.auditoria.Operacion;
 import kamayuk.catastro.auditoria.RegistroDeAuditoria;
+import kamayuk.catastro.dominio.AreaM2;
 import kamayuk.catastro.dominio.Observacion;
 import kamayuk.catastro.fiscalizacion.dominio.AreasDelPadron;
 import kamayuk.catastro.fiscalizacion.dominio.Campania;
@@ -126,23 +128,16 @@ public class DetectarSubvaluadores {
                                 observacion)
                         .con(
                                 null,
-                                "{\"campania\":"
-                                        + campaniaId
-                                        + ",\"contrastados\":"
-                                        + cruce.cobertura().contrastados()
-                                        + ",\"detectados\":"
-                                        + detectados.size()
-                                        + ",\"umbral\":"
-                                        + campania.umbral()
-                                        + ",\"tope\":"
-                                        + campania.tope()
-                                        + ",\"sinGeometria\":"
-                                        + cruce.cobertura().sinGeometria()
-                                        + ",\"sinFichaVigente\":"
-                                        + cruce.cobertura().sinFichaVigente()
-                                        + ",\"truncadosPorElTope\":"
-                                        + cruce.cobertura().truncadosPorElTope()
-                                        + "}"));
+                                DatosDeAuditoria.campos()
+                                        .mas("campania", campaniaId)
+                                        .mas("contrastados", cruce.cobertura().contrastados())
+                                        .mas("detectados", detectados.size())
+                                        .mas("umbral", campania.umbral().valor())
+                                        .mas("tope", campania.tope())
+                                        .mas("sinGeometria", cruce.cobertura().sinGeometria())
+                                        .mas("sinFichaVigente", cruce.cobertura().sinFichaVigente())
+                                        .mas("truncadosPorElTope", cruce.cobertura().truncadosPorElTope())
+                                        .datos()));
         return new Deteccion(List.copyOf(detectados), cruce.cobertura());
     }
 
@@ -165,25 +160,41 @@ public class DetectarSubvaluadores {
     /**
      * Lo que disparo la sospecha, para poder volver a la fuente.
      *
-     * <p>JSON escrito a mano, por lo mismo que en {@code RegistrarSector}: son cuatro campos, y
-     * traer un serializador a la capa de aplicacion la ataria a la de presentacion. Guarda las dos
-     * areas <b>tal como estaban al contrastar</b>: si dentro de un mes alguien versiona la ficha,
-     * el descarte de este candidato tiene que poder explicarse con lo que se vio, no con lo que
-     * hay.
+     * <p>Guarda las dos areas <b>tal como estaban al contrastar</b>: si dentro de un mes alguien
+     * versiona la ficha, el descarte de este candidato tiene que poder explicarse con lo que se
+     * vio, no con lo que hay.
+     *
+     * <h2>Por que devuelve {@code String} y no {@code DatosDeAuditoria}</h2>
+     *
+     * <p>Porque esto no es una fila de la bitacora: es la columna {@code candidato.insumos}, y en
+     * el dominio {@link Candidato} la guarda como texto. {@code candidato.insumos} tambien es
+     * {@code jsonb} —o sea que el defecto de #20 era el mismo aqui: un codigo de referencia
+     * catastral con una comilla mataba la corrida entera— y por eso lo compone el serializador; lo
+     * que no se hace es meter un tipo de la bitacora dentro de un contexto acotado para
+     * conseguirlo.
+     *
+     * <p>Las dos areas van tipadas como {@code AreaM2} y las escribe el serializador: por eso esta
+     * clase salio de {@code componenElAreaAManoConMotivo()}.
      */
     private static String insumosDe(ContrasteDeAreas contraste) {
-        return "{\"origen\":\"CRUCE_DE_AREAS\",\"codigoReferenciaCatastral\":\""
-                + contraste.codigoReferenciaCatastral()
-                + "\",\"fichaId\":"
-                + contraste.fichaId()
-                + ",\"areaDeLaFicha\":"
-                + contraste.areaDeLaFicha().valor()
-                + ",\"areaDelPoligono\":"
-                + contraste.areaDelPoligono().valor()
-                + ",\"diferenciaRelativa\":"
-                + contraste.diferenciaRelativa()
-                + "}";
+        return SerializadorDeJson.texto(
+                new InsumosDelCruceDeAreas(
+                        OrigenDelCandidato.CRUCE_DE_AREAS.name(),
+                        contraste.codigoReferenciaCatastral(),
+                        contraste.fichaId(),
+                        contraste.areaDeLaFicha(),
+                        contraste.areaDelPoligono(),
+                        contraste.diferenciaRelativa().valor()));
     }
+
+    /** Lo que el cruce de areas vio, congelado en la fila del candidato. */
+    private record InsumosDelCruceDeAreas(
+            String origen,
+            String codigoReferenciaCatastral,
+            long fichaId,
+            AreaM2 areaDeLaFicha,
+            AreaM2 areaDelPoligono,
+            java.math.BigDecimal diferenciaRelativa) {}
 
     /** La campania ya no admite candidatos: sus cifras estan cerradas. */
     public static final class CampaniaCerradaParaDetectar extends RuntimeException {

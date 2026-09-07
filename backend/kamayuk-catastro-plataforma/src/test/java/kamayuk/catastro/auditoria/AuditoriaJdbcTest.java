@@ -104,7 +104,7 @@ class AuditoriaJdbcTest {
                                     Operacion.ALTA,
                                     Observacion.de("Alta de via por convenio con catastro 2026"),
                                     null,
-                                    "{\"codigo\":\"V-1\"}"));
+                                    DatosDeAuditoria.campos().mas("codigo", "V-1").datos()));
                     return null;
                 });
 

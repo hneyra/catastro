@@ -60,9 +60,16 @@ class DerivacionDeLosFrentesTest {
                                 + " de dos anios nadie puede contestar de donde salio la cifra con"
                                 + " la que se cobro")
                 .hasSize(2)
-                .allMatch(descripcion -> descripcion.contains("PROPUESTO"))
-                .allMatch(descripcion -> descripcion.contains("ML"))
-                .allMatch(descripcion -> descripcion.contains("no confirmado"));
+                // Campos y no prosa desde #20: la columna es `jsonb` y lo que se le pasaba era
+                // «Frente PROPUESTO a la via 200: 18.50 ML. Derivado del corte…», que el
+                // `cast(… AS jsonb)` rechazaba SIEMPRE. Aqui se afirma lo mismo por campo, que es
+                // ademas como se puede consultar despues.
+                .allMatch(descripcion -> descripcion.contains("\"estado\":\"PROPUESTA\""))
+                .allMatch(descripcion -> descripcion.contains("\"longitud\":\"18.50 ML\""))
+                .allMatch(
+                        descripcion ->
+                                descripcion.contains(
+                                        "\"origen\":\"CORTE_CONTRA_EL_EJE_DE_CALZADA\""));
     }
 
     @Test

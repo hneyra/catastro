@@ -217,6 +217,55 @@ class ElFrenteSeAsientaEnLaBitacoraJdbcTest {
                 .containsExactly("111.00 ML");
     }
 
+    /**
+     * AC-5 de #26: la bitacora asienta la longitud que HABIA, no una constante.
+     *
+     * <p>Hasta #26 el «antes» decia que la longitud era una propuesta y <b>no cuanto media</b>:
+     * ninguna cifra, ni ahi ni en la tabla, que la pisa. De modo que la unica pregunta que una
+     * bitacora existe para contestar —«cuanto decia antes de que alguien la cambiara»— no tenia
+     * respuesta en ninguna parte.
+     *
+     * <p>Vive aqui y no en {@code DerivacionDeFrentesJdbcTest} porque lo que mide es la
+     * <b>bitacora</b>, y quien la compone es el caso de uso: esta clase es la unica que monta la
+     * {@link kamayuk.catastro.auditoria.AuditoriaJdbc} de verdad y llega hasta el {@code cast(… AS
+     * jsonb)} que #20 arreglo.
+     */
+    @Test
+    @DisplayName("#26 — la bitacora asienta la longitud ANTERIOR, no una frase fija")
+    void laBitacoraAsientaLaLongitudAnterior() throws SQLException {
+        derivador.proponer(predioId, OCHO_METROS, PORQUE);
+        FrenteDelPredio propuesto = unFrente();
+        // Entera, con su unidad dentro: es como el serializador de #20 escribe una `Medida`, y es
+        // como sale tambien el «despues» —un antes y un despues con formas distintas no se pueden
+        // comparar de un vistazo, que es justo para lo que la bitacora existe—.
+        String loQueHabia = propuesto.longitud().toString();
+
+        confirmador.confirmar(
+                propuesto.id(),
+                Medida.enMetrosLineales("111.00"),
+                Observacion.de("Medido en campo con cinta, 2026-09-06"));
+
+        assertThat(
+                        textos(
+                                "SELECT datos_anteriores ->> 'longitud' FROM auditoria"
+                                        + " WHERE tabla = 'frente_predio' AND operacion ="
+                                        + " 'MODIFICACION'"))
+                .as(
+                        "la cifra que el corte dejo, leida de la fila antes de tocarla. Con la"
+                                + " constante que habia hasta #26, este campo no existia: la"
+                                + " longitud anterior no quedaba en ningun sitio")
+                .containsExactly(loQueHabia);
+        assertThat(loQueHabia)
+                .as("y no puede ser la que se confirma, o esta prueba no distinguiria nada")
+                .isNotEqualTo("111.00 ML");
+        assertThat(loQueHabia)
+                .as(
+                        "y la unidad viaja DENTRO de la cifra: «8.00» a secas no dice si son metros"
+                                + " lineales o cuadrados, y de esa distincion cuelga que se"
+                                + " determine barrido o recojo (`rentas`#9)")
+                .endsWith(" ML");
+    }
+
     // ── Fixtures ───────────────────────────────────────────────────────
 
     private FrenteDelPredio unFrente() {

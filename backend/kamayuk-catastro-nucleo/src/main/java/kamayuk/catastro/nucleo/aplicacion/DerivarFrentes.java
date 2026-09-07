@@ -54,16 +54,32 @@ public class DerivarFrentes implements ApplicationRunner {
         try {
             DerivacionDeLosFrentes.Informe informe =
                     derivacion.derivar(
-                            datos.tolerancia(), datos.tope(), Observacion.de(datos.observacion()));
+                            datos.tolerancia(),
+                            datos.tamanoDelLote(),
+                            Observacion.de(datos.observacion()));
+            // #26, AC-2: el recuento va SOBRE UN TOTAL. «500 predio(s) recorrido(s)» a secas era
+            // indistinguible de una corrida completa, y con el cursor muerto es lo que se leia
+            // mientras el resto del padron no se derivaba nunca.
             log.info(
-                    "Frentes derivados en la municipalidad {} con tolerancia {}: {} predio(s)"
-                            + " recorrido(s), {} con frente nuevo, {} frente(s) PROPUESTO(s). Una"
-                            + " longitud propuesta no se cobra: confirmarla es un acto (ADR-0021)",
+                    "Frentes derivados en la municipalidad {} con tolerancia {}: {} de {} predio(s)"
+                            + " recorrido(s) en {} lote(s), {} con frente nuevo, {} frente(s)"
+                            + " PROPUESTO(s). Una longitud propuesta no se cobra: confirmarla es un"
+                            + " acto (ADR-0021)",
                     datos.municipalidadId(),
                     datos.tolerancia(),
                     informe.prediosRecorridos(),
+                    informe.prediosEnElPadron(),
+                    informe.lotes(),
                     informe.prediosConFrenteNuevo(),
                     informe.frentesPropuestos());
+            if (!informe.agotoElPadron()) {
+                log.warn(
+                        "La corrida recorrio {} de los {} predios que podian dar frente: NO se"
+                                + " agoto el padron, asi que hay predios sin propuesta. Es el"
+                                + " defecto de #26 (a) si vuelve",
+                        informe.prediosRecorridos(),
+                        informe.prediosEnElPadron());
+            }
             if (informe.avisoDeLatitud() != null) {
                 // #29. No es un detalle de despliegue: fuera de la banda el corte propone de
                 // menos y el unico sintoma seria un predio de esquina con un frente en vez de
@@ -75,7 +91,8 @@ public class DerivarFrentes implements ApplicationRunner {
             }
             if (informe.frentesPropuestos() == 0) {
                 log.warn(
-                        "Ningun frente propuesto sobre {} predio(s). Lo mas probable hoy es que no"
+                        "Ningun frente propuesto sobre {} predio(s) recorrido(s). Lo mas probable hoy es"
+                                + " que no"
                                 + " haya cartografia cargada: sin poligono de lote o sin eje de"
                                 + " via no hay contra que cortar. Cada predio recorrido dejo su"
                                 + " motivo en `frente_derivacion`",

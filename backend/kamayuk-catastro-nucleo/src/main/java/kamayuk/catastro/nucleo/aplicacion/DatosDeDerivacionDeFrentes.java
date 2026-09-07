@@ -26,7 +26,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  * @param municipalidadId identificador ya existente de la municipalidad cuyos frentes se derivan
  * @param toleranciaM a cuantos metros del eje se considera que el borde del lote da a esa via
- * @param tope cuantos predios como mucho recorre esta corrida
+ * @param tamanoDelLote cuantos predios se piden por consulta. <b>No es un techo</b> (#26, AC-1): la
+ *     corrida recorre el padron entero pidiendolo por lotes de este tamano. Se llamaba {@code tope}
+ *     y la propiedad {@code kamayuk.derivacion-de-frentes.tope}, y era exactamente eso: un techo,
+ *     del que quedaba fuera el resto del padron sin que nada lo dijera. El nombre cambia porque el
+ *     significado cambio, y nadie lo consume todavia —ningun CronJob despliega este proceso, ni el
+ *     descriptor ni un guion de carga lo nombran, medido con `grep` en los cinco repositorios—
  * @param usuarioDelProceso con que nombre firma la auditoria lo que hace este proceso
  * @param observacion el «por que» de la derivacion (regla 10, ADR-0008)
  */
@@ -34,7 +39,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record DatosDeDerivacionDeFrentes(
         long municipalidadId,
         String toleranciaM,
-        int tope,
+        int tamanoDelLote,
         String usuarioDelProceso,
         String observacion) {
 
@@ -47,8 +52,14 @@ public record DatosDeDerivacionDeFrentes(
      */
     private static final String TOLERANCIA_POR_OMISION = "8.00";
 
-    /** Cuantos predios recorre una corrida si nadie dice otra cosa. */
-    private static final int TOPE_POR_OMISION = 5000;
+    /**
+     * Cuantos identificadores trae cada consulta de pagina si nadie dice otra cosa.
+     *
+     * <p>Es la misma cifra que era el tope, y lo que cambio es lo que significa: ya no deja fuera
+     * al resto del padron. Cinco mil identificadores son cuarenta kilobytes, y cada predio abre su
+     * propia transaccion de todas formas, asi que el tamano del lote no decide cuanto se retiene.
+     */
+    private static final int TAMANO_DEL_LOTE_POR_OMISION = 5000;
 
     public DatosDeDerivacionDeFrentes {
         if (municipalidadId < 1) {
@@ -60,7 +71,7 @@ public record DatosDeDerivacionDeFrentes(
                 toleranciaM == null || toleranciaM.isBlank()
                         ? TOLERANCIA_POR_OMISION
                         : toleranciaM.strip();
-        tope = tope < 1 ? TOPE_POR_OMISION : tope;
+        tamanoDelLote = tamanoDelLote < 1 ? TAMANO_DEL_LOTE_POR_OMISION : tamanoDelLote;
         usuarioDelProceso =
                 usuarioDelProceso == null || usuarioDelProceso.isBlank()
                         ? "derivacion-de-frentes"

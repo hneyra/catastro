@@ -1,6 +1,8 @@
 package kamayuk.catastro.nucleo.infraestructura;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -28,6 +30,7 @@ import kamayuk.catastro.nucleo.dominio.DerivacionDeFrentes;
 import kamayuk.catastro.nucleo.dominio.EstadoDeLaLongitud;
 import kamayuk.catastro.nucleo.dominio.FrenteDelPredio;
 import kamayuk.catastro.nucleo.dominio.FrentePropuesto;
+import kamayuk.catastro.nucleo.dominio.FrentesDelPredio;
 import kamayuk.catastro.nucleo.dominio.MarcoDeLoLevantado;
 import kamayuk.catastro.nucleo.dominio.MargenDelMarco;
 import kamayuk.catastro.plataforma.tenant.TenantTransactionManager;
@@ -398,6 +401,99 @@ class DerivacionDeFrentesJdbcTest {
         assertThat(propuestos)
                 .as("el predio del escenario existe, y desde la vecina no hay nada que cortar")
                 .isEmpty();
+    }
+
+    // ── #26: confirmar una vez, y la bitacora con el «antes» de verdad ─
+
+    /**
+     * AC-4: la segunda confirmacion NO pisa la cifra que alguien firmo.
+     *
+     * <p>Va contra el <b>repositorio</b> y no contra el caso de uso a proposito: lo que decide es
+     * el {@code WHERE longitud_estado = 'PROPUESTA'} del {@code UPDATE}, y un {@code if} en la capa
+     * de arriba no protegeria de dos confirmaciones simultaneas —las dos leerian «esta propuesta» y
+     * las dos escribirian—. Con el {@code WHERE} quitado, esto pasa en verde por la puerta de
+     * atras: el segundo {@code UPDATE} tiene exito y la respuesta es un 200 indistinguible del
+     * primero.
+     *
+     * <p>Y no es lo mismo que {@code noPisaUnaLongitudConfirmada}, que mide que el <b>derivador</b>
+     * no la pise: son dos caminos distintos hacia la misma fila, y solo uno de los dos tenia
+     * guarda.
+     */
+    @Test
+    @DisplayName("#26 — confirmar DOS veces no pisa la cifra firmada: la segunda se rechaza")
+    void confirmarDosVecesNoPisaLaCifraFirmada() {
+        TenantContext.fijar(new MunicipalidadId(municipalidad));
+        OrigenContext.fijar(new Origen("jperez", "PC-CATASTRO-01", "10.20.30.41"));
+        derivarYLeer();
+        long frenteId = leerFrentes().get(0).id();
+
+        enUnaTransaccion.execute(
+                estado ->
+                        frentes.confirmar(
+                                frenteId,
+                                Medida.enMetrosLineales("111.00"),
+                                Observacion.de("Medido en campo con cinta, 2026-09-06"),
+                                RELOJ.instant()));
+
+        Throwable segundaVez =
+                catchThrowable(
+                        () ->
+                                enUnaTransaccion.execute(
+                                        estado ->
+                                                frentes.confirmar(
+                                                        frenteId,
+                                                        Medida.enMetrosLineales("222.00"),
+                                                        Observacion.de("Otra vez, sin motivo"),
+                                                        RELOJ.instant())));
+
+        // La FILA primero, y la excepcion despues, a proposito: lo que este caso protege es que la
+        // cifra firmada no se mueva, y ese es el rojo que hay que ver si alguien quita el WHERE. Al
+        // reves, el unico rojo seria «Expecting code to raise a throwable», que no dice que se
+        // escribio encima de una cifra de la que cuelga un cobro.
+        FrenteDelPredio sigueIgual =
+                leerFrentes().stream()
+                        .filter(frente -> frente.id() == frenteId)
+                        .findFirst()
+                        .orElseThrow();
+        assertThat(sigueIgual.longitud().magnitud())
+                .as(
+                        "de esta cifra cuelga un cobro: pisarla en silencio cambia la base de los"
+                                + " arbitrios de ese predio sin que nadie lo decida (`V10`)")
+                .isEqualByComparingTo(new BigDecimal("111.00"));
+        assertThat(sigueIgual.confirmadoPor()).isEqualTo("jperez");
+        assertThat(sigueIgual.estaConfirmada()).isTrue();
+
+        assertThat(segundaVez)
+                .as("y la segunda confirmacion no es un exito silencioso: tiene su nombre")
+                .isInstanceOf(FrentesDelPredio.LongitudYaConfirmada.class)
+                .hasMessageContaining("111.00")
+                .hasMessageContaining("Rectificar una longitud confirmada es otro acto");
+    }
+
+    /**
+     * EL CONTRASTE de AC-4: un frente que NO existe se distingue de uno ya confirmado.
+     *
+     * <p>Cero filas actualizadas tiene dos causas y se arreglan de maneras distintas —revisar el
+     * identificador, o decidir si se rectifica—. Colapsarlas en un 404 mandaria a buscar un frente
+     * que esta ahi; colapsarlas en el 409 mandaria a discutir una confirmacion que nunca hubo.
+     */
+    @Test
+    @DisplayName(
+            "#26 — EL CONTRASTE: un frente inexistente sigue siendo 'no esta', no 'ya firmado'")
+    void unFrenteInexistenteNoSeConfundeConUnoYaConfirmado() {
+        TenantContext.fijar(new MunicipalidadId(municipalidad));
+        OrigenContext.fijar(new Origen("jperez", "PC-CATASTRO-01", "10.20.30.41"));
+
+        assertThatThrownBy(
+                        () ->
+                                enUnaTransaccion.execute(
+                                        estado ->
+                                                frentes.confirmar(
+                                                        999_999L,
+                                                        Medida.enMetrosLineales("111.00"),
+                                                        Observacion.de("Medido en campo"),
+                                                        RELOJ.instant())))
+                .isInstanceOf(FrentesDelPredio.FrenteInexistente.class);
     }
 
     // ── Fixtures ───────────────────────────────────────────────────────

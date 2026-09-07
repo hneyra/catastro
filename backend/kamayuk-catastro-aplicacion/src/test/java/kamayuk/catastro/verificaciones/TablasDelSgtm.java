@@ -180,6 +180,22 @@ final class TablasDelSgtm {
                     // el estado y ninguna otra cosa.
                     "candidato",
                     "hallazgo",
+                    // Con #26: el frente del predio. Es la unica tabla que `V10` trajo de la que
+                    // CUELGA UN COBRO —los metros lineales de frontis son el insumo con que
+                    // `rentas` determina el barrido (ADR-0024)—, y `V10` lo dice con todas las
+                    // letras: «un metro es indistinguible de otro al leerlo». Borrar un frente
+                    // confirmado borra la unica constancia de que alguien fue con la cinta y
+                    // afirmo esa cifra; borrar uno propuesto borra ademas la explicacion de por
+                    // que ese predio aparecio en el padron de frentes. Una propuesta equivocada no
+                    // se borra: se confirma la medida buena, y la constancia de que hubo una
+                    // propuesta se queda (regla 4, RNF-051).
+                    //
+                    // NO entra en INMUTABLES, y es deliberado: confirmar ES un UPDATE sobre la
+                    // propia fila —el acto de ADR-0021—, igual que la anulacion de `itse` y el
+                    // estado de `declaracion_jurada`. Lo que impide que ese UPDATE pise una cifra
+                    // ya firmada no es este escaner sino el `WHERE longitud_estado = 'PROPUESTA'`
+                    // del repositorio (#26, AC-4).
+                    "frente_predio",
                     "auditoria");
 
     /**

@@ -58,6 +58,53 @@ public class FrentesDelPredioJdbc extends RepositorioJdbc implements FrentesDelP
                     + " ORDER BY f.es_principal DESC, f.via_id, f.id";
 
     /**
+     * Los predios que el derivador recorre, escrito UNA vez (#26, AC-2 y AC-3).
+     *
+     * <h2>Se filtra por {@code estado}</h2>
+     *
+     * <p>Un predio DADO_DE_BAJA ya no esta en el padron: sus frentes son los que tuviera y nadie
+     * espera que aparezcan mas. No hay nada que explicar sobre el —{@code predio.estado} lo dice
+     * solo— y recorrerlo gasta una consulta de corte para nada.
+     *
+     * <h2>Y NO se filtra por {@code geometria IS NOT NULL}, que AC-3 pedia. El motivo, medido</h2>
+     *
+     * <p>Parece la misma clase de filtro y no lo es. Un lote sin poligono <b>tiene algo que
+     * explicar</b>, y explicarlo es justamente para lo que existe {@code frente_derivacion}: el
+     * derivador lo recorre, no propone nada y deja su constancia con el motivo. Filtrandolo, ese
+     * predio deja de tener fila ahi, y entonces {@code GET …/frentes} contesta {@code derivadoEn:
+     * null}, que significa <b>«nunca se ha derivado»</b> —o sea manda a mirar si el proceso corre,
+     * cuando lo que falta es cargar la cartografia—. Es exactamente la distincion que {@code
+     * DerivacionDeFrentes} y #6 AC-8 existen para no perder.
+     *
+     * <p>Y no es un caso de borde: <b>hoy no hay ni un poligono cargado en ninguna instalacion</b>
+     * (P5C, hueco de carga cartografica), asi que con ese filtro el derivador no recorreria NI UN
+     * PREDIO y no dejaria NI UNA constancia — un proceso que sale con codigo 0 sin haber hecho
+     * nada, que es el defecto que C-6 midio con el guion de transferencias.
+     *
+     * <p>Lo que AC-3 quiere evitar —«el tope se gasta en predios que no pueden dar frente»—
+     * <b>desaparece con AC-1</b>: ya no hay tope, el recorrido agota el padron, asi que un predio
+     * sin poligono no le quita el sitio a ninguno. Recorrerlo cuesta una consulta de corte que sale
+     * por {@code p.geometria IS NOT NULL} sin llegar a tocar el catalogo vial, y un {@code UPSERT}
+     * de constancia. Lo que compra es que ese predio pueda decir por que no tiene frentes.
+     *
+     * <h2>Por que es UN fragmento y no dos predicados escritos aparte</h2>
+     *
+     * <p>Porque lo usan la pagina y el censo, y el censo es el <b>denominador</b> del informe. Con
+     * dos {@code WHERE} escritos por separado, «se agoto el padron» podria ser cierto contra un
+     * denominador que cuenta otra cosa — que es la misma forma de defecto que C-17 encontro cinco
+     * veces: dos sitios con la misma verdad y nada que los compare.
+     *
+     * <h2>Y sigue sin haber ningun {@code municipalidad_id}</h2>
+     *
+     * <p>Lo pone la politica RLS con lo que {@code SET LOCAL} fijo (regla 2). El plan medido con 3
+     * 000 predios en cada una de dos municipalidades usa {@code predio_pk} con la condicion de la
+     * politica y el cursor JUNTOS en el {@code Index Cond}, y el filtro no cambia el metodo de
+     * acceso ni las paginas leidas: <b>25 y 25</b>.
+     */
+    private static final String LOS_QUE_RECORRE_EL_DERIVADOR =
+            " FROM predio WHERE estado = 'ACTIVO'";
+
+    /**
      * El corte del lote contra el eje de calzada: el marco delante, el operador espacial detras
      * (ADR-0034 regla 2).
      *
@@ -205,12 +252,36 @@ public class FrentesDelPredioJdbc extends RepositorioJdbc implements FrentesDelP
     }
 
     @Override
-    public List<Long> prediosPorDerivar(long desde, int tope) {
-        return jdbc().sql("SELECT id FROM predio WHERE id > :desde ORDER BY id LIMIT :tope")
+    public List<Long> prediosPorDerivar(long desde, int tamanoDelLote) {
+        return jdbc().sql(
+                        "SELECT id"
+                                + LOS_QUE_RECORRE_EL_DERIVADOR
+                                + " AND id > :desde ORDER BY id LIMIT :tope")
                 .param("desde", desde)
-                .param("tope", tope)
+                .param("tope", tamanoDelLote)
                 .query((ResultSet fila, int numero) -> fila.getLong("id"))
                 .list();
+    }
+
+    @Override
+    public int cuantosPrediosPorDerivar() {
+        return jdbc().sql("SELECT count(*)" + LOS_QUE_RECORRE_EL_DERIVADOR)
+                .query(Integer.class)
+                .single();
+    }
+
+    @Override
+    public Optional<FrenteDelPredio> unFrente(long frenteId) {
+        return jdbc().sql(
+                        "SELECT "
+                                + COLUMNAS
+                                + " FROM frente_predio f"
+                                + " JOIN via v ON v.municipalidad_id = f.municipalidad_id"
+                                + "           AND v.id = f.via_id"
+                                + " WHERE f.id = :id")
+                .param("id", frenteId)
+                .query(FrentesDelPredioJdbc::mapearFrente)
+                .optional();
     }
 
     @Override
@@ -297,6 +368,21 @@ public class FrentesDelPredioJdbc extends RepositorioJdbc implements FrentesDelP
                 .update();
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p><b>{@code AND longitud_estado = 'PROPUESTA'} en el {@code WHERE}, y lo decide el motor
+     * (#26, AC-4).</b> Sin esa mitad, una segunda confirmacion sustituia la cifra que alguien firmo
+     * —y con ella la base de los arbitrios de ese predio— sin ningun error: la respuesta era un 200
+     * con el frente «confirmado», indistinguible de la primera vez. Un {@code if} en el caso de uso
+     * no sirve: dos confirmaciones simultaneas leerian las dos «esta propuesta» y las dos
+     * escribirian, y aqui la segunda no actualiza ninguna fila y lo sabe.
+     *
+     * <p>Cero filas tiene <b>dos causas y se distinguen</b>, porque se arreglan de maneras
+     * distintas: el frente no existe —se revisa el identificador— o su longitud ya esta confirmada
+     * —hay que decidir si se rectifica, que es otro acto—. Colapsarlas en un 404 mandaria a buscar
+     * un frente que esta ahi.
+     */
     @Override
     public FrenteDelPredio confirmar(
             long frenteId, Medida longitud, Observacion observacion, Instant cuando) {
@@ -308,7 +394,8 @@ public class FrentesDelPredioJdbc extends RepositorioJdbc implements FrentesDelP
                                         + "     confirmado_por = :usuario,"
                                         + "     confirmado_en = :cuando,"
                                         + "     observacion = :observacion"
-                                        + " WHERE id = :id")
+                                        + " WHERE id = :id"
+                                        + "   AND longitud_estado = 'PROPUESTA'")
                         .param("id", frenteId)
                         .param("longitud", longitud.magnitud())
                         .param("usuario", usuarioActual())
@@ -316,18 +403,12 @@ public class FrentesDelPredioJdbc extends RepositorioJdbc implements FrentesDelP
                         .param("observacion", observacion.texto())
                         .update();
         if (filas == 0) {
-            throw new FrenteInexistente(frenteId);
+            FrenteDelPredio yaEstaba =
+                    unFrente(frenteId).orElseThrow(() -> new FrenteInexistente(frenteId));
+            throw new LongitudYaConfirmada(
+                    frenteId, yaEstaba.longitud(), String.valueOf(yaEstaba.confirmadoPor()));
         }
-        return jdbc().sql(
-                        "SELECT "
-                                + COLUMNAS
-                                + " FROM frente_predio f"
-                                + " JOIN via v ON v.municipalidad_id = f.municipalidad_id"
-                                + "           AND v.id = f.via_id"
-                                + " WHERE f.id = :id")
-                .param("id", frenteId)
-                .query(FrentesDelPredioJdbc::mapearFrente)
-                .single();
+        return unFrente(frenteId).orElseThrow(() -> new FrenteInexistente(frenteId));
     }
 
     private static FrenteDelPredio mapearFrente(ResultSet fila, int numero) throws SQLException {

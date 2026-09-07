@@ -170,8 +170,8 @@ class DerivacionDeLosFrentesTest {
     }
 
     @Test
-    @DisplayName("una corrida con tope cero no es una corrida")
-    void unaCorridaConTopeCeroSeRechaza() {
+    @DisplayName("una corrida con lotes de cero predios no es una corrida")
+    void unaCorridaConLoteVacioSeRechaza() {
         assertThatThrownBy(() -> derivacion().derivar(OCHO_METROS, 0, PORQUE))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("no recorre ningun predio");
@@ -183,6 +183,93 @@ class DerivacionDeLosFrentesTest {
         assertThatThrownBy(() -> derivacion().derivar(OCHO_METROS, 500, null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("observacion");
+    }
+
+    // ── #26: el recorrido POR LOTES, y su denominador ─────────────────
+
+    /**
+     * AC-1: la corrida recorre el padron entero aunque no quepa en un lote.
+     *
+     * <p>Se afirma <b>la lista exacta de predios recorridos</b> y no su tamano, y hacen falta las
+     * dos cosas que eso mide a la vez: que no se pare en el primer lote —el defecto de #26 (a)— y
+     * que no vuelva a pasar por los mismos. Un recuento solo no distingue «recorrio 1 200» de
+     * «recorrio 500 tres veces», y con el cursor muerto eso es exactamente lo que pasaba.
+     */
+    @Test
+    @DisplayName("#26 — la corrida recorre el padron ENTERO, aunque no quepa en un lote")
+    void laCorridaRecorreElPadronEnteroPorLotes() {
+        frentes.tantosPredios(1200);
+
+        DerivacionDeLosFrentes.Informe informe = derivacion().derivar(OCHO_METROS, 500, PORQUE);
+
+        assertThat(frentes.recorridos)
+                .as(
+                        "los 1 200, cada uno UNA vez. Hasta #26 el `desde` del puerto estaba muerto"
+                                + " —`prediosPorDerivar(0L, tope)`, sin bucle— y los 700 de detras"
+                                + " del primer lote no se derivaban nunca")
+                .containsExactlyElementsOf(
+                        java.util.stream.LongStream.rangeClosed(1, 1200).boxed().toList());
+        assertThat(informe.prediosRecorridos()).isEqualTo(1200);
+        assertThat(informe.lotes()).as("1 200 en lotes de 500 son tres consultas").isEqualTo(3);
+    }
+
+    /**
+     * AC-2: el informe dice de cuantos.
+     *
+     * <p>«500 predio(s) recorrido(s)» es lo que hacia que una corrida que dejaba fuera al 96 % del
+     * padron pareciera completa. El denominador es lo unico que lo delata sin ir a contar a mano.
+     */
+    @Test
+    @DisplayName("#26 — el informe dice cuantos habia, y si se agoto el padron")
+    void elInformeDiceDeCuantosYSiSeAgoto() {
+        frentes.tantosPredios(1200);
+
+        DerivacionDeLosFrentes.Informe informe = derivacion().derivar(OCHO_METROS, 500, PORQUE);
+
+        assertThat(informe.prediosEnElPadron())
+                .as("un recuento sin denominador no dice si la corrida termino")
+                .isEqualTo(1200);
+        assertThat(informe.agotoElPadron()).isTrue();
+    }
+
+    /**
+     * EL CONTRASTE de AC-2: {@code agotoElPadron()} puede ser falso.
+     *
+     * <p>Sin este caso, la afirmacion de arriba la cumpliria tambien un metodo que devolviera
+     * siempre {@code true} — que es la asercion que no puede fallar por el motivo que dice
+     * comprobar. Aqui el informe se compone a mano con las cifras que dejaba la corrida rota.
+     */
+    @Test
+    @DisplayName("#26 — EL CONTRASTE: un informe que no agoto el padron lo dice")
+    void unInformeQueNoAgotoElPadronLoDice() {
+        DerivacionDeLosFrentes.Informe corridaQueSeParoEnElPrimerLote =
+                // El sexto componente es el aviso de latitud de #29: aqui va nulo porque lo que
+                // este contraste mide es `agotoElPadron()`, y un padron del Peru no trae aviso.
+                new DerivacionDeLosFrentes.Informe(1200, 500, 1, 0, 0, null);
+
+        assertThat(corridaQueSeParoEnElPrimerLote.agotoElPadron())
+                .as("es exactamente el estado de #26 (a): 500 de 1 200 y nada que lo dijera")
+                .isFalse();
+    }
+
+    /**
+     * Un adaptador que no respeta su {@code desde} para la corrida, en vez de dejarla en bucle.
+     *
+     * <p>Es la otra cara del cursor: mientras el {@code desde} no se usaba, ignorarlo era el
+     * comportamiento normal y no rompia nada. Ahora el recorrido depende de el, y un adaptador que
+     * devolviera siempre el primer lote no daria una corrida corta sino una que <b>no termina</b>
+     * —proponiendo lo mismo para siempre, sin informe y sin nadie que sepa por que—.
+     */
+    @Test
+    @DisplayName("#26 — un adaptador que ignora el cursor para la corrida y dice por que")
+    void unAdaptadorQueIgnoraElCursorParaLaCorrida() {
+        frentes.tantosPredios(1200);
+        frentes.ignoraElCursor();
+
+        assertThatThrownBy(() -> derivacion().derivar(OCHO_METROS, 500, PORQUE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("el cursor no avanza")
+                .hasMessageContaining("prediosPorDerivar");
     }
 
     private static MarcoGeografico marco(String oeste, String sur, String este, String norte) {
@@ -201,13 +288,25 @@ class DerivacionDeLosFrentesTest {
                 Medida.enMetrosLineales("18.4999"));
     }
 
-    /** El repositorio, doblado. */
+    /**
+     * El repositorio, doblado.
+     *
+     * <h2>Y HONESTO con {@code desde} y con el tamano del lote, que es la mitad del hallazgo</h2>
+     *
+     * <p>Hasta #26 este doble contestaba {@code List.copyOf(predios)} <b>ignorando los dos
+     * argumentos</b>. Con eso, la corrida que solo pedia el primer lote empezando de cero —el
+     * defecto (a) de #26— recorria el padron entero en la prueba y salia en VERDE: el doble tapaba
+     * exactamente lo que el caso de uso hacia mal. Un doble que no respeta el contrato del puerto
+     * no dobla el puerto: dobla lo que a la prueba le conviene.
+     */
     private static final class FrentesDeMentira implements FrentesDelPredio {
 
         private final List<Long> predios = new ArrayList<>();
         private final java.util.Map<Long, List<FrentePropuesto>> cortes = new java.util.HashMap<>();
         private final List<DerivacionDeFrentes> anotadas = new ArrayList<>();
+        private final List<Long> recorridos = new ArrayList<>();
         private boolean todoYaEstaba;
+        private boolean ignoraElCursor;
 
         /** Sullana, que es donde estan los datos de este proyecto: dentro de la banda. */
         private MarcoDeLoLevantado levantado =
@@ -221,6 +320,17 @@ class DerivacionDeLosFrentesTest {
             for (long id : ids) {
                 predios.add(id);
             }
+        }
+
+        void tantosPredios(int cuantos) {
+            for (int i = 1; i <= cuantos; i++) {
+                predios.add((long) i);
+            }
+        }
+
+        /** Un adaptador roto: el que devuelve siempre el primer lote. */
+        void ignoraElCursor() {
+            ignoraElCursor = true;
         }
 
         void corta(long predioId, FrentePropuesto... propuestos) {
@@ -252,12 +362,28 @@ class DerivacionDeLosFrentesTest {
         }
 
         @Override
-        public List<Long> prediosPorDerivar(long desde, int tope) {
-            return List.copyOf(predios);
+        public List<Long> prediosPorDerivar(long desde, int tamanoDelLote) {
+            long cursor = ignoraElCursor ? 0L : desde;
+            return predios.stream()
+                    .sorted()
+                    .filter(id -> id > cursor)
+                    .limit(tamanoDelLote)
+                    .toList();
+        }
+
+        @Override
+        public int cuantosPrediosPorDerivar() {
+            return predios.size();
+        }
+
+        @Override
+        public Optional<FrenteDelPredio> unFrente(long frenteId) {
+            return Optional.empty();
         }
 
         @Override
         public List<FrentePropuesto> cortarContraLasVias(long predioId, Medida tolerancia) {
+            recorridos.add(predioId);
             return cortes.getOrDefault(predioId, List.of());
         }
 

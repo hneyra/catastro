@@ -389,6 +389,27 @@ if (vistas === 0) {
  * o sea 33 de las 34 pantallas miradas con todo lo plegado cerrado, en verde y
  * pagando 551 s por el privilegio.
  */
+/*
+ * Y el contraste del contraste, que faltaba y se midio: la guarda de abajo mira
+ * «se pincho y no se abrio», asi que **no ve el caso de no mirar en absoluto**.
+ * Con `loQueEsconden` devolviendo cero —la funcion retirada, el selector
+ * cambiado, `aria-expanded` renombrado— no hay ni un rebelde, ninguna pantalla
+ * es ciega, y el arnes informa «34 pantallas · 0 secciones» y sale con CERO.
+ * Medido asi al revisar #66, sobre este mismo archivo.
+ *
+ * Cero secciones abiertas en las 34 pantallas no es un recorrido limpio: hoy son
+ * 263. Es el arnes que dejo de mirar, y eso no se afirma, se denuncia.
+ */
+if (abiertos === 0) {
+  console.error(
+    `\nSe recorrieron ${vistas} pantalla(s) y no se abrio NI UNA seccion plegada, asi que este\n` +
+      'arnes no leyo nada de lo que esta escondido y no puede afirmar que no haya cifras ahi.\n' +
+      'No es «no habia nada plegado»: en este arbol hay 263. O el desplegado dejo de funcionar,\n' +
+      'o el armazon cambio como marca lo plegado y hay que ensenarselo.',
+  );
+  process.exit(2);
+}
+
 if (ciegas.length) {
   console.error(
     `\n${ciegas.length} de ${vistas} pantalla(s) se miraron A CIEGAS: tenian secciones plegadas y no se\n` +

@@ -213,7 +213,8 @@ jobs:
     # real no avisa de nada: la alarma solo sonaria despues de una regresion del
     # 200 %.
     #
-    # Con #86 el job baja de 356 s a 218 s —36 % de este tope— y **el 10 se
+    # Con #86 el job baja de 356 s a 218 s y 212 s en dos corridas —36 % y 35 %
+    # de este tope— y **el 10 se
     # queda**, con su aritmetica y no por inercia. Lo que decide si una alarma
     # sirve no es cuantas veces cabe la duracion actual sino **cuantas pantallas
     # faltan para que suene**, y esa pendiente es lo que #86 cambio: medida en

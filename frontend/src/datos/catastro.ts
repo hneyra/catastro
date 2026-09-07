@@ -284,12 +284,15 @@ export const TERRITORIO = {
   sectores: 'Sectores y catalogo vial',
   acciones: 'Acciones',
   activa: 'Activa',
-  laVia: 'La via elegida',
-  ningunaVia: 'Elija una via de la tabla para corregirla o retirarla del catalogo.',
-  columnaDeLaVia: 'Elegir',
-  elegirLaVia: 'Elegir',
   laVigente: 'Vigente',
   laRetirada: 'Retirada',
+  /* Los de la columna de acciones. Cortos a proposito: son los mismos actos que
+     el formulario titula entero —«Retirar la via del catalogo»—, y con el titulo
+     largo la tabla deja de caber en los 1 440 px del artboard, que es donde el
+     ultimo control se queda cortado por el borde (#71). */
+  corregir: 'Corregir',
+  retirar: 'Retirar',
+  devolver: 'Devolver',
 } as const;
 
 /* ── El mantenimiento del catalogo territorial (#72) ─────────────────────── */

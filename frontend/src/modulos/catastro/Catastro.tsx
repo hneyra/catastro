@@ -2112,9 +2112,9 @@ function CatalogoVial({
                     aria-label={`Via ${v.codigo} · ${v.activa ? TERRITORIO.laVigente : TERRITORIO.laRetirada}`}
                     style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}
                   >
-                    <Boton onClick={() => onActo('corregirVia', v.codigo)}>Corregir</Boton>
+                    <Boton onClick={() => onActo('corregirVia', v.codigo)}>{TERRITORIO.corregir}</Boton>
                     <Boton onClick={() => onActo(v.activa ? 'bajaDeVia' : 'reactivarVia', v.codigo)}>
-                      {v.activa ? 'Retirar' : 'Devolver'}
+                      {v.activa ? TERRITORIO.retirar : TERRITORIO.devolver}
                     </Boton>
                   </div>
                 ),

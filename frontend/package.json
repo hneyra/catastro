@@ -21,6 +21,7 @@
     "sin-red": "node verificaciones/sin-red.mjs",
     "impedimentos": "node verificaciones/impedimentos.mjs",
     "ejercicios": "node verificaciones/ejercicios.mjs",
+    "ficha": "node verificaciones/ficha.mjs",
     "paleta": "node verificaciones/paleta.mjs",
     "imagen": "node verificaciones/imagen.mjs"
   },

@@ -210,6 +210,15 @@ jobs:
       - name: El desplegable de ejercicios sale del reloj
         run: CATASTRO_BASE=http://localhost:5210 node verificaciones/ejercicios.mjs
 
+      # Compara lo que la ficha DIBUJA con el JSON que la pagina recibio, en las
+      # cuatro clases. Dos cosas que se ven igual de bien cuando estan mal: una
+      # obra complementaria no tiene valor que ensenar —el Anexo III no esta
+      # transcrito y `otra_instalacion` no tiene columna de importe—, asi que
+      # cualquier cifra de mas en esa seccion esta inventada; y `historico` viaja
+      # solo con `?historico=true`, que ninguna pantalla ensena.
+      - name: La ficha dibuja lo que la respuesta trae, y dice lo que no existe
+        run: CATASTRO_BASE=http://localhost:5210 node verificaciones/ficha.mjs
+
       # Compila su PROPIA vista previa con la bandera apagada y la sirve en otro
       # puerto: el proxy se apaga al compilar —Vite resuelve `import.meta.env`
       # entonces—, asi que correrlo contra la vista previa de arriba mediria el

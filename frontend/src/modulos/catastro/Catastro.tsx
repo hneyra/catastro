@@ -34,6 +34,7 @@ import {
   CHIPS_DE_PREDIOS,
   COLAS,
   CUADROS,
+  FICHA,
   MOTIVOS,
   PANEL,
   PREDIOS,
@@ -1136,7 +1137,19 @@ export function Predios({ ruta, onSujeto, onFiltros, onIr }: PantallaProps) {
       </Split>
       <PieDeSangre>
         <Servida
-          lee={esNuevo ? [api.RUTAS.vias] : [api.RUTAS.predios, api.RUTAS.fichas, api.RUTAS.frentes]}
+          lee={
+            esNuevo
+              ? [api.RUTAS.vias]
+              : [
+                  api.RUTAS.predios,
+                  api.RUTAS.fichas,
+                  /* Las CUATRO lecturas de ficha, porque la de un predio se pide
+                     a la de SU clase. Nombrarlas todas es lo que hace que, con el
+                     servidor caido, esta pantalla siga diciendo QUE no pudo leer. */
+                  ...api.TIPOS_DE_FICHA.map((t) => api.RUTA_DE_LA_FICHA[t].ruta),
+                  api.RUTAS.frentes,
+                ]
+          }
           /* Las CUATRO, porque el alta va a una u otra segun la clase de ficha
              que se elija en el primer paso, y cada una exige su propio permiso. */
           escribe={esNuevo ? api.TIPOS_DE_FICHA.map((t) => api.RUTA_DEL_ALTA[t]) : undefined}
@@ -1174,16 +1187,40 @@ function DetalleDelPredio({
   onVista: (k: string) => void;
   onIr: PantallaProps['onIr'];
 }) {
-  const ficha = useRecurso(
+  /* La grilla primero, y no por gusto: es la que dice de QUE CLASE es la ficha, y
+     la ficha entera se pide a la ruta de su clase. Sin este paso habria que
+     suponerla, y suponer «urbana» contesta 404 en todo predio cuya ficha no sea
+     la UNICA: esa ruta fija «TipoFicha.UNICA» y no devuelve ninguna otra. */
+  const enLaGrilla = useRecurso(
     (senal) => api.fichas({ codRefCatastral: predio.codRefCatastral }, { tamano: 50 }, senal),
     ['ficha-del-predio', predio.codRefCatastral],
-    vista === 'ficha',
+    vista === 'ficha' || vista === 'movimientos',
   );
+  const suya = enLaGrilla.datos?.contenido.find((f) => f.codRefCatastral === predio.codRefCatastral) ?? null;
+  const clase = suya !== null && api.esTipoDeFicha(suya.tipo) ? suya.tipo : null;
+
+  /* Y el historico viaja SOLO en la pestana que lo pinta. Las dos lecturas son la
+     misma ruta y contestan cosas distintas, asi que la llave lleva el parametro:
+     sin el, volver de «Movimientos» a «Ficha vigente» reusaria la respuesta con
+     el historico dentro y `?historico=` no decidiria nada. */
+  const conHistorico = vista === 'movimientos';
+  const completa = useRecurso(
+    (senal) => api.ficha(clase!, predio.codRefCatastral, { historico: conHistorico }, senal),
+    ['ficha-completa', predio.codRefCatastral, clase, conHistorico],
+    clase !== null && (vista === 'ficha' || vista === 'movimientos'),
+  );
+
   const frentes = useRecurso(
     (senal) => api.frentes(predio.predioId, senal),
     ['frentes-del-predio', predio.predioId],
     vista === 'frentes',
   );
+
+  /* Los bloques de detalle salen del MISMO dato que la cabecera, asi que se
+     dibujan solo cuando esa lectura esta resuelta: con la respuesta anterior
+     todavia en la mano, la cabecera ensenaria el esqueleto y los bloques de
+     debajo el contenido de la ficha que ya no se esta mirando. */
+  const conDatos = completa.cargando || completa.error !== null ? null : completa.datos;
 
   const contexto = [
     predio.tipo,
@@ -1275,37 +1312,59 @@ function DetalleDelPredio({
             </>
           ) : null}
 
-          {vista === 'ficha' ? (
-            <Seccion titulo="Ficha vigente" nota={`Predio ${predio.predioId}`}>
-              <Lectura recurso={ficha} espera="">
-                {(r) => {
-                  const suya = r.contenido.find((f) => f.codRefCatastral === predio.codRefCatastral);
-                  if (!suya) {
-                    return (
-                      <div style={{ padding: '14px 16px' }}>
-                        <Aviso tono="warn" titulo="Este predio no tiene ficha vigente hoy">
-                          La grilla de fichas contesta y no trae ninguna con este codigo a la fecha de hoy. Un predio
-                          inscrito sin ficha no tiene area, ni uso, ni construcciones que valorizar.
-                        </Aviso>
-                      </div>
-                    );
-                  }
-                  return (
-                    <Rejilla>
-                      <Dato rotulo="Ficha">{suya.fichaId}</Dato>
-                      <Dato rotulo="Tipo de ficha">{suya.tipo}</Dato>
-                      <Dato rotulo="Version">{suya.version}</Dato>
-                      <Dato rotulo="Area de terreno">{suya.areaTerreno}</Dato>
-                      <Dato rotulo="Area construida">{suya.areaConstruida}</Dato>
-                      <Dato rotulo="Uso">{suya.uso}</Dato>
-                      <Dato rotulo="Vigente desde">{suya.vigenciaDesde}</Dato>
-                      <Dato rotulo="Titular">{suya.titular}</Dato>
-                    </Rejilla>
-                  );
-                }}
+          {vista === 'ficha' || vista === 'movimientos' ? (
+            <Seccion
+              titulo={vista === 'ficha' ? FICHA.cabecera : FICHA.movimientos}
+              nota={`Predio ${predio.predioId}`}
+            >
+              <Lectura recurso={enLaGrilla} espera="">
+                {() =>
+                  suya === null ? (
+                    <div style={{ padding: '14px 16px' }}>
+                      <Aviso tono="warn" titulo="Este predio no tiene ficha vigente hoy">
+                        La grilla de fichas contesta y no trae ninguna con este codigo a la fecha de hoy. Un predio
+                        inscrito sin ficha no tiene area, ni uso, ni construcciones que valorizar.
+                      </Aviso>
+                    </div>
+                  ) : clase === null ? (
+                    <div style={{ padding: '14px 16px' }}>
+                      <Aviso tono="bad" titulo={`Clase de ficha desconocida: «${suya.tipo}»`}>
+                        {MOTIVOS.tipoDeFichaDesconocido}
+                      </Aviso>
+                    </div>
+                  ) : (
+                    <Lectura recurso={completa} espera="">
+                      {(f) =>
+                        vista === 'ficha' ? (
+                          <Rejilla>
+                            <Dato rotulo="Ficha">{f.id}</Dato>
+                            <Dato rotulo="Tipo de ficha">{f.tipo}</Dato>
+                            <Dato rotulo="Version">{f.version}</Dato>
+                            <Dato rotulo="Area de terreno">{f.areaTerreno}</Dato>
+                            <Dato rotulo="Uso">{f.uso}</Dato>
+                            <Dato rotulo="Frontis">{f.frontis}</Dato>
+                            <Dato rotulo="Condicion de propiedad">{f.condicionPropiedad}</Dato>
+                            <Dato rotulo="Tipo de edificacion">{f.tipoEdificacion}</Dato>
+                            <Dato rotulo="Denominacion">{f.denominacion}</Dato>
+                            <Dato rotulo="Vigente desde">{f.vigenciaDesde}</Dato>
+                            <Dato rotulo="Vigente hasta">{f.vigenciaHasta}</Dato>
+                            <Dato rotulo="Origen">{f.origen}</Dato>
+                            <Dato rotulo="Documento de origen">{f.documentoOrigen}</Dato>
+                            <Dato rotulo="Observacion">{f.observacion}</Dato>
+                            <Dato rotulo="Titular">{suya.titular}</Dato>
+                          </Rejilla>
+                        ) : (
+                          <Movimientos ficha={f} />
+                        )
+                      }
+                    </Lectura>
+                  )
+                }
               </Lectura>
             </Seccion>
           ) : null}
+
+          {vista === 'ficha' && conDatos !== null ? <BloquesDeLaFicha ficha={conDatos} /> : null}
 
           {vista === 'frentes' ? (
             <Seccion titulo="Frentes del predio" nota={`Predio ${predio.predioId}`}>
@@ -1347,6 +1406,225 @@ function DetalleDelPredio({
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * Lo que cuelga de la ficha: lo construido, las obras y el bloque de su clase.
+ *
+ * <h2>Los tres bloques de detalle se dibujan por separado a proposito</h2>
+ *
+ * `economico`, `bienesComunes` y `rural` son **nulos salvo el que toca**, y un
+ * nulo aqui significa «esta ficha no es de las que lo declaran», no «este predio
+ * no declara nada». Por eso cada bloque existe o no existe entero, en vez de
+ * salir vacio: una ficha rural con una tabla de actividades sin filas se leeria
+ * como un local sin licencia.
+ *
+ * <h2>Y las obras complementarias salen SIN IMPORTE, diciendo por que</h2>
+ *
+ * No es que la lectura lo recorte: **no hay cifra que ensenar**. El Anexo III de
+ * la R.M. 277-2025-VIVIENDA no esta transcrito en el corpus y `otra_instalacion`
+ * no tiene columna de importe, asi que no hay ni cuadro del que leerlo ni dato
+ * declarado donde estuviera. La tabla publica lo que el tecnico midio —que es,
+ * cuanto y en que unidad— y el aviso dice que falta y de que depende. Poner un
+ * cero seria inventar una base imponible, que es lo que este repositorio
+ * prohibe; dejar la columna en blanco seria peor, porque se leeria como un dato
+ * que no llego.
+ */
+function BloquesDeLaFicha({ ficha }: { ficha: api.Ficha }) {
+  return (
+    <>
+      <Seccion titulo={FICHA.construcciones} nota={`${ficha.construcciones.length}`}>
+        <Tabla
+          columnas={[
+            { label: 'Piso', pinta: (c: api.Construccion) => c.piso },
+            { label: 'Area construida', numerica: true, pinta: (c: api.Construccion) => c.areaConstruida },
+            { label: 'Ano', numerica: true, pinta: (c: api.Construccion) => guion(c.anioConstruccion) },
+            { label: 'Material', pinta: (c: api.Construccion) => guion(c.material) },
+            { label: 'Estado', pinta: (c: api.Construccion) => guion(c.estadoConservacion) },
+            { label: 'Categorias', pinta: (c: api.Construccion) => c.categorias },
+            {
+              label: 'Construido',
+              numerica: true,
+              pinta: (c: api.Construccion) => guion(c.porcentajeConstruido),
+            },
+          ]}
+          filas={ficha.construcciones}
+          llave={(c) => c.id}
+          vacio={FICHA.sinConstrucciones}
+          pie={FICHA.notaDeConstrucciones}
+        />
+      </Seccion>
+
+      <Seccion titulo={FICHA.instalaciones} nota={`${ficha.instalaciones.length}`}>
+        {ficha.instalaciones.length > 0 ? (
+          <div style={{ padding: '14px 16px 0' }}>
+            <Aviso tono="warn" titulo="Que falta para que estas obras tengan un valor">
+              {MOTIVOS.obraSinImporte}
+            </Aviso>
+          </div>
+        ) : null}
+        <Tabla
+          columnas={[
+            { label: 'Descripcion', pinta: (o: api.Instalacion) => o.descripcion },
+            { label: 'Cantidad', numerica: true, pinta: (o: api.Instalacion) => o.cantidad },
+            { label: 'Unidad', pinta: (o: api.Instalacion) => o.unidad },
+            { label: 'Ano', numerica: true, pinta: (o: api.Instalacion) => guion(o.anioConstruccion) },
+            { label: 'Estado', pinta: (o: api.Instalacion) => guion(o.estadoConservacion) },
+          ]}
+          filas={ficha.instalaciones}
+          llave={(o) => o.id}
+          vacio={FICHA.sinInstalaciones}
+        />
+      </Seccion>
+
+      {ficha.economico !== null ? (
+        <Seccion titulo={FICHA.economico} nota={`${ficha.economico.actividades.length}`}>
+          <Rejilla>
+            <Dato rotulo="Actividades sin licencia">{ficha.economico.sinLicencia}</Dato>
+            <Dato rotulo="Informacion complementaria">{ficha.economico.informacionComplementaria}</Dato>
+          </Rejilla>
+          <Tabla
+            columnas={[
+              { label: 'Conductor', pinta: (a: api.Actividad) => a.conductor },
+              { label: 'Nombre comercial', pinta: (a: api.Actividad) => guion(a.nombreComercial) },
+              { label: 'CIIU', pinta: (a: api.Actividad) => guion(a.ciiu) },
+              { label: 'Area ocupada', numerica: true, pinta: (a: api.Actividad) => guion(a.areaOcupada) },
+              {
+                label: 'Licencia',
+                pinta: (a: api.Actividad) =>
+                  a.licenciaNumero === null ? (
+                    <Insignia tono="warn">Sin licencia</Insignia>
+                  ) : (
+                    `${a.licenciaNumero}${a.licenciaFecha === null ? '' : ` · ${a.licenciaFecha}`}`
+                  ),
+              },
+              { label: 'Anuncio', pinta: (a: api.Actividad) => guion(a.anuncioNumero) },
+              { label: 'Declarada desde', pinta: (a: api.Actividad) => guion(a.vigenciaDesde) },
+            ]}
+            filas={ficha.economico.actividades}
+            llave={(a) => a.id}
+            vacio={FICHA.sinActividades}
+            pie={MOTIVOS.actividadSinLicencia}
+          />
+        </Seccion>
+      ) : null}
+
+      {ficha.bienesComunes !== null ? (
+        <Seccion titulo={FICHA.bienesComunes} nota={`${ficha.bienesComunes.bienes.length}`}>
+          <Rejilla>
+            <Dato rotulo="Area comun total">{ficha.bienesComunes.areaComunTotal}</Dato>
+          </Rejilla>
+          <Tabla
+            columnas={[
+              { label: 'Descripcion', pinta: (b: api.BienComun) => b.descripcion },
+              { label: 'Area', numerica: true, pinta: (b: api.BienComun) => b.area },
+              { label: 'Material', pinta: (b: api.BienComun) => guion(b.material) },
+              { label: 'Estado', pinta: (b: api.BienComun) => guion(b.estadoConservacion) },
+              { label: 'Ano', numerica: true, pinta: (b: api.BienComun) => guion(b.anioConstruccion) },
+            ]}
+            filas={ficha.bienesComunes.bienes}
+            llave={(b) => b.id}
+            vacio={FICHA.sinBienes}
+          />
+          <Tabla
+            columnas={[
+              { label: 'Predio participe', pinta: (p: api.Participacion) => p.predioId },
+              { label: 'Participacion', numerica: true, pinta: (p: api.Participacion) => p.porcentaje },
+            ]}
+            filas={ficha.bienesComunes.participaciones}
+            llave={(p) => p.predioId}
+            vacio={FICHA.sinParticipaciones}
+            pie={MOTIVOS.bienesSinValor}
+          />
+        </Seccion>
+      ) : null}
+
+      {ficha.rural !== null ? (
+        <Seccion titulo={FICHA.rural} nota={`${ficha.rural.tierras.length}`}>
+          <Rejilla>
+            <Dato rotulo="Superficie total">{ficha.rural.hectareasTotales}</Dato>
+          </Rejilla>
+          <Tabla
+            columnas={[
+              { label: 'Clasificacion', pinta: (t: api.Tierra) => t.clasificacion },
+              { label: 'Calidad agrologica', pinta: (t: api.Tierra) => guion(t.calidadAgrologica) },
+              { label: 'Riego', pinta: (t: api.Tierra) => t.riego },
+              { label: 'Superficie', numerica: true, pinta: (t: api.Tierra) => t.hectareas },
+              { label: 'De area comun', numerica: true, pinta: (t: api.Tierra) => guion(t.hectareasComunes) },
+            ]}
+            filas={ficha.rural.tierras}
+            llave={(t) => t.id}
+            vacio={FICHA.sinTierras}
+          />
+          <Tabla
+            columnas={[
+              { label: 'Orientacion', pinta: (c: api.Colindante) => c.orientacion },
+              { label: 'Colinda con', pinta: (c: api.Colindante) => c.descripcion },
+            ]}
+            filas={ficha.rural.colindantes}
+            llave={(c) => c.orientacion}
+            vacio={FICHA.sinColindantes}
+            pie={MOTIVOS.ruralEnHectareas}
+          />
+        </Seccion>
+      ) : null}
+
+      <Aviso tono="info" titulo="Lo que esta ficha publica y lo que no">
+        {MOTIVOS.fichaPorSuClase} {FICHA.soloSuBloque} {MOTIVOS.historicoNoSePide}
+      </Aviso>
+    </>
+  );
+}
+
+/**
+ * «Movimientos del Predio»: todas las versiones de la ficha.
+ *
+ * Viene de la MISMA ruta que la ficha vigente, con `?historico=true`, que es
+ * como `ResumenPredialController` documenta esta pestana. Y `historico` **nulo
+ * no es una lista vacia**: nulo es «no se pidio», y una lista vacia no puede
+ * pasar —toda ficha tiene al menos la version vigente—. Por eso el nulo se
+ * dibuja como un aviso y no como «no hay movimientos», que seria falso.
+ */
+function Movimientos({ ficha }: { ficha: api.Ficha }) {
+  if (ficha.historico === null) {
+    return (
+      <div style={{ padding: '14px 16px' }}>
+        <Aviso tono="warn" titulo="Esta respuesta no trae ninguna version">
+          {MOTIVOS.historicoNoPedido}
+        </Aviso>
+      </div>
+    );
+  }
+  return (
+    <Tabla
+      columnas={[
+        { label: 'Version', numerica: true, pinta: (v: api.VersionDeLaFicha) => v.version },
+        { label: 'Desde', pinta: (v: api.VersionDeLaFicha) => v.vigenciaDesde },
+        { label: 'Hasta', pinta: (v: api.VersionDeLaFicha) => guion(v.vigenciaHasta) },
+        {
+          label: 'Estado',
+          pinta: (v: api.VersionDeLaFicha) => (
+            <Insignia tono={v.vigente ? 'ok' : 'info'}>{v.vigente ? 'Vigente' : 'Cerrada'}</Insignia>
+          ),
+        },
+        { label: 'Area de terreno', numerica: true, pinta: (v: api.VersionDeLaFicha) => v.areaTerreno },
+        { label: 'Uso', pinta: (v: api.VersionDeLaFicha) => v.uso },
+        /* La observacion va ANTES del origen y del documento, y no al final: es
+           la mitad util de la fila —un diff dice que el area paso de 120 a 180 y
+           solo ella dice si fue una fiscalizacion o un error de tecleo— y la
+           tabla se desplaza a lo ancho, asi que la ultima columna es la que
+           nadie ve. */
+        { label: 'Observacion', pinta: (v: api.VersionDeLaFicha) => v.observacion },
+        { label: 'Usuario', pinta: (v: api.VersionDeLaFicha) => v.usuario },
+        { label: 'Origen', pinta: (v: api.VersionDeLaFicha) => v.origen },
+        { label: 'Documento', pinta: (v: api.VersionDeLaFicha) => v.documentoOrigen },
+      ]}
+      filas={ficha.historico}
+      llave={(v) => v.id}
+      vacio={FICHA.sinMovimientos}
+      pie={MOTIVOS.movimientosSonVersiones}
+    />
   );
 }
 

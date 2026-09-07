@@ -197,10 +197,139 @@ function altaDeFicha(tipo: string): Manejador {
         observacion,
         denominacion: typeof cuerpo.denominacion === 'string' ? cuerpo.denominacion : null,
         construcciones: [],
+        /* Las obras complementarias que el asistente acaba de teclear, DE VUELTA.
+           `FichaResource` las construye siempre —no son anulables— y el alta las
+           recibe en `PeticionDeAlta.instalaciones`, asi que devolverlas vacias
+           dejaria sin ejercer el camino entero del que habla #46: se escriben, se
+           guardan y se vuelven a leer. La `cantidad` sale con su unidad dentro,
+           que es lo que hace `Medida.toString()`. */
+        instalaciones: instalacionesDeclaradas(cuerpo.instalaciones),
+        /* Los tres bloques de detalle salen nulos: el asistente no recoge
+           ninguno —`rutas.mjs` lo dice en el sentido de ida— y el rural que si
+           manda son los colindantes, que el backend guarda y esta simulacion no
+           persiste. */
+        economico: null,
+        bienesComunes: null,
+        rural: null,
+        /* «No lo pediste»: un alta no lleva `?historico=`, y no puede tenerlo
+           —acaba de nacer la version 1—. Nulo y no lista vacia. */
+        historico: null,
       },
     };
   };
 }
+
+/**
+ * Las obras complementarias declaradas, con la forma con que vuelven.
+ *
+ * `InstalacionDeclarada` trae `cantidad` y `unidad` por separado —es lo que el
+ * formulario teclea— y `InstalacionResource` las publica **las dos**: la unidad
+ * suelta, y otra vez dentro de la cantidad, que es lo que hace `Medida`. Sin
+ * unidad no se compone ninguna medida, asi que la fila se devuelve tal cual el
+ * dominio la rechazaria: el proxy no valida (ADR-0010), pero tampoco inventa una
+ * unidad que nadie escribio.
+ */
+function instalacionesDeclaradas(declaradas: unknown): unknown[] {
+  if (!Array.isArray(declaradas)) return [];
+  return declaradas.map((cruda, i) => {
+    const x = (cruda ?? {}) as Record<string, unknown>;
+    const cantidad = typeof x.cantidad === 'string' ? x.cantidad : '';
+    const unidad = typeof x.unidad === 'string' ? x.unidad : '';
+    return {
+      id: i + 1,
+      descripcion: typeof x.descripcion === 'string' ? x.descripcion : '',
+      unidad,
+      cantidad: unidad === '' ? cantidad : `${cantidad} ${unidad}`,
+      anioConstruccion: typeof x.anioConstruccion === 'number' ? x.anioConstruccion : null,
+      estadoConservacion: typeof x.estadoConservacion === 'string' ? x.estadoConservacion : null,
+    };
+  });
+}
+
+/**
+ * La ficha vigente de un predio, entera, con la forma de `FichaResource`.
+ *
+ * <h2>Las CUATRO lecturas, y por que no es una con un parametro</h2>
+ *
+ * `FichaController` declara una ruta por clase de ficha y cada una **fija su
+ * `TipoFicha`**: `/urbana/{cod}` lee `TipoFicha.UNICA` y ninguna otra. Pedir la
+ * ficha de un predio por la ruta que no le toca no devuelve un bloque vacio
+ * —contesta **404** «El predio no tiene ficha urbana vigente al …»—, y ese es un
+ * desenlace que la pantalla tiene que poder ejercer: es lo que decide que la
+ * lectura se despache por el tipo que trae la grilla.
+ *
+ * <h2>Y el `?historico=`, que es una respuesta distinta y no un adorno</h2>
+ *
+ * Sin el parametro, `historico` viaja **nulo**: «no lo pediste». Con
+ * `historico=true` viajan todas las versiones. Una lista vacia no puede pasar
+ * —toda ficha tiene al menos la vigente—, asi que el nulo y la lista nunca
+ * significan lo mismo. Este proxy reproduce las dos respuestas porque son las
+ * dos que el backend ya tiene escritas.
+ */
+function lecturaDeFicha(tipo: string, llave: string, comoSeLlama: string): Manejador {
+  return (c) => {
+    const codigo = c.parametros[llave] ?? '';
+    const p = D.PADRON.find((x) => x.codRefCatastral === codigo);
+    if (!p) {
+      return problema(
+        'NO_ENCONTRADO',
+        404,
+        'No hay ningun predio con ese codigo de referencia catastral',
+      );
+    }
+    if (p.tipoFicha !== tipo) {
+      return problema(
+        'NO_ENCONTRADO',
+        404,
+        `El predio no tiene ficha ${comoSeLlama} vigente al ${D.HOY}`,
+      );
+    }
+    const detalle = D.DETALLE[p.codRefCatastral];
+    const vigente = D.versionVigenteDe(p);
+    return ok({
+      id: vigente.id,
+      predioId: p.predioId,
+      tipo: p.tipoFicha,
+      version: vigente.version,
+      areaTerreno: p.areaTerreno,
+      uso: p.uso,
+      frontis: null,
+      condicionPropiedad: p.condicion,
+      tipoEdificacion: null,
+      vigenciaDesde: vigente.vigenciaDesde,
+      vigenciaHasta: vigente.vigenciaHasta,
+      vigente: vigente.vigente,
+      origen: vigente.origen,
+      documentoOrigen: vigente.documentoOrigen,
+      observacion: vigente.observacion,
+      denominacion: p.denominacion,
+      /* Un predio sin detalle no tiene construcciones ni obras complementarias, y
+         eso es una LISTA VACIA de verdad: `FichaResource` construye las dos
+         siempre y ninguna es anulable. */
+      construcciones: detalle?.construcciones ?? [],
+      instalaciones: detalle?.instalaciones ?? [],
+      economico: detalle?.economico ?? null,
+      bienesComunes: detalle?.bienesComunes ?? null,
+      rural: detalle?.rural ?? null,
+      historico: c.consulta.get('historico') === 'true' ? D.versionesDe(p) : null,
+    });
+  };
+}
+
+const LECTURAS_DE_FICHA: readonly { metodo: string; ruta: string; responder: Manejador }[] = [
+  { metodo: 'GET', ruta: '/catastro/fichas/urbana/{codRefCatastral}', responder: lecturaDeFicha('UNICA', 'codRefCatastral', 'urbana') },
+  {
+    metodo: 'GET',
+    ruta: '/catastro/fichas/economica/{codRefCatastral}',
+    responder: lecturaDeFicha('ECONOMICA', 'codRefCatastral', 'economica'),
+  },
+  {
+    metodo: 'GET',
+    ruta: '/catastro/fichas/bienes-comunes/{codEdificacion}',
+    responder: lecturaDeFicha('BIENES_COMUNES', 'codEdificacion', 'de bienes comunes'),
+  },
+  { metodo: 'GET', ruta: '/catastro/fichas/rural/{codUnidad}', responder: lecturaDeFicha('RURAL', 'codUnidad', 'rural') },
+];
 
 const ALTAS_DE_FICHA: readonly { metodo: string; ruta: string; responder: Manejador }[] = [
   { metodo: 'POST', ruta: '/catastro/fichas/urbana', responder: altaDeFicha('UNICA') },
@@ -271,51 +400,32 @@ const TABLA: readonly { metodo: string; ruta: string; responder: Manejador }[] =
     ruta: '/catastro/fichas',
     responder: () =>
       pagina(
-        D.PADRON.map((p) => ({
-          fichaId: p.predioId,
-          predioId: p.predioId,
-          codRefCatastral: p.codRefCatastral,
-          direccion: p.direccion,
-          manzana: p.codigoDeManzana,
-          lote: p.lote,
-          tipo: p.tipoFicha,
-          version: 1,
-          areaTerreno: p.areaTerreno,
-          areaConstruida: null,
-          uso: p.uso,
-          vigenciaDesde: p.vigenciaDesde,
-          titular: D.contribuyenteDe(p.contribuyente).nombre,
-        })),
+        D.PADRON.map((p) => {
+          /* La grilla trae la ficha VIGENTE, que es la segunda en los 22 predios
+             que `detalle-de-fichas.csv` versiona. Su `fichaId` y su `version` son
+             los de esa version y no los de la primera: con «1» fijo, el detalle
+             que se abre desde aqui hablaria de otra fila que la que la grilla
+             dice. */
+          const vigente = D.versionVigenteDe(p);
+          return {
+            fichaId: vigente.id,
+            predioId: p.predioId,
+            codRefCatastral: p.codRefCatastral,
+            direccion: p.direccion,
+            manzana: p.codigoDeManzana,
+            lote: p.lote,
+            tipo: p.tipoFicha,
+            version: vigente.version,
+            areaTerreno: p.areaTerreno,
+            areaConstruida: null,
+            uso: p.uso,
+            vigenciaDesde: vigente.vigenciaDesde,
+            titular: D.contribuyenteDe(p.contribuyente).nombre,
+          };
+        }),
       ),
   },
-  {
-    metodo: 'GET',
-    ruta: '/catastro/fichas/urbana/{codRefCatastral}',
-    responder: (c) => {
-      const codigo = c.parametros.codRefCatastral;
-      const p = D.PADRON.find((x) => x.codRefCatastral === codigo);
-      if (!p) return problema('NO_ENCONTRADO', 404, 'No hay ninguna ficha urbana con ese codigo');
-      return ok({
-        id: p.predioId,
-        predioId: p.predioId,
-        tipo: p.tipoFicha,
-        version: 1,
-        areaTerreno: p.areaTerreno,
-        uso: p.uso,
-        frontis: null,
-        condicionPropiedad: p.condicion,
-        tipoEdificacion: null,
-        vigenciaDesde: p.vigenciaDesde,
-        vigenciaHasta: null,
-        vigente: true,
-        origen: p.origen,
-        documentoOrigen: p.documentoOrigen,
-        observacion: 'Carga inicial del padron de demostracion',
-        denominacion: p.denominacion,
-        construcciones: [],
-      });
-    },
-  },
+  ...LECTURAS_DE_FICHA,
 
   /* ── El alta de una ficha (#34): las cuatro rutas ───────────────────── */
   ...ALTAS_DE_FICHA,
@@ -420,18 +530,21 @@ const TABLA: readonly { metodo: string; ruta: string; responder: Manejador }[] =
     ruta: '/consultas/resumen-predial',
     responder: () =>
       pagina(
-        D.PADRON.map((p) => ({
-          fichaId: p.predioId,
-          predioId: p.predioId,
-          codCatastral: p.codRefCatastral,
-          codPropietario: p.contribuyente,
-          nombreDelPropietario: D.contribuyenteDe(p.contribuyente).nombre,
-          direccionDelPredio: p.direccion,
-          uso: p.uso,
-          tipo: p.tipoFicha,
-          version: 1,
-          vigenciaDesde: p.vigenciaDesde,
-        })),
+        D.PADRON.map((p) => {
+          const vigente = D.versionVigenteDe(p);
+          return {
+            fichaId: vigente.id,
+            predioId: p.predioId,
+            codCatastral: p.codRefCatastral,
+            codPropietario: p.contribuyente,
+            nombreDelPropietario: D.contribuyenteDe(p.contribuyente).nombre,
+            direccionDelPredio: p.direccion,
+            uso: p.uso,
+            tipo: p.tipoFicha,
+            version: vigente.version,
+            vigenciaDesde: vigente.vigenciaDesde,
+          };
+        }),
       ),
   },
   {
@@ -455,7 +568,7 @@ const TABLA: readonly { metodo: string; ruta: string; responder: Manejador }[] =
           porcentaje: '100.0000',
           areaTerreno: p.areaTerreno,
           uso: p.uso,
-          version: 1,
+          version: D.versionVigenteDe(p).version,
         })),
       });
     },

@@ -26,7 +26,7 @@ yarn datos      # en `src/datos/` no hay ni una cifra, solo rotulos y motivos
 yarn motor      # `.nvmrc` y `engines` dicen lo mismo, vite lo admite, y ningún
                 # guión se llama como un comando de yarn —se llamaba `node`, y
                 # `yarn node` es el comando de yarn: el arnés no corría—
-yarn mirar      # recorre los 16 destinos y sus 13 vistas en Chromium y guarda
+yarn mirar      # recorre los 16 destinos y sus 18 vistas en Chromium y guarda
                 # una captura de cada uno en .capturas/; falla ante un error de
                 # consola o si el <main> se queda en blanco —que es como falla
                 # de verdad una pantalla a medio hacer: en silencio—
@@ -48,6 +48,14 @@ yarn ejercicios # el desplegable de ejercicios sale del RELOJ, y se mide
                 # Sin mover el reloj no mide nada, y sale con 2 si detecta que no
                 # se movió: los cuatro literales que #48 quitó coincidían hoy con
                 # el reloj letra por letra
+yarn ficha      # la ficha dibuja lo que la respuesta TRAE, y dice lo que no
+                # existe: compara las filas del DOM con el JSON que la página
+                # recibió en las cuatro clases de ficha, exige que ninguna cifra
+                # de la sección de obras complementarias venga de otro sitio que
+                # no sea el cuerpo —no hay valor que enseñar: el Anexo III no
+                # está transcrito y `otra_instalacion` no tiene columna de
+                # importe—, y mide el `?historico=` en las dos direcciones: que
+                # viaje en la pestaña que lo pinta y NO en la que no
 yarn imagen     # los dos archivos que deciden CÓMO SE SIRVE: levanta `nginx.conf`
                 # sobre la base del `Dockerfile` y pregunta POR HTTP si las tres
                 # cabeceras de seguridad llegan en cada ruta —`add_header` no se
@@ -56,7 +64,7 @@ yarn imagen     # los dos archivos que deciden CÓMO SE SIRVE: levanta `nginx.co
                 # construcción
 ```
 
-`mirar`, `impedimentos`, `paleta`, `errores` y `ejercicios` necesitan una vista previa levantada; si no está en el 5190, se le dice con
+`mirar`, `impedimentos`, `paleta`, `errores`, `ejercicios` y `ficha` necesitan una vista previa levantada; si no está en el 5190, se le dice con
 `CATASTRO_BASE=http://localhost:5210 yarn mirar`. `sin-red` **levanta la suya**, y hace falta:
 la bandera del proxy la resuelve Vite al compilar, así que correrlo contra otra vista previa
 mediría el paquete equivocado. `imagen` necesita **Docker**, y sin Docker **sale con 2, no se
@@ -78,7 +86,8 @@ src/
   simulado/       La pieza que desaparece (ADR-0010)
     proxy.ts      sustituye `fetch` y devuelve `Response` de verdad
     servidas.ts   lo que el backend YA sirve. Nace vacía y crece hasta las 64
-    padron.ts     GENERADO de `infra/carga-de-datos/ejemplos/`
+    padron.ts     GENERADO de `infra/carga-de-datos/ejemplos/`: el padrón y el
+                  detalle de las 23 fichas, con sus dos versiones
     datos.ts      lo que no tiene archivo de ejemplo
   shell/
     Shell.tsx     barra global · panel · pestañas · barra de título · paleta

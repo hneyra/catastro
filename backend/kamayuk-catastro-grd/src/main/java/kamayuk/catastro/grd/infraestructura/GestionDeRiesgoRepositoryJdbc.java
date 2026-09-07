@@ -42,47 +42,28 @@ import org.springframework.stereotype.Repository;
  * consulta lee la tabla entera del inquilino <b>con el plan diciendo «Index»</b> —el de la
  * politica—. Medido en ADR-0034: 4 530 bloques contra los 347 del marco.
  *
- * <p>Asi que las cuatro desigualdades van primero, con {@code float8le}/{@code float8ge}, que si lo
- * son y llegan a {@code zona_riesgo_marco_ix}. El {@code ST_Intersects} va detras y solo como
- * <b>refinado exacto</b>: aqui la respuesta si lo exige —dos rectangulos que se solapan no son dos
- * poligonos que se tocan, y decir que un lote esta en una zona MUY ALTO porque sus cajas se cruzan
- * es exactamente el falso positivo que acaba negando una licencia—. Las dos condiciones viven en la
- * <b>misma sentencia de Java</b>, que es la unidad que el escaner de fuentes mide.
+ * <p>Asi que las cuatro desigualdades van primero, con {@code float8le}/{@code float8ge}, que si
+ * son <i>leakproof</i>. El {@code ST_Intersects} va detras y solo como <b>refinado exacto</b>: aqui
+ * la respuesta si lo exige —dos rectangulos que se solapan no son dos poligonos que se tocan, y
+ * decir que un lote esta en una zona MUY ALTO porque sus cajas se cruzan es exactamente el falso
+ * positivo que acaba negando una licencia—. Las dos condiciones viven en la <b>misma sentencia de
+ * Java</b>, que es la unidad que el escaner de fuentes mide.
+ *
+ * <p><b>Que las desigualdades sean leakproof no basta para que lleguen al indice</b>, y esa frase
+ * estuvo escrita aqui hasta #21 sin haberse medido. Lo que decide es la forma del {@code FROM}: ver
+ * {@link #loteYSuMarco(String, String)}.
  */
 @Repository
 public class GestionDeRiesgoRepositoryJdbc extends RepositorioJdbc
         implements GestionDeRiesgoRepository {
 
-    /**
-     * El lote contra el que se cruza, y la condicion que lo cruza.
-     *
-     * <p>Se escribe una sola vez y la usan las dos lecturas espaciales: dos copias de este
-     * predicado divergirian, y la que divergiera seguiria dando un resultado plausible.
-     *
-     * <p>El {@code JOIN} lleva {@code p.municipalidad_id = c.municipalidad_id} aunque la politica
-     * ya garantice que las dos filas son del mismo inquilino: sin el, el plan no tiene por donde
-     * enlazar las tablas y el marco deja de servir para acotar.
-     */
-    private static final String LOTE_Y_SU_MARCO =
-            " JOIN predio p"
-                    + " ON p.municipalidad_id = c.municipalidad_id"
-                    + " AND p.id = :predioId"
-                    + " WHERE p.geometria IS NOT NULL"
-                    + " AND c.marco_oeste <= p.marco_este"
-                    + " AND c.marco_sur   <= p.marco_norte"
-                    + " AND c.marco_este  >= p.marco_oeste"
-                    + " AND c.marco_norte >= p.marco_sur"
-                    + " AND c.vigencia_desde <= :aLaFecha"
-                    + " AND (c.vigencia_hasta IS NULL OR c.vigencia_hasta >= :aLaFecha)"
-                    + " AND ST_Intersects(c.geometria, p.geometria)";
-
     private static final String COLUMNAS_ZONA =
-            "c.id, c.codigo, c.fenomeno, c.nivel, c.mitigable, c.fuente, c.documento_origen,"
-                    + " c.vigencia_desde, c.vigencia_hasta, c.observacion";
+            "cc.id, cc.codigo, cc.fenomeno, cc.nivel, cc.mitigable, cc.fuente,"
+                    + " cc.documento_origen, cc.vigencia_desde, cc.vigencia_hasta, cc.observacion";
 
     private static final String COLUMNAS_FAJA =
-            "c.id, c.codigo, c.cuerpo_agua, c.ancho_m, c.fuente, c.documento_origen,"
-                    + " c.vigencia_desde, c.vigencia_hasta, c.observacion";
+            "cc.id, cc.codigo, cc.cuerpo_agua, cc.ancho_m, cc.fuente, cc.documento_origen,"
+                    + " cc.vigencia_desde, cc.vigencia_hasta, cc.observacion";
 
     private static final String COLUMNAS_ITSE =
             "id, predio_id, numero, nivel_riesgo, modalidad, vigencia_desde, vigencia_hasta,"
@@ -90,6 +71,93 @@ public class GestionDeRiesgoRepositoryJdbc extends RepositorioJdbc
 
     public GestionDeRiesgoRepositoryJdbc(JdbcClient jdbc) {
         super(jdbc);
+    }
+
+    /**
+     * La capa que cruza el lote del predio, a una fecha: el marco delante, el operador espacial
+     * detras (ADR-0034 regla 2).
+     *
+     * <p>Se escribe <b>una sola vez</b> y la usan las dos lecturas espaciales —{@code zona_riesgo}
+     * y {@code faja_marginal}—, que es lo unico que impide que diverjan: dos copias de este
+     * predicado se separarian, y la que se separara seguiria dando un resultado plausible. Lo que
+     * se parametriza es la <b>capa</b> y su lista de columnas, no la condicion.
+     *
+     * <h2>Las tres piezas del {@code FROM}, y las tres se midieron</h2>
+     *
+     * <p>Hasta #21 esto era un {@code JOIN} llano contra {@code predio}, y su javadoc afirmaba que
+     * las cuatro desigualdades «llegan a {@code zona_riesgo_marco_ix}». <b>Es falso, y lo que hace
+     * falta son dos cosas distintas.</b> Medido contra PostgreSQL 16.13 + PostGIS 3.4.2 como {@code
+     * kamayuk_app} —o sea bajo la politica, que es el unico rol para el que este defecto existe—,
+     * con {@code EXPLAIN (ANALYZE, BUFFERS)} y {@code ANALYZE} hecho, barriendo nueve tamanos de
+     * las dos tablas:
+     *
+     * <ol>
+     *   <li><b>{@code CROSS JOIN LATERAL} fija el ORDEN DE UNION.</b> Con el {@code JOIN} llano el
+     *       planificador puede poner la capa FUERA y {@code predio} DENTRO, y entonces vuelve a
+     *       buscar el mismo lote por su clave primaria una vez por zona: con 3 000 zonas y 3 000
+     *       predios, {@code Index Scan using predio_pk … loops=3000} y <b>9 146 bloques, 6,33
+     *       ms</b>. Con el {@code LATERAL}, el predio va fuera —una fila, por su PK— y la capa
+     *       dentro: <b>143 bloques y 1,36 ms</b>. Es la misma leccion que #4 dejo en {@code
+     *       UrbanoRepositoryJdbc}.
+     *   <li><b>El {@code LATERAL} por si solo NO mete el marco en el {@code Index Cond}</b>, y esto
+     *       es lo que #21 destapo: PostgreSQL <b>aplana</b> (<i>subquery pull-up</i>) un {@code
+     *       LATERAL} sin barrera, asi que las cuatro comparaciones vuelven a ser condiciones de
+     *       UNION y caen al {@code Join Filter} exactamente igual que con el {@code JOIN} llano.
+     *       Medido: en los nueve tamanos, «marco en el {@code Index Cond}» sale <b>identico</b>
+     *       entre las dos formas. {@code ZONA_QUE_CONTIENE} de {@code urbano} se libra por su
+     *       {@code LIMIT 1}, que es una barrera —no porque sea {@code LATERAL}—.
+     *   <li><b>{@code OFFSET 0} es la barrera</b>, y aqui no hay {@code LIMIT} que la haga: estas
+     *       dos lecturas devuelven <b>todas</b> las zonas y todas las fajas que cruzan el lote. Es
+     *       el cortafuegos de optimizacion que PostgreSQL documenta; con el, {@code p.marco_*} pasa
+     *       a ser un <b>parametro</b> del plan interno y sale {@code Index Scan using
+     *       zona_riesgo_marco_ix} con las cuatro columnas y la condicion de la politica juntas en
+     *       el {@code Index Cond}. Con 3 000 zonas y 3 000 predios: <b>143 → 14 bloques</b> (0,18
+     *       ms); con 20 zonas y 3 000 predios, <b>62 → 7</b>.
+     * </ol>
+     *
+     * <p><b>Lo que la medida NO dice, y conviene no exagerar.</b> Con una capa pequena frente a un
+     * padron grande —200 zonas contra 3 000 predios— el planificador sigue preferiendo recorrer
+     * {@code zona_riesgo_codigo_uq} aun con la barrera puesta, y hace bien: son 50 bloques y 0,15
+     * ms. Que el marco entre en el {@code Index Cond} es una decision de coste, no una garantia; lo
+     * que la barrera compra es que <b>pueda</b> entrar, y que cuando la capa crece —que es lo que
+     * hace {@code zona_riesgo} con cada carta de CENEPRED— entre.
+     *
+     * @param capa la tabla con geometria y vigencia que se cruza con el lote
+     * @param columnas sus columnas, calificadas con el alias interno {@code cc}
+     */
+    private static String loteYSuMarco(String capa, String columnas) {
+        // El alias interno es `cc` y el externo `c`: los dos niveles necesitan nombre y repetirlo
+        // seria ambiguo. El SELECT de fuera es `c.*` porque el de dentro ya nombra exactamente las
+        // columnas que se mapean; escribirlas otra vez seria un segundo sitio que puede divergir.
+        return "SELECT c.* FROM predio p CROSS JOIN LATERAL ("
+                + " SELECT "
+                + columnas
+                + " FROM "
+                + capa
+                + " cc"
+                + " WHERE cc.marco_oeste <= p.marco_este"
+                + " AND cc.marco_sur   <= p.marco_norte"
+                + " AND cc.marco_este  >= p.marco_oeste"
+                + " AND cc.marco_norte >= p.marco_sur"
+                + " AND cc.vigencia_desde <= :aLaFecha"
+                + " AND (cc.vigencia_hasta IS NULL OR cc.vigencia_hasta >= :aLaFecha)"
+                + " AND ST_Intersects(cc.geometria, p.geometria)"
+                + " OFFSET 0) c"
+                + " WHERE p.id = :predioId AND p.geometria IS NOT NULL"
+                + " ORDER BY c.codigo";
+    }
+
+    /**
+     * El SQL de las zonas de riesgo que cruzan el lote. Publico para que la prueba de plan lo lea
+     * de aqui y no de una copia suya: una copia seguiria verde el dia que esta cambiara.
+     */
+    static String zonasQueCruzanElLoteSql() {
+        return loteYSuMarco("zona_riesgo", COLUMNAS_ZONA);
+    }
+
+    /** El SQL de las fajas marginales que cruzan el lote, por lo mismo. */
+    static String fajasQueCruzanElLoteSql() {
+        return loteYSuMarco("faja_marginal", COLUMNAS_FAJA);
     }
 
     @Override
@@ -107,12 +175,7 @@ public class GestionDeRiesgoRepositoryJdbc extends RepositorioJdbc
 
     @Override
     public List<ZonaDeRiesgo> zonasQueCruzanElLote(long predioId, LocalDate aLaFecha) {
-        return jdbc().sql(
-                        "SELECT "
-                                + COLUMNAS_ZONA
-                                + " FROM zona_riesgo c"
-                                + LOTE_Y_SU_MARCO
-                                + " ORDER BY c.codigo")
+        return jdbc().sql(zonasQueCruzanElLoteSql())
                 .param("predioId", predioId)
                 .param("aLaFecha", aLaFecha)
                 .query(GestionDeRiesgoRepositoryJdbc::mapearZona)
@@ -121,12 +184,7 @@ public class GestionDeRiesgoRepositoryJdbc extends RepositorioJdbc
 
     @Override
     public List<FajaMarginal> fajasQueCruzanElLote(long predioId, LocalDate aLaFecha) {
-        return jdbc().sql(
-                        "SELECT "
-                                + COLUMNAS_FAJA
-                                + " FROM faja_marginal c"
-                                + LOTE_Y_SU_MARCO
-                                + " ORDER BY c.codigo")
+        return jdbc().sql(fajasQueCruzanElLoteSql())
                 .param("predioId", predioId)
                 .param("aLaFecha", aLaFecha)
                 .query(GestionDeRiesgoRepositoryJdbc::mapearFaja)

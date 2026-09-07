@@ -131,6 +131,46 @@ class ConsultaDeZonificacionTest {
                 .isEqualTo("RDM");
     }
 
+    @Test
+    @DisplayName("#22 — con DOS zonas vigentes encima, no se elige una: se informa el hallazgo")
+    void dosZonasVigentesSonUnHallazgoYNoUnaZona() {
+        long unaZona = sembrarZona(LocalDate.of(2026, 1, 1), null);
+        long otraZona = sembrarZona("CZ", "Comercio zonal", LocalDate.of(2026, 1, 1), null);
+        urbano.sembrarPredio(7L, EstadoDelPredio.CON_GEOMETRIA);
+        urbano.caeEn(7L, unaZona);
+        urbano.caeEn(7L, otraZona);
+
+        assertThatThrownBy(() -> consulta.zonaDe(7L, HOY))
+                .as(
+                        "hasta #22 la consulta cerraba con «LIMIT 1» y sin «ORDER BY»: devolvia una"
+                                + " de las dos, la que el plan de ejecucion pusiera primero, y de esa"
+                                + " respuesta cuelga si una licencia se concede o se niega")
+                .isInstanceOf(ZonificacionDelPredio.ZonaAmbigua.class)
+                .hasMessageContaining("RDM")
+                .hasMessageContaining("CZ");
+    }
+
+    @Test
+    @DisplayName(
+            "#22 — y la SEGUNDA zona solo cuenta si rige a esa fecha: si no, no hay ambiguedad")
+    void unaZonaRelevadaNoVuelveAmbiguaLaRespuesta() {
+        // El contraste, y hace falta: sin el, «lanza con dos filas» se cumpliria contando filas de
+        // la tabla en vez de zonas VIGENTES, y todo predio cuyo suelo haya cambiado de plan alguna
+        // vez dejaria de tener zona — que es peor que el defecto que #22 arregla.
+        long vigente = sembrarZona(LocalDate.of(2026, 1, 1), null);
+        long relevada =
+                sembrarZona(
+                        "CZ",
+                        "Comercio zonal",
+                        LocalDate.of(2016, 3, 1),
+                        LocalDate.of(2025, 12, 31));
+        urbano.sembrarPredio(7L, EstadoDelPredio.CON_GEOMETRIA);
+        urbano.caeEn(7L, vigente);
+        urbano.caeEn(7L, relevada);
+
+        assertThat(consulta.zonaDe(7L, HOY).codigo()).isEqualTo("RDM");
+    }
+
     private long sembrarZona(LocalDate desde, java.time.LocalDate hasta) {
         Observacion observacion = Observacion.de("Carga del plan de la prueba de #4");
         long id =
@@ -152,5 +192,13 @@ class ConsultaDeZonificacionTest {
                         new ParametroUrbanistico("retiro_frontal", "segun seccion de via", null)),
                 observacion);
         return id;
+    }
+
+    /** La misma zona con otro codigo y otro nombre: dos zonas encima del mismo suelo (#22). */
+    private long sembrarZona(
+            String codigo, String nombre, LocalDate desde, java.time.LocalDate hasta) {
+        return urbano.guardar(
+                new Zona(null, "PDU-2026", "ORD-004-2026", codigo, nombre, POLIGONO, desde, hasta),
+                Observacion.de("Carga del plan de la prueba de #22"));
     }
 }

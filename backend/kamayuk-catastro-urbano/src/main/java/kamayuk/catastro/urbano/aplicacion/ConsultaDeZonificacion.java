@@ -14,16 +14,23 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * A que zona cae un predio, a una fecha (#4).
+ * A que zona cae un predio, a una fecha (#4, #22).
  *
- * <h2>Las tres respuestas que no son la zona, y por que son tres</h2>
+ * <h2>Las CUATRO respuestas que no son la zona, y por que son cuatro</h2>
  *
- * <p>Un predio puede no estar, estar sin poligono, o estar con poligono en suelo que ningun plan
- * vigente cubre. Las tres se parecen —ninguna devuelve una zona— y significan cosas distintas que
- * se arreglan de forma distinta: dar de alta el predio, cargar el plano catastral, o aprobar la
- * zonificacion de esa area. Contestarlas con el mismo «zona: null» manda a quien atiende a buscar
- * lo que no falta, que es la misma leccion que P5B dejo escrita para {@code NormativaInalcanzable}
- * frente a {@code EjercicioSinSellar}.
+ * <p>Un predio puede no estar, estar sin poligono, estar con poligono en suelo que ningun plan
+ * vigente cubre, o —desde #22— caer en <b>mas de una</b> zona vigente. Las cuatro se parecen
+ * —ninguna devuelve una zona— y significan cosas distintas que se arreglan de forma distinta: dar
+ * de alta el predio, cargar el plano catastral, aprobar la zonificacion de esa area, o corregir dos
+ * filas del plan que se pisan. Contestarlas con el mismo «zona: null» manda a quien atiende a
+ * buscar lo que no falta, que es la misma leccion que P5B dejo escrita para {@code
+ * NormativaInalcanzable} frente a {@code EjercicioSinSellar}.
+ *
+ * <p><b>Y la cuarta no se contestaba: se tapaba.</b> La consulta cerraba con {@code LIMIT 1} sin
+ * {@code ORDER BY}, asi que con dos zonas encima del mismo suelo devolvia una —la que el plan de
+ * ejecucion pusiera primero, que puede cambiar entre corridas sobre los mismos datos—. El javadoc
+ * de la consulta prometia justo lo contrario: «cuando el lote cruza dos zonas lo que hay es un
+ * hallazgo que se informa, no una respuesta que el sistema se inventa».
  *
  * <p>Y <b>hoy no hay ni un poligono cargado en ninguna instalacion</b>, asi que el segundo caso es
  * el que se va a recorrer siempre al principio: es el que menos puede salir como una zona vacia.
@@ -60,9 +67,17 @@ public class ConsultaDeZonificacion implements ZonificacionDelPredio {
             throw new PredioSinGeometria(predioId);
         }
 
-        Zona zona =
-                urbano.zonaQueContieneAlPredio(predioId, aLaFecha)
-                        .orElseThrow(() -> new SinZonaVigente(predioId, aLaFecha));
+        List<Zona> zonas = urbano.zonasQueContienenAlPredio(predioId, aLaFecha);
+        if (zonas.isEmpty()) {
+            throw new SinZonaVigente(predioId, aLaFecha);
+        }
+        if (zonas.size() > 1) {
+            // No se elige, y no es cautela: de esta respuesta cuelga si una licencia se concede o
+            // se niega, y elegir sin criterio es inventar el dato que falta. Lo dice la cabecera
+            // de V7 del defecto que su restriccion existe para impedir.
+            throw new ZonaAmbigua(predioId, aLaFecha, zonas.stream().map(Zona::codigo).toList());
+        }
+        Zona zona = zonas.getFirst();
         long zonificacionId =
                 Objects.requireNonNull(zona.id(), "Una zona leida de la base tiene identificador");
 

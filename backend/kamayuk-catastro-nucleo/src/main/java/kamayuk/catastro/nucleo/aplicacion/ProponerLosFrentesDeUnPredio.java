@@ -6,11 +6,13 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import kamayuk.catastro.auditoria.Auditoria;
+import kamayuk.catastro.auditoria.DatosDeAuditoria;
 import kamayuk.catastro.auditoria.Operacion;
 import kamayuk.catastro.auditoria.RegistroDeAuditoria;
 import kamayuk.catastro.dominio.Medida;
 import kamayuk.catastro.dominio.Observacion;
 import kamayuk.catastro.nucleo.dominio.DerivacionDeFrentes;
+import kamayuk.catastro.nucleo.dominio.EstadoDeLaLongitud;
 import kamayuk.catastro.nucleo.dominio.FrentePropuesto;
 import kamayuk.catastro.nucleo.dominio.FrentesDelPredio;
 import org.jspecify.annotations.Nullable;
@@ -116,11 +118,12 @@ public class ProponerLosFrentesDeUnPredio {
      * decimales se guarda lo decide la columna, no este codigo, y una auditoria que dijera otra
      * cifra que la de la tabla no serviria para explicar la tabla.
      */
-    private static String descripcion(long viaId, Medida guardada) {
-        return "Frente PROPUESTO a la via "
-                + viaId
-                + ": "
-                + guardada
-                + ". Derivado del corte contra el eje de calzada; no confirmado (ADR-0021)";
+    private static DatosDeAuditoria descripcion(long viaId, Medida guardada) {
+        return DatosDeAuditoria.campos()
+                .mas("viaId", viaId)
+                .mas("longitud", guardada)
+                .mas("estado", EstadoDeLaLongitud.PROPUESTA)
+                .mas("origen", "CORTE_CONTRA_EL_EJE_DE_CALZADA")
+                .datos();
     }
 }

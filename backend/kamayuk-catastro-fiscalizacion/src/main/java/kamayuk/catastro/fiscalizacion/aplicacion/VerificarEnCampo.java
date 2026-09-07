@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.util.Objects;
 import kamayuk.catastro.auditoria.Auditoria;
+import kamayuk.catastro.auditoria.DatosDeAuditoria;
 import kamayuk.catastro.auditoria.Operacion;
 import kamayuk.catastro.auditoria.RegistroDeAuditoria;
 import kamayuk.catastro.dominio.AreaM2;
@@ -173,20 +174,26 @@ public class VerificarEnCampo {
                                 DescripcionDelCandidato.de(despues)));
     }
 
-    private static String descripcion(Hallazgo hallazgo) {
-        return "{\"clase\":\""
-                + hallazgo.clase()
-                + "\",\"candidatoId\":"
-                + hallazgo.candidatoId()
-                + ",\"fichaId\":"
-                + (hallazgo.fichaId() == null ? "null" : hallazgo.fichaId())
-                + ",\"areaDeLaFicha\":"
-                + (hallazgo.areaDeLaFicha() == null ? "null" : hallazgo.areaDeLaFicha().valor())
-                + ",\"areaVerificada\":"
-                + hallazgo.areaVerificada().valor()
-                + ",\"inspector\":\""
-                + hallazgo.inspector()
-                + "\"}";
+    /**
+     * El hallazgo, para la bitacora.
+     *
+     * <p>Las dos areas van <b>tipadas</b> como {@code AreaM2} y las escribe el serializador —la
+     * cifra sola, sin la unidad—, que es donde #607 dice que tienen que escribirse. Hasta #20 se
+     * componian a mano con {@code .valor()} para conseguir lo mismo, y por eso esta clase estaba en
+     * {@code componenElAreaAManoConMotivo()}: al componerlo tipado, esa entrada murio.
+     *
+     * <p>Y el {@code inspector} no se escapaba: lo teclea una persona, y una comilla en su nombre
+     * reventaba el {@code cast(… AS jsonb)} con la transaccion entera revertida.
+     */
+    private static DatosDeAuditoria descripcion(Hallazgo hallazgo) {
+        return DatosDeAuditoria.campos()
+                .mas("clase", hallazgo.clase())
+                .mas("candidatoId", hallazgo.candidatoId())
+                .mas("fichaId", hallazgo.fichaId())
+                .mas("areaDeLaFicha", hallazgo.areaDeLaFicha())
+                .mas("areaVerificada", hallazgo.areaVerificada())
+                .mas("inspector", hallazgo.inspector())
+                .datos();
     }
 
     /**

@@ -3,6 +3,7 @@ package kamayuk.catastro.nucleo.aplicacion;
 import java.time.Clock;
 import java.time.LocalDate;
 import kamayuk.catastro.auditoria.Auditoria;
+import kamayuk.catastro.auditoria.DatosDeAuditoria;
 import kamayuk.catastro.auditoria.Operacion;
 import kamayuk.catastro.auditoria.RegistroDeAuditoria;
 import kamayuk.catastro.dominio.Observacion;
@@ -173,8 +174,8 @@ public class RegistrarPredio {
             @org.jspecify.annotations.Nullable Long clave,
             Operacion operacion,
             Observacion observacion,
-            @org.jspecify.annotations.Nullable String antes,
-            String despues) {
+            @org.jspecify.annotations.Nullable DatosDeAuditoria antes,
+            DatosDeAuditoria despues) {
         auditoria.registrar(
                 RegistroDeAuditoria.enLaFechaDe(
                                 LocalDate.now(reloj),
@@ -185,41 +186,33 @@ public class RegistrarPredio {
                         .con(antes, despues));
     }
 
-    private static String descripcion(Predio predio) {
-        return "{\"codigo\":\""
-                + predio.codigo()
-                + "\",\"tipo\":\""
-                + predio.tipo()
-                + "\",\"direccion\":\""
-                + predio.direccion().replace("\"", "\\\"")
-                + "\",\"estado\":\""
-                + predio.estado()
-                + "\"}";
+    private static DatosDeAuditoria descripcion(Predio predio) {
+        return DatosDeAuditoria.campos()
+                // El codigo y no el objeto entero: un `CodigoReferenciaCatastral` lleva dentro su
+                // `ComposicionCatastral` —los diez tramos con su longitud—, que es la misma para
+                // todos los predios de la municipalidad y ocuparia en la bitacora mas que el resto
+                // del asiento junto. Su sitio es el parametro que la define, no cada fila.
+                .mas("codigo", predio.codigo().valor())
+                .mas("tipo", predio.tipo())
+                .mas("direccion", predio.direccion())
+                .mas("estado", predio.estado())
+                .datos();
     }
 
-    private static String descripcion(Titularidad titularidad) {
-        return "{\"contribuyenteId\":"
-                + titularidad.contribuyenteId()
-                + ",\"condicion\":\""
-                + titularidad.condicion()
-                + "\",\"porcentaje\":\""
-                + titularidad.porcentaje()
-                + "\",\"vigenciaHasta\":"
-                + (titularidad.vigenciaHasta() == null
-                        ? "null"
-                        : "\"" + titularidad.vigenciaHasta() + "\"")
-                + "}";
+    private static DatosDeAuditoria descripcion(Titularidad titularidad) {
+        return DatosDeAuditoria.campos()
+                .mas("contribuyenteId", titularidad.contribuyenteId())
+                .mas("condicion", titularidad.condicion())
+                .mas("porcentaje", titularidad.porcentaje())
+                .mas("vigenciaHasta", titularidad.vigenciaHasta())
+                .datos();
     }
 
-    private static String descripcion(Inquilino inquilino) {
-        return "{\"contribuyenteId\":"
-                + inquilino.contribuyenteId()
-                + ",\"uso\":"
-                + (inquilino.uso() == null ? "null" : "\"" + inquilino.uso() + "\"")
-                + ",\"vigenciaHasta\":"
-                + (inquilino.vigenciaHasta() == null
-                        ? "null"
-                        : "\"" + inquilino.vigenciaHasta() + "\"")
-                + "}";
+    private static DatosDeAuditoria descripcion(Inquilino inquilino) {
+        return DatosDeAuditoria.campos()
+                .mas("contribuyenteId", inquilino.contribuyenteId())
+                .mas("uso", inquilino.uso())
+                .mas("vigenciaHasta", inquilino.vigenciaHasta())
+                .datos();
     }
 }

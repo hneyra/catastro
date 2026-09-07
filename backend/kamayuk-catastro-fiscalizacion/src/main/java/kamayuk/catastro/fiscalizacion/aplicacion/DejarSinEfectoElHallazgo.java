@@ -3,6 +3,7 @@ package kamayuk.catastro.fiscalizacion.aplicacion;
 import java.time.Clock;
 import java.time.LocalDate;
 import kamayuk.catastro.auditoria.Auditoria;
+import kamayuk.catastro.auditoria.DatosDeAuditoria;
 import kamayuk.catastro.auditoria.Operacion;
 import kamayuk.catastro.auditoria.OrigenContext;
 import kamayuk.catastro.auditoria.RegistroDeAuditoria;
@@ -96,24 +97,18 @@ public class DejarSinEfectoElHallazgo {
     /**
      * El antes y el despues DE VERDAD, y no dos veces lo mismo.
      *
-     * <p>JSON escrito a mano, en el estilo del resto de este modulo. Se rebasara sobre #20, que
-     * cambia como se compone el asiento entero — y el compilador lo exigira, que es el modo de
-     * fallo que se quiere.
+     * <p>Lo compone el serializador (#20). Aqui vivia el tercero de los {@code escapar()} a mano
+     * que #20 borro: cubria {@code \\} y {@code "} y no los caracteres de control, asi que un
+     * motivo de anulacion con un salto de linea reventaba el {@code cast(... AS jsonb)} igual que
+     * los otros dos.
      */
-    private static String descripcion(Hallazgo hallazgo) {
+    private static DatosDeAuditoria descripcion(Hallazgo hallazgo) {
         Hallazgo.Anulacion anulacion = hallazgo.anulacion();
-        return "{\"estado\":\""
-                + hallazgo.estado()
-                + "\",\"motivoAnulacion\":"
-                + (anulacion == null ? "null" : "\"" + escapar(anulacion.motivo()) + "\"")
-                + ",\"anuladoPor\":"
-                + (anulacion == null ? "null" : "\"" + escapar(anulacion.quien()) + "\"")
-                + ",\"anuladoEn\":"
-                + (anulacion == null ? "null" : "\"" + anulacion.cuando() + "\"")
-                + "}";
-    }
-
-    private static String escapar(String texto) {
-        return texto.replace("\\", "\\\\").replace("\"", "\\\"");
+        return DatosDeAuditoria.campos()
+                .mas("estado", hallazgo.estado())
+                .mas("motivoAnulacion", anulacion == null ? null : anulacion.motivo())
+                .mas("anuladoPor", anulacion == null ? null : anulacion.quien())
+                .mas("anuladoEn", anulacion == null ? null : anulacion.cuando())
+                .datos();
     }
 }

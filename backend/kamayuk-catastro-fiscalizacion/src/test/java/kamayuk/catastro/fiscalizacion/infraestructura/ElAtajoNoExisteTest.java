@@ -256,6 +256,82 @@ class ElAtajoNoExisteTest {
     }
 
     @Nested
+    @DisplayName("#20 AC 5 — Lo que el acta asienta llega a la columna jsonb")
+    class LaBitacoraDelActa {
+
+        /**
+         * Lo que rompia el {@code cast}: una comilla dentro de un nombre que teclea una persona.
+         */
+        private static final String INSPECTOR_CON_COMILLA = "Juan \"El Tuerto\" Perez";
+
+        @Test
+        @DisplayName("un inspector con una comilla en el nombre ya no impide levantar el acta")
+        void unInspectorConComillaNoImpideLevantarElActa() throws SQLException {
+            // Hasta #20, `LevantarActa` componia su JSON concatenando y no escapaba ni el numero ni
+            // el inspector: con este nombre, el `cast(… AS jsonb)` moria con «invalid input syntax
+            // for type json», la transaccion entera se revertia y el acta era IMPOSIBLE de levantar
+            // —con un mensaje que hablaba de JSON y no del inspector—.
+            long candidatoId = unCandidatoDetectado("COMILLA-1");
+            gabinete.admitir(candidatoId, OBSERVACION);
+            Hallazgo hallazgo =
+                    campo.confirmar(
+                            candidatoId, AreaM2.de("180.00"), INSPECTOR_CON_COMILLA, OBSERVACION);
+
+            Acta acta =
+                    actas.levantar(
+                            hallazgo.id(),
+                            "ACT-COMILLA-1",
+                            INSPECTOR_CON_COMILLA,
+                            "se hallo mas area de la inscrita",
+                            OBSERVACION);
+
+            assertThat(acta.id()).isNotNull();
+            assertThat(
+                            unTexto(
+                                    "SELECT datos_nuevos ->> 'inspector' FROM auditoria"
+                                            + " WHERE tabla = 'acta' AND clave = '"
+                                            + acta.id()
+                                            + "'"))
+                    .as(
+                            "el nombre entra TAL CUAL y se puede volver a leer campo a campo:"
+                                    + " escapar lo hace el serializador")
+                    .isEqualTo(INSPECTOR_CON_COMILLA);
+            assertThat(
+                            unTexto(
+                                    "SELECT jsonb_typeof(datos_nuevos) FROM auditoria"
+                                            + " WHERE tabla = 'acta' AND clave = '"
+                                            + acta.id()
+                                            + "'"))
+                    .as("y lo que se asienta es un objeto, no un escalar")
+                    .isEqualTo("object");
+        }
+
+        @Test
+        @DisplayName("y el «antes/despues» del candidato tambien, con el motivo de un descarte")
+        void elAntesYElDespuesDelCandidatoTambien() throws SQLException {
+            // El otro compositor de este modulo, y el que tenia el segundo `escapar()`: el
+            // `motivo` de un descarte lo escribe una persona en un formulario, y ese escapar()
+            // cubria la comilla y NO los caracteres de control.
+            long candidatoId = unCandidatoDetectado("COMILLA-2");
+            gabinete.admitir(candidatoId, OBSERVACION);
+            campo.descartar(
+                    candidatoId,
+                    "es un toldo,\n no una \"edificacion\"\tsegun el plano",
+                    OBSERVACION);
+
+            assertThat(
+                            unTexto(
+                                    "SELECT datos_nuevos -> 'descarte' ->> 'motivo' FROM auditoria"
+                                            + " WHERE tabla = 'candidato' AND clave = '"
+                                            + candidatoId
+                                            + "'"
+                                            + " ORDER BY id DESC LIMIT 1"))
+                    .as("con su salto de linea y su tabulador dentro, que el escapar() no cubria")
+                    .isEqualTo("es un toldo,\n no una \"edificacion\"\tsegun el plano");
+        }
+    }
+
+    @Nested
     @DisplayName("El descarte se conserva, y su tasa se puede consultar por etapa")
     class ElDescarteSeCuenta {
 
@@ -377,6 +453,19 @@ class ElAtajoNoExisteTest {
             app.commit();
         } catch (SQLException fallo) {
             throw new IllegalStateException("No se pudo preparar el estado de la prueba", fallo);
+        }
+    }
+
+    /** Lee una celda por la conexion de administracion, que es la que ve la fila ya escrita. */
+    private static String unTexto(String consulta) throws SQLException {
+        try (Connection admin = base.conexionAdmin();
+                PreparedStatement sentencia = admin.prepareStatement(consulta);
+                ResultSet fila = sentencia.executeQuery()) {
+            if (!fila.next()) {
+                throw new IllegalStateException(
+                        "La consulta no devolvio ninguna fila: " + consulta);
+            }
+            return fila.getString(1);
         }
     }
 

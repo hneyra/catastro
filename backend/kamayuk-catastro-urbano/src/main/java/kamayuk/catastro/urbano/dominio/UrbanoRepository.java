@@ -40,13 +40,26 @@ public interface UrbanoRepository {
      * elegirla sin criterio es inventar la respuesta: quien decide que hacer con dos es el caso de
      * uso, que lanza {@code ZonificacionDelPredio.ZonaAmbigua} con los dos codigos.
      */
-    List<Zona> zonasQueContienenAlPredio(long predioId, LocalDate aLaFecha);
+    List<ZonaQueRige> zonasQueContienenAlPredio(long predioId, LocalDate aLaFecha);
 
     /** Lo que esa zona permite, en el orden en que se cargo. */
     List<ParametroUrbanistico> parametrosDe(long zonificacionId);
 
-    /** La zona de ese plan con ese codigo y esa fecha de inicio, si ya esta cargada. */
-    Optional<Zona> zonaPorCodigo(String plan, String codigo, LocalDate vigenciaDesde);
+    /**
+     * El identificador de la zona de ese plan con ese codigo y esa fecha de inicio, si ya esta
+     * cargada.
+     *
+     * <p><b>Devuelve el identificador y no la zona, desde #30</b>, porque es lo unico que su unico
+     * llamador necesita: {@code RegistrarZonificacion} le pregunta <i>si ya esta</i> para no volver
+     * a escribirla, y llamaba a {@code isPresent()} sobre una {@link Zona} entera que arrastraba su
+     * poligono en texto. Sobre una zona de PDU de 5 001 vertices eso son 188 595 bytes por fila del
+     * CSV, traidos para preguntar si o no.
+     *
+     * <p>El identificador y no un {@code boolean} porque una respuesta con la clave dentro se puede
+     * usar —el dia que repetir la carga tenga que hacer algo con la que ya estaba— sin volver a
+     * preguntar, y no cuesta nada mas: es la columna por la que la fila se encuentra.
+     */
+    Optional<Long> idDeLaZona(String plan, String codigo, LocalDate vigenciaDesde);
 
     /**
      * Guarda la zona y devuelve su identificador.

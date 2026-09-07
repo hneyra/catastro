@@ -9,12 +9,10 @@ import kamayuk.catastro.fiscalizacion.aplicacion.AbrirCampania;
 import kamayuk.catastro.fiscalizacion.aplicacion.ConsultaDeCandidatos;
 import kamayuk.catastro.fiscalizacion.aplicacion.ConsultaDeHallazgos;
 import kamayuk.catastro.fiscalizacion.aplicacion.DejarSinEfectoElHallazgo;
-import kamayuk.catastro.fiscalizacion.aplicacion.DetectarSubvaluadores;
 import kamayuk.catastro.fiscalizacion.aplicacion.LevantarActa;
 import kamayuk.catastro.fiscalizacion.aplicacion.RegistrarEvidencia;
 import kamayuk.catastro.fiscalizacion.aplicacion.VerificarEnCampo;
 import kamayuk.catastro.fiscalizacion.aplicacion.VerificarEnGabinete;
-import kamayuk.catastro.fiscalizacion.dominio.AreasDelPadron;
 import kamayuk.catastro.fiscalizacion.dominio.Candidato;
 import kamayuk.catastro.fiscalizacion.dominio.ClaseDeHallazgo;
 import kamayuk.catastro.fiscalizacion.dominio.CriterioDeCandidatos;
@@ -44,9 +42,19 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <h2>Un controlador y no cinco</h2>
  *
- * <p>Porque es un solo recorrido —abrir, detectar, gabinete, campo, evidencia, acta— y partirlo por
- * entidad dejaria la secuencia repartida en cinco archivos que hay que leer en orden para
- * entenderla. Lo que si cambia por metodo es el privilegio.
+ * <p>Porque es un solo recorrido —abrir, gabinete, campo, evidencia, acta— y partirlo por entidad
+ * dejaria la secuencia repartida en cinco archivos que hay que leer en orden para entenderla. Lo
+ * que si cambia por metodo es el privilegio.
+ *
+ * <h2>La DETECCION no esta aqui, y desde #30 no puede estarlo</h2>
+ *
+ * <p>Corre en el perfil {@code batch}, la lanza {@code DetectarEnCampania} y este controlador no
+ * inyecta {@code DetectarSubvaluadores} ni {@code AreasDelPadron}. El motivo esta escrito en el
+ * javadoc de ese runner y lo vigila {@code LaDeteccionNoEstaEnElCaminoCalienteTest}: la corrida
+ * recorre <b>el padron entero del inquilino</b> calculando areas geodesicas, sin indice posible y
+ * con un {@code ORDER BY} que obliga a calcularlo todo antes del {@code LIMIT}, y eso dentro de un
+ * {@code POST} sincrono es una peticion que agota el tiempo de espera del ingreso el dia que haya
+ * cartografia cargada.
  *
  * <h2>Ningun cuerpo trae geometria</h2>
  *
@@ -79,7 +87,6 @@ public class FiscalizacionCatastralController {
     private static final String ORDEN_DE_HALLAZGOS = "verificadoEn";
 
     private final AbrirCampania campanias;
-    private final DetectarSubvaluadores detector;
     private final VerificarEnGabinete gabinete;
     private final VerificarEnCampo campo;
     private final RegistrarEvidencia evidencias;
@@ -90,7 +97,6 @@ public class FiscalizacionCatastralController {
 
     public FiscalizacionCatastralController(
             AbrirCampania campanias,
-            DetectarSubvaluadores detector,
             VerificarEnGabinete gabinete,
             VerificarEnCampo campo,
             RegistrarEvidencia evidencias,
@@ -99,7 +105,6 @@ public class FiscalizacionCatastralController {
             ConsultaDeCandidatos consultaDeCandidatos,
             ConsultaDeHallazgos consultaDeHallazgos) {
         this.campanias = campanias;
-        this.detector = detector;
         this.gabinete = gabinete;
         this.campo = campo;
         this.evidencias = evidencias;
@@ -125,30 +130,6 @@ public class FiscalizacionCatastralController {
                             observacionDe(peticion.observacion())));
         } catch (AbrirCampania.CampaniaYaAbierta yaEsta) {
             throw new ProblemaDeNegocio(CodigoDeError.CONFLICTO, mensajeDe(yaEsta));
-        }
-    }
-
-    /**
-     * Lanza la deteccion de subvaluadores sobre la campania.
-     *
-     * <p><b>El 409 sin cartografia es la respuesta correcta, y no un 200 con lista vacia.</b> Hoy
-     * no hay ni un poligono en ninguna instalacion: un {@code 200 []} se leeria como «no hay
-     * subvaluadores» y nadie va a revisar un cero.
-     */
-    @PostMapping("/campanias/{campaniaId}/deteccion")
-    @ResponseStatus(HttpStatus.CREATED)
-    @RequiereAcceso(acceso = "fiscalizacion_catastral", privilegio = Privilegio.EJECUCION)
-    public DeteccionResource detectar(
-            @PathVariable long campaniaId, @RequestBody PeticionDeDeteccion peticion) {
-        try {
-            return DeteccionResource.de(
-                    detector.detectar(campaniaId, observacionDe(peticion.observacion())));
-        } catch (AreasDelPadron.SinCartografia sinPlanos) {
-            throw new ProblemaDeNegocio(CodigoDeError.CONFLICTO, mensajeDe(sinPlanos));
-        } catch (AbrirCampania.CampaniaInexistente noEsta) {
-            throw new ProblemaDeNegocio(CodigoDeError.NO_ENCONTRADO, mensajeDe(noEsta));
-        } catch (DetectarSubvaluadores.CampaniaCerradaParaDetectar cerrada) {
-            throw new ProblemaDeNegocio(CodigoDeError.CONFLICTO, mensajeDe(cerrada));
         }
     }
 
@@ -525,16 +506,6 @@ public class FiscalizacionCatastralController {
             @Nullable String umbral,
             @Nullable Integer tope,
             @Nullable String observacion) {}
-
-    /**
-     * Lanzar la deteccion: <b>solo su observacion</b> (#25 AC-1 y AC-2).
-     *
-     * <p>Ni tolerancia ni tope. Hasta #25 los dos entraban por aqui y ninguno se guardaba: la
-     * tolerancia era la que de verdad filtraba —con {@code tolerancia > umbral} el umbral de la
-     * fila no quitaba nada— y el tope tenia 500 por omision escrito en el borde. El criterio lo
-     * declara quien abre la campania y vive en su fila.
-     */
-    public record PeticionDeDeteccion(@Nullable String observacion) {}
 
     /**
      * Una compuerta: admitir o descartar.

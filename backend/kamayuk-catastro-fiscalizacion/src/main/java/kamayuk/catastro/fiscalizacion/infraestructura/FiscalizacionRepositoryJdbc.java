@@ -15,6 +15,7 @@ import kamayuk.catastro.dominio.Observacion;
 import kamayuk.catastro.fiscalizacion.dominio.Acta;
 import kamayuk.catastro.fiscalizacion.dominio.Campania;
 import kamayuk.catastro.fiscalizacion.dominio.Candidato;
+import kamayuk.catastro.fiscalizacion.dominio.CandidatoEnLaCola;
 import kamayuk.catastro.fiscalizacion.dominio.ClaseDeHallazgo;
 import kamayuk.catastro.fiscalizacion.dominio.CriterioDeCandidatos;
 import kamayuk.catastro.fiscalizacion.dominio.EstadoDeCampania;
@@ -68,9 +69,28 @@ public class FiscalizacionRepositoryJdbc extends RepositorioJdbc
     private static final String COLUMNAS_CAMPANIA =
             "id, codigo, nombre, estado, inicio, fin, umbral, tope";
 
+    /**
+     * Las columnas de UN candidato, con su poligono.
+     *
+     * <p>Solo la usa {@link #candidatoPorId}: la lectura por identificador es donde una geometria
+     * cabe (#30, AC-2). La pagina lleva {@link #COLUMNAS_DE_LA_COLA}, sin ella.
+     */
     private static final String COLUMNAS_CANDIDATO =
             "id, campania_id, predio_id, clase, origen, score, insumos::text AS insumos,"
                     + " ST_AsText(geometria) AS geometria_wkt, estado, etapa_de_descarte,"
+                    + " motivo_de_descarte, descartado_por, descartado_en";
+
+    /**
+     * Las columnas de la cola de gabinete: las mismas <b>menos el poligono</b> (#30).
+     *
+     * <p>Medido con poligonos de PDU de 5 001 vertices: la pagina de 20 filas pasaba de <b>3 772
+     * 822 bytes</b> a los pocos kilobytes de sus doce columnas de texto y numeros. {@code
+     * CandidatoResource} no publica geometria desde #6 —«un candidato se revisa en la cola de
+     * gabinete, que es una grilla»—, asi que el {@code ST_AsText} se hacia para tirarlo.
+     */
+    static final String COLUMNAS_DE_LA_COLA =
+            "id, campania_id, predio_id, clase, origen, score, insumos::text AS insumos,"
+                    + " estado, etapa_de_descarte,"
                     + " motivo_de_descarte, descartado_por, descartado_en";
 
     private static final String COLUMNAS_HALLAZGO =
@@ -309,7 +329,8 @@ public class FiscalizacionRepositoryJdbc extends RepositorioJdbc
     }
 
     @Override
-    public Pagina<Candidato> candidatos(CriterioDeCandidatos criterio, Paginacion paginacion) {
+    public Pagina<CandidatoEnLaCola> candidatos(
+            CriterioDeCandidatos criterio, Paginacion paginacion) {
         StringBuilder donde = new StringBuilder(" WHERE campania_id = :campania");
         Map<String, Object> parametros = new HashMap<>();
         parametros.put("campania", criterio.campaniaId());
@@ -325,12 +346,12 @@ public class FiscalizacionRepositoryJdbc extends RepositorioJdbc
 
         String filtro = donde.toString();
         return paginar(
-                "SELECT " + COLUMNAS_CANDIDATO + " FROM candidato" + filtro,
+                "SELECT " + COLUMNAS_DE_LA_COLA + " FROM candidato" + filtro,
                 "SELECT count(*) FROM candidato" + filtro,
                 Map.copyOf(parametros),
                 paginacion,
                 ORDEN_CANDIDATOS,
-                FiscalizacionRepositoryJdbc::mapearCandidato);
+                FiscalizacionRepositoryJdbc::mapearCandidatoEnLaCola);
     }
 
     /**
@@ -708,6 +729,30 @@ public class FiscalizacionRepositoryJdbc extends RepositorioJdbc
         }
         return new Hallazgo.Anulacion(
                 motivo, fila.getString("anulado_por"), instanteDe(fila, "anulado_en"));
+    }
+
+    /** Lo mismo que {@link #mapearCandidato}, sin la columna del poligono (#30). */
+    private static CandidatoEnLaCola mapearCandidatoEnLaCola(ResultSet fila, int numero)
+            throws SQLException {
+        String etapa = fila.getString("etapa_de_descarte");
+        Candidato.Descarte descarte =
+                etapa == null
+                        ? null
+                        : new Candidato.Descarte(
+                                EtapaDeVerificacion.valueOf(etapa),
+                                fila.getString("motivo_de_descarte"),
+                                fila.getString("descartado_por"),
+                                instanteDe(fila, "descartado_en"));
+        return new CandidatoEnLaCola(
+                fila.getLong("id"),
+                fila.getLong("campania_id"),
+                idOpcional(fila, "predio_id"),
+                ClaseDeHallazgo.valueOf(fila.getString("clase")),
+                OrigenDelCandidato.valueOf(fila.getString("origen")),
+                new Score(fila.getBigDecimal("score")),
+                fila.getString("insumos"),
+                EstadoDelCandidato.valueOf(fila.getString("estado")),
+                descarte);
     }
 
     private static Evidencia mapearEvidencia(ResultSet fila, int numero) throws SQLException {

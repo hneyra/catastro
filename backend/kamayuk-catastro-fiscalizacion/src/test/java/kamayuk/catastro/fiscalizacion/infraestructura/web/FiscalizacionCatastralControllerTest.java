@@ -15,7 +15,6 @@ import kamayuk.catastro.fiscalizacion.aplicacion.AbrirCampania;
 import kamayuk.catastro.fiscalizacion.aplicacion.ConsultaDeCandidatos;
 import kamayuk.catastro.fiscalizacion.aplicacion.ConsultaDeHallazgos;
 import kamayuk.catastro.fiscalizacion.aplicacion.DejarSinEfectoElHallazgo;
-import kamayuk.catastro.fiscalizacion.aplicacion.DetectarSubvaluadores;
 import kamayuk.catastro.fiscalizacion.aplicacion.LevantarActa;
 import kamayuk.catastro.fiscalizacion.aplicacion.RegistrarEvidencia;
 import kamayuk.catastro.fiscalizacion.aplicacion.VerificarEnCampo;
@@ -103,7 +102,6 @@ class FiscalizacionCatastralControllerTest {
         return MockMvcBuilders.standaloneSetup(
                         new FiscalizacionCatastralController(
                                 new AbrirCampania(repositorio, auditoria, RELOJ),
-                                new DetectarSubvaluadores(repositorio, padron, auditoria, RELOJ),
                                 new VerificarEnGabinete(repositorio, auditoria, RELOJ),
                                 new VerificarEnCampo(repositorio, NINGUNA_FICHA, auditoria, RELOJ),
                                 new RegistrarEvidencia(repositorio, auditoria, RELOJ),
@@ -141,27 +139,32 @@ class FiscalizacionCatastralControllerTest {
                 .contains("observacion");
     }
 
+    /**
+     * La deteccion ya no tiene ruta (#30, AC-3).
+     *
+     * <p>Aqui vivia la prueba del 409 sin cartografia, y se muda con el proceso: hoy la mide {@code
+     * DeteccionDeSubvaluadoresTest}, que comprueba que la corrida de {@code batch} <b>falla</b> en
+     * vez de terminar bien y sin candidatos. Lo que se mide aqui es que la ruta no esta: un
+     * recorrido del padron entero dentro de un {@code POST} sincrono es lo que este issue retira.
+     */
     @Test
-    @DisplayName("SIN POLIGONOS la deteccion contesta 409 y NO un 200 con lista vacia")
-    void sinCartografiaContesta409() throws Exception {
-        MvcResult sinPlanos =
+    @DisplayName("la deteccion NO se lanza por HTTP: recorre el padron y vive en `batch` (#30)")
+    void laDeteccionNoTieneRuta() throws Exception {
+        MvcResult respuesta =
                 mvc.perform(
                                 post("/catastro/api/v1/fiscalizacion/campanias/1/deteccion")
                                         .contentType(MediaType.APPLICATION_JSON)
                                         .content(
                                                 """
-                                                {"tolerancia":"0.10",
-                                                 "observacion":"corrida de deteccion de prueba"}
+                                                {"observacion":"corrida de prueba"}
                                                 """))
                         .andReturn();
 
-        assertThat(sinPlanos.getResponse().getStatus())
+        assertThat(respuesta.getResponse().getStatus())
                 .as(
-                        "un 200 con [] se leeria como «no hay subvaluadores», que es indistinguible"
-                                + " de «no pude mirar» y que nadie va a revisar")
-                .isEqualTo(409);
-        assertThat(sinPlanos.getResponse().getContentAsString())
-                .contains("no tiene ni un predio con geometria");
+                        "ninguna ruta de este controlador la lanza; quien la corre es"
+                                + " DetectarEnCampania, en el perfil batch")
+                .isEqualTo(404);
     }
 
     @Test
@@ -188,20 +191,25 @@ class FiscalizacionCatastralControllerTest {
                 .contains("Falta el campo 'tope'");
     }
 
+    /**
+     * #25 comprobaba aqui que {@code PeticionDeDeteccion} solo llevara {@code observacion}.
+     *
+     * <p>Ese {@code record} se va con la ruta (#30): no hay cuerpo que acotar donde no hay
+     * endpoint. Lo que aquella prueba protegia —que el umbral y el tope los congele la campania y
+     * no los ponga quien lanza la corrida— lo sostiene ahora {@code
+     * DatosDeDeteccionDeSubvaluadores}, que <b>no declara ninguno de los dos</b>, y hay una prueba
+     * que lo afirma sobre sus componentes en {@code DeteccionDeSubvaluadoresTest}.
+     */
     @Test
-    @DisplayName("la deteccion ya no admite `tolerancia` ni `tope`: el criterio es de la campania")
-    void laDeteccionNoTraeElCriterio() throws Exception {
+    @DisplayName("y su cuerpo tampoco: el `record` se fue con la ruta (#25 y #30)")
+    void laPeticionDeDeteccionYaNoExiste() {
         assertThat(
                         java.util.Arrays.stream(
-                                        FiscalizacionCatastralController.PeticionDeDeteccion.class
-                                                .getRecordComponents())
-                                .map(java.lang.reflect.RecordComponent::getName)
+                                        FiscalizacionCatastralController.class.getDeclaredClasses())
+                                .map(Class::getSimpleName)
                                 .toList())
-                .as(
-                        "un campo que viaja en el cuerpo y nadie lee se descarta en silencio, que"
-                                + " es el defecto de C-1; y aqui ademas eran los dos campos que"
-                                + " decidian lo que la campania dice haber hecho (#25)")
-                .containsExactly("observacion");
+                .as("un cuerpo de peticion sin ruta que lo lea es una promesa que nadie cumple")
+                .doesNotContain("PeticionDeDeteccion");
     }
 
     @Test
@@ -327,7 +335,6 @@ class FiscalizacionCatastralControllerTest {
         List<Class<?>> cuerpos =
                 List.of(
                         FiscalizacionCatastralController.PeticionDeCampania.class,
-                        FiscalizacionCatastralController.PeticionDeDeteccion.class,
                         FiscalizacionCatastralController.PeticionDeCompuerta.class,
                         FiscalizacionCatastralController.PeticionDeCampo.class,
                         FiscalizacionCatastralController.PeticionDeEvidencia.class,
@@ -564,7 +571,8 @@ class FiscalizacionCatastralControllerTest {
         }
 
         @Override
-        public kamayuk.catastro.compartido.Pagina<kamayuk.catastro.fiscalizacion.dominio.Candidato>
+        public kamayuk.catastro.compartido.Pagina<
+                        kamayuk.catastro.fiscalizacion.dominio.CandidatoEnLaCola>
                 candidatos(
                         kamayuk.catastro.fiscalizacion.dominio.CriterioDeCandidatos criterio,
                         kamayuk.catastro.compartido.Paginacion paginacion) {

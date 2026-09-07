@@ -2,7 +2,7 @@ package kamayuk.catastro.fiscalizacion.aplicacion;
 
 import kamayuk.catastro.compartido.Pagina;
 import kamayuk.catastro.compartido.Paginacion;
-import kamayuk.catastro.fiscalizacion.dominio.Candidato;
+import kamayuk.catastro.fiscalizacion.dominio.CandidatoEnLaCola;
 import kamayuk.catastro.fiscalizacion.dominio.CriterioDeCandidatos;
 import kamayuk.catastro.fiscalizacion.dominio.FiscalizacionRepository;
 import kamayuk.catastro.fiscalizacion.dominio.TasaDeDescarte;
@@ -30,7 +30,7 @@ public class ConsultaDeCandidatos {
     }
 
     @Transactional(readOnly = true)
-    public Pagina<Candidato> buscar(CriterioDeCandidatos criterio, Paginacion paginacion) {
+    public Pagina<CandidatoEnLaCola> buscar(CriterioDeCandidatos criterio, Paginacion paginacion) {
         return repositorio.candidatos(criterio, paginacion);
     }
 

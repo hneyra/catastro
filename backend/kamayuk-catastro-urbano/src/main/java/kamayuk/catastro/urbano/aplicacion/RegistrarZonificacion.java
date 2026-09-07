@@ -52,7 +52,7 @@ public class RegistrarZonificacion {
         Objects.requireNonNull(parametros, "Los parametros pueden venir vacios, no nulos");
         Objects.requireNonNull(observacion, "Toda escritura exige la observacion del usuario");
 
-        if (urbano.zonaPorCodigo(zona.plan(), zona.codigo(), zona.vigenciaDesde()).isPresent()) {
+        if (urbano.idDeLaZona(zona.plan(), zona.codigo(), zona.vigenciaDesde()).isPresent()) {
             return false;
         }
         long id = urbano.guardar(zona, observacion);

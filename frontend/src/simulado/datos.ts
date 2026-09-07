@@ -47,12 +47,16 @@ export const PREDIO_CON_POLIGONO = 1;
  * en curso es justo el defecto que #48 cierra—, y `mirar` sigue en verde porque
  * un 404 es una respuesta.
  *
- * Lo que NO es correcto es el efecto de rebote, y esta medido: con la aplicacion
- * pidiendo un ano que este proxy no sella, `yarn errores` da **21 problemas
- * sobre 36 renders** —los 6 titulos de la superficie `aranceles-sin-el-catalogo-vial`
- * mas sus 15 pares byte a byte, que es `C(6,2)`—, porque el 404 del cuadro tapa
- * los seis rechazos que esa superficie existe para distinguir. Su mensaje manda
- * a mirar al sitio equivocado, asi que queda escrito aqui, que es la causa.
+ * Tenia ademas un efecto de rebote, y **ya no**: con la aplicacion pidiendo un ano
+ * que este proxy no sella, `yarn errores` daba **21 problemas sobre 36 renders**
+ * —los 6 titulos de la superficie `aranceles-sin-el-catalogo-vial` mas sus 15
+ * pares byte a byte, que es `C(6,2)`—, porque el 404 del cuadro tapaba los seis
+ * rechazos que esa superficie existe para distinguir, y sus mensajes mandaban a
+ * mirar al sitio equivocado. O sea que el flujo bloqueante se habria puesto rojo
+ * el 1 de enero de 2027 **sin que nadie hubiera cambiado una linea**. Se cerro
+ * fijandole a ese arnes el dia en que mira, derivado de esta misma constante: mide
+ * como se ven los rechazos, no el calendario. Comprobado poniendo aqui otro ano:
+ * antes 21 problemas, ahora 36 renders y verde.
  *
  * Se cierra con **#51** —preguntarle al backend que ejercicios tienen conjunto
  * sellado y ofrecer esos— o sellando aqui el ano en curso, que es una decision:

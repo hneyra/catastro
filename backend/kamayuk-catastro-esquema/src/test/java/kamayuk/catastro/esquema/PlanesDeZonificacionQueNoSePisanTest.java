@@ -14,7 +14,18 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * #4 (AC-2) — dos planes de zonificacion vigentes no pueden cubrir el mismo suelo (V7).
+ * #4 (AC-2) y #22 — dos zonas vigentes no pueden cubrir el mismo suelo, ni de dos planes distintos
+ * (V7) ni del mismo (V11).
+ *
+ * <h2>Son DOS restricciones y hacen falta las dos</h2>
+ *
+ * <p>{@code zonificacion_planes_no_se_pisan} lleva {@code plan WITH <>}, y una restriccion de
+ * exclusion conflictua cuando <b>todos</b> sus operadores se satisfacen: dos filas del MISMO plan
+ * no chocan nunca con ella, se solapen como se solapen. Eso era lo correcto para lo que #4 tenia
+ * que impedir y dejaba abierto el hueco de dentro de un plan, que cierra {@code
+ * zonas_del_plan_no_se_pisan} (V11) — y no como exclusion, porque «los interiores se cortan» no es
+ * un operador indexable por GiST y {@code &&} rechazaria ademas las zonas adyacentes. El porque,
+ * con sus tres medidas, en la cabecera de V11.
  *
  * <h2>Lo rechaza el motor, no el codigo</h2>
  *
@@ -143,6 +154,64 @@ class PlanesDeZonificacionQueNoSePisanTest {
             }
 
             assertThatCode(app::commit).doesNotThrowAnyException();
+        }
+    }
+
+    @Test
+    @DisplayName("#22 — dos zonas del MISMO plan que se pisan de verdad se rechazan (V11)")
+    void dosZonasDelMismoPlanSolapadasSeRechazan() throws SQLException {
+        try (Connection app = conexionConContexto()) {
+            Escenario e = escenario();
+            double x = e.oeste();
+            insertar(app, "PDU-2026" + e.sufijo(), "RDM", x, x + 0.02, DESDE_2026, null);
+            // Dentro de la anterior, no pegada a ella: los INTERIORES se cortan.
+            insertar(app, "PDU-2026" + e.sufijo(), "CZ", x + 0.005, x + 0.015, DESDE_2026, null);
+
+            assertThatThrownBy(app::commit)
+                    .as(
+                            "es el hueco que «plan WITH <>» deja abierto a proposito: impide que"
+                                    + " dos PLANES se pisen y no mira lo que pasa DENTRO de uno. Hasta"
+                                    + " V11 estas dos entraban, y «la zona de este predio» pasaba a"
+                                    + " tener dos respuestas")
+                    .isInstanceOf(SQLException.class)
+                    .hasMessageContaining("zonas_del_plan_no_se_pisan");
+        }
+    }
+
+    @Test
+    @DisplayName("#22 — y una zona CONTENIDA del todo en otra del mismo plan, tambien")
+    void unaZonaContenidaEnOtraDelMismoPlanSeRechaza() throws SQLException {
+        // El contraste por arriba del anterior: `ST_Relate(...,'T********')` es cierto tanto si
+        // los poligonos se cruzan como si uno esta dentro del otro, y las dos son el mismo
+        // defecto —suelo cubierto dos veces—. Con un predicado de «se cruzan» estricto
+        // (ST_Overlaps) la contenida se colaria, que es el caso mas facil de dibujar a mano.
+        try (Connection app = conexionConContexto()) {
+            Escenario e = escenario();
+            double x = e.oeste();
+            insertar(app, "PDU-2026" + e.sufijo(), "RDM", x, x + 0.04, DESDE_2026, null);
+            insertar(app, "PDU-2026" + e.sufijo(), "CZ", x + 0.01, x + 0.02, DESDE_2026, null);
+
+            assertThatThrownBy(app::commit)
+                    .isInstanceOf(SQLException.class)
+                    .hasMessageContaining("zonas_del_plan_no_se_pisan");
+        }
+    }
+
+    @Test
+    @DisplayName("#22 — el mensaje nombra LAS DOS zonas y su plan, no «una restriccion»")
+    void elRechazoNombraLasDosZonas() throws SQLException {
+        // Quien carga un plan recibe esto sobre un archivo de cientos de filas: sin los dos
+        // codigos dentro no hay forma de saber que dos lineas corregir.
+        try (Connection app = conexionConContexto()) {
+            Escenario e = escenario();
+            double x = e.oeste();
+            insertar(app, "PDU-2026" + e.sufijo(), "RDM", x, x + 0.02, DESDE_2026, null);
+            insertar(app, "PDU-2026" + e.sufijo(), "CZ", x + 0.005, x + 0.015, DESDE_2026, null);
+
+            assertThatThrownBy(app::commit)
+                    .hasMessageContaining("RDM")
+                    .hasMessageContaining("CZ")
+                    .hasMessageContaining("PDU-2026" + e.sufijo());
         }
     }
 

@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import kamayuk.catastro.dominio.Observacion;
 import kamayuk.catastro.urbano.dominio.EstadoDelPredio;
@@ -31,7 +32,7 @@ final class UrbanoEnMemoria implements UrbanoRepository {
     private final Map<Long, EstadoDelPredio> predios = new LinkedHashMap<>();
     private final Map<Long, Zona> zonas = new LinkedHashMap<>();
     private final Map<Long, List<ParametroUrbanistico>> parametros = new LinkedHashMap<>();
-    private final Map<Long, Long> zonaDelPredio = new LinkedHashMap<>();
+    private final Map<Long, List<Long>> zonasDelPredio = new LinkedHashMap<>();
     private final List<Observacion> observaciones = new ArrayList<>();
 
     private long siguienteId = 1;
@@ -40,9 +41,18 @@ final class UrbanoEnMemoria implements UrbanoRepository {
         predios.put(predioId, estado);
     }
 
-    /** Ata un predio ya sembrado a una zona ya guardada: es lo que la geometria haria. */
+    /**
+     * Ata un predio ya sembrado a una zona ya guardada: es lo que la geometria haria.
+     *
+     * <p>Se puede llamar <b>mas de una vez</b> para el mismo predio, y desde #22 hace falta: dos
+     * zonas encima del mismo suelo es un estado que el esquema admitia y que la consulta tapaba con
+     * un {@code LIMIT 1}. Sin poder expresarlo aqui, la rama de {@code ZonaAmbigua} no se podria
+     * ejercer sin PostGIS.
+     */
     void caeEn(long predioId, long zonificacionId) {
-        zonaDelPredio.put(predioId, zonificacionId);
+        zonasDelPredio
+                .computeIfAbsent(predioId, cualquiera -> new ArrayList<>())
+                .add(zonificacionId);
     }
 
     List<Observacion> observaciones() {
@@ -59,12 +69,12 @@ final class UrbanoEnMemoria implements UrbanoRepository {
     }
 
     @Override
-    public Optional<Zona> zonaQueContieneAlPredio(long predioId, LocalDate aLaFecha) {
-        Long zonaId = zonaDelPredio.get(predioId);
-        if (zonaId == null) {
-            return Optional.empty();
-        }
-        return Optional.ofNullable(zonas.get(zonaId)).filter(zona -> zona.rigeEn(aLaFecha));
+    public List<Zona> zonasQueContienenAlPredio(long predioId, LocalDate aLaFecha) {
+        return zonasDelPredio.getOrDefault(predioId, List.of()).stream()
+                .map(zonas::get)
+                .filter(Objects::nonNull)
+                .filter(zona -> zona.rigeEn(aLaFecha))
+                .toList();
     }
 
     @Override

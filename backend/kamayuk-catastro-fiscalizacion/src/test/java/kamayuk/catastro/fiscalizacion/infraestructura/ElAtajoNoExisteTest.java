@@ -275,11 +275,7 @@ class ElAtajoNoExisteTest {
             gabinete.admitir(candidatoId, OBSERVACION);
             Hallazgo hallazgo =
                     campo.confirmar(
-                            candidatoId,
-                            AreaM2.de("180.00"),
-                            INSPECTOR_CON_COMILLA,
-                            null,
-                            OBSERVACION);
+                            candidatoId, AreaM2.de("180.00"), INSPECTOR_CON_COMILLA, OBSERVACION);
 
             Acta acta =
                     actas.levantar(

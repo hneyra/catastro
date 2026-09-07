@@ -18,6 +18,7 @@ import kamayuk.catastro.fiscalizacion.dominio.ContrasteDeAreas;
 import kamayuk.catastro.fiscalizacion.dominio.FiscalizacionRepository;
 import kamayuk.catastro.fiscalizacion.dominio.OrigenDelCandidato;
 import kamayuk.catastro.fiscalizacion.dominio.Score;
+import kamayuk.catastro.json.SerializadorDeJson;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -136,7 +137,9 @@ public class DetectarSubvaluadores {
                                         .mas("tope", campania.tope())
                                         .mas("sinGeometria", cruce.cobertura().sinGeometria())
                                         .mas("sinFichaVigente", cruce.cobertura().sinFichaVigente())
-                                        .mas("truncadosPorElTope", cruce.cobertura().truncadosPorElTope())
+                                        .mas(
+                                                "truncadosPorElTope",
+                                                cruce.cobertura().truncadosPorElTope())
                                         .datos()));
         return new Deteccion(List.copyOf(detectados), cruce.cobertura());
     }

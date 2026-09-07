@@ -30,6 +30,12 @@ yarn mirar      # recorre los 16 destinos y sus 13 vistas en Chromium y guarda
                 # una captura de cada uno en .capturas/; falla ante un error de
                 # consola o si el <main> se queda en blanco —que es como falla
                 # de verdad una pantalla a medio hacer: en silencio—
+yarn errores    # que lo que `cliente.ts` distingue LLEGUE a la pantalla: rompe
+                # una sola ruta con seis rechazos que comparten el mismo mensaje
+                # —403, 500 con incidencia, 422 con detalles, 422 con y sin
+                # llave, y la red caída— y exige que las seis salgan DISTINTAS,
+                # que «Reintentar» aparezca sólo donde reintentar puede cambiar
+                # algo, y que reintente SU lectura y no otra
 yarn sin-red    # compila CON EL PROXY APAGADO, corta la red y comprueba que
                 # ninguna pantalla enseña una cifra —y que todas siguen diciendo
                 # QUÉ ruta no pudieron leer—
@@ -43,7 +49,7 @@ yarn imagen     # los dos archivos que deciden CÓMO SE SIRVE: levanta `nginx.co
                 # construcción
 ```
 
-`mirar`, `impedimentos` y `paleta` necesitan una vista previa levantada; si no está en el 5190, se le dice con
+`mirar`, `impedimentos`, `paleta` y `errores` necesitan una vista previa levantada; si no está en el 5190, se le dice con
 `CATASTRO_BASE=http://localhost:5210 yarn mirar`. `sin-red` **levanta la suya**, y hace falta:
 la bandera del proxy la resuelve Vite al compilar, así que correrlo contra otra vista previa
 mediría el paquete equivocado. `imagen` necesita **Docker**, y sin Docker **sale con 2, no se
@@ -76,8 +82,8 @@ src/
     fuentes/      Source Sans 3, auto-hospedada
   modulos/<k>/    Un módulo por carpeta
     catastro/AltaDeFicha.tsx   el asistente de seis pasos: la ÚNICA escritura
-verificaciones/   Los nueve arneses, sus vistas y las muestras que violan cada regla
-                  Ocho miran `src/`; `imagen.mjs` mira los dos archivos que deciden
+verificaciones/   Los diez arneses, sus vistas y las muestras que violan cada regla
+                  Nueve miran `src/`; `imagen.mjs` mira los dos archivos que deciden
                   cómo se sirve: `nginx.conf` y `Dockerfile`
 ```
 
@@ -221,6 +227,46 @@ motivo, en `src/datos/catastro.ts`:
 - **Fiscalización no publica ni el listado de campañas ni ninguna lectura de actas.** De sus
   once operaciones, cuatro son lecturas. Las dos pantallas lo dicen y piden el identificador a
   mano, en vez de dibujar una tabla contra una operación que no existe.
+
+## Un error se dice ENTERO, y las tres superficies que no lo hacían
+
+`src/api/cliente.ts` distingue doce códigos, `faltaUnaCifraNormativa`,
+`reintentable`, `detalles` e `incidencia`. De las 29 lecturas de `src/modulos`,
+**26 pasan por `<Lectura>` → `Fallo`** y ahí las cuatro llegan intactas. Tres no
+pasaban (#49), y las tres eran invisibles de la peor manera: la primera enseñaba
+datos plausibles, la segunda un botón que parecía funcionar, la tercera un
+mensaje que parecía completo.
+
+- **El catálogo vial en 403 dejaba el cuadro de aranceles entero.** `calles` es
+  un `@RequiereAcceso` distinto de `aranceles`, así que hay usuarios con uno y
+  sin el otro. Nadie leía `vias.error`, `viaPorId` caía a un `Map` vacío y la
+  tabla pintaba `` `Via ${a.viaId}` `` y `'—'`: seis filas de «Via 1 — Sin tramo
+  388.00» sin un solo aviso. **`Via 1` no se distingue del nombre de una vía.**
+  Ahora el fallo del catálogo sale con su `Fallo` encima de la tabla y la celda
+  dice cuál de los tres estados es —no se pudo leer, se está pidiendo, o se leyó
+  y esa vía no está en él—, porque piden trabajos distintos.
+- **El «Reintentar» del Panel reintentaba dos de las cuatro lecturas.** El Panel
+  pide `predios`, `sectores`, `predios/plano` y `fichas`; con las cuatro en 500
+  salían **2** botones —de las dos `<Lectura>` de más abajo— y cada uno re-pedía
+  **una**. El padrón y el plano quedaban muertos hasta recargar la página.
+  **Cada tarjeta ofrece ahora el reintento de SU lectura** —medido: 6 botones, y
+  los cuatro de las tarjetas re-piden su ruta y sólo la suya—. La otra opción era
+  un botón general arriba, y se descartó porque reintentaría lecturas que no
+  fallaron. Las tarjetas son `<section aria-label>`: una región con nombre, que
+  además es lo que hace medible «el reintento de esta tarjeta».
+- **`Consultas.bajar()` destruía el `ErrorDeApi` en el `catch`.** Se quedaba con
+  `e.mensaje`, así que el código, `detalles`, `incidencia`, `parametroQueFalta` y
+  `reintentable` morían ahí. Medido con el mismo mensaje en cuatro escenarios
+  —500 con incidencia, 422 con `{ejercicio}`, 422 con `{ejercicio, llave}` y
+  403—, la pantalla decía **byte a byte lo mismo**. Ahora el estado guarda el
+  error entero y lo pinta el mismo `Fallo` que las otras 26.
+
+Lo mide `yarn errores`, y **la decisión que hace que mida algo es que los seis
+escenarios comparten el mismo `mensaje`**: con mensajes distintos, «las pantallas
+salen distintas» se cumpliría pintando `error.mensaje`, que es exactamente el
+tercer defecto. Lo esperado —los títulos de los doce códigos, la regla de
+`reintentable`, la frase de una línea— se deriva compilando `cliente.ts` y
+`componentes.tsx` al vuelo, y no se copia en el arnés.
 
 ## Dos defectos que se encontraron midiendo, y su arreglo
 

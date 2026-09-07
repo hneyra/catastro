@@ -23,6 +23,12 @@
 #   6. `imagen` — los dos archivos que deciden COMO SE SIRVE, `nginx.conf` y
 #      `Dockerfile`, que hasta ahora no miraba nadie. Levanta nginx de verdad y
 #      pregunta por HTTP.
+#   7. `errores` — que lo que `cliente.ts` distingue LLEGUE a la pantalla. Rompe
+#      una sola ruta con seis rechazos que comparten el mismo mensaje y exige que
+#      las seis pantallas salgan DISTINTAS. Los tres defectos de #49 pasaban en
+#      verde ante cualquier guarda que solo preguntara si sale un aviso: el
+#      primero ensenaba datos plausibles, el segundo un boton que parecia
+#      funcionar y el tercero un mensaje que parecia completo.
 #
 # <h2>Por que `imagen` va en `verificar` y no en `navegador`</h2>
 #
@@ -182,6 +188,14 @@ jobs:
       # no se puede pulsar, asi que no hay como averiguar que le falta.
       - name: Ningun control impedido sin decir por que
         run: CATASTRO_BASE=http://localhost:5210 node verificaciones/impedimentos.mjs
+
+      # Corre contra la MISMA vista previa que `mirar`, con el proxy de datos
+      # encendido: rompe una sola ruta y deja que el proxy conteste el resto en
+      # 200, que es el caso que importa —un usuario con `aranceles` y sin
+      # `calles`—. Con la red cortada entera, las tres superficies de #49 no se
+      # distinguen de las 26 que si pasan por `Fallo`.
+      - name: Un 403, un 500 y un 422 producen pantallas distintas
+        run: CATASTRO_BASE=http://localhost:5210 node verificaciones/errores.mjs
 
       # Compila su PROPIA vista previa con la bandera apagada y la sirve en otro
       # puerto: el proxy se apaga al compilar —Vite resuelve `import.meta.env`

@@ -262,6 +262,30 @@ export type RespuestaPaginada<T> = {
   hayMas: boolean;
 };
 
+/* ── Que el cuerpo de una escritura y su lista de campos digan lo mismo ──── */
+
+type Faltan<T, L extends readonly string[]> = Exclude<keyof T, L[number]>;
+type Sobran<T, L extends readonly string[]> = Exclude<L[number], keyof T>;
+
+/**
+ * Que un tipo de peticion y su `CUERPOS_DE_ESCRITURA` digan lo mismo. Si
+ * divergen, **no compila**.
+ *
+ * Una lista de nombres al lado de un tipo es una copia, y una copia se queda
+ * vieja en silencio: quien anada un campo al tipo y no a la lista dejaria el
+ * punto 9 de `verificaciones/rutas.mjs` comparando cinco de seis, en verde.
+ *
+ * Vive aqui —en la puerta— y no en cada modulo desde #72: lo escribio #71 dentro
+ * de `fiscalizacion.ts` porque era el unico modulo que escribia, y el catalogo
+ * territorial trajo el segundo. Copiarlo habria sido justo la clase de defecto
+ * que este tipo existe para atrapar, un escalon mas arriba.
+ */
+export type CuerpoSinPareja<T, L extends readonly string[]> = [Faltan<T, L>] extends [never]
+  ? [Sobran<T, L>] extends [never]
+    ? true
+    : ['sobra en CUERPOS_DE_ESCRITURA', Sobran<T, L>]
+  : ['falta en CUERPOS_DE_ESCRITURA', Faltan<T, L>];
+
 /** Lo que `ParametrosDePaginacion` acepta, con los nombres que viajan. */
 export type Paginacion = {
   pagina?: number;

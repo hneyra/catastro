@@ -6,6 +6,7 @@ import * as api from '../../api/catastro';
 import * as fiscalizacion from '../../api/fiscalizacion';
 import type { ErrorDeApi, RespuestaPaginada } from '../../api/cliente';
 import { useRebote, useRecurso } from '../../api/useRecurso';
+import { sinClaves } from '../../shell/ruta';
 import type { Recurso } from '../../api/useRecurso';
 import {
   Aviso,
@@ -28,6 +29,7 @@ import {
   THN,
 } from '../../ds/componentes';
 import type { Tono } from '../../ds/componentes';
+import { Acto } from '../../ds/Acto';
 import { Icono } from '../../ds/Icono';
 import { ICO } from '../../ds/iconos';
 import { ALTA, PASOS } from '../../datos/alta';
@@ -39,13 +41,18 @@ import {
   VACIOS as VACIOS_DE_FISCALIZACION,
 } from '../../datos/fiscalizacion';
 import {
+  ACTOS_DEL_TERRITORIO,
+  CAMPOS_DEL_TERRITORIO,
   CHIPS_DE_PREDIOS,
   COLAS,
   CUADROS,
   FICHA,
   MOTIVOS,
+  NOTAS_DE_LOS_ACTOS_DEL_TERRITORIO,
   PANEL,
   PREDIOS,
+  QUE_HACER,
+  RETIRADAS,
   ROTULO_DE_ORDEN,
   ROTULO_DE_PARTIDA,
   TERRITORIO,
@@ -194,7 +201,15 @@ function TablaFija({
   pie,
 }: {
   columnas: readonly ColumnaAlVuelo[];
-  filas: readonly { llave: string; celdas: readonly Celda[] }[];
+  /**
+   * `realzada` marca la fila sobre la que se esta actuando.
+   *
+   * Hace falta desde #72: los actos del catalogo vial se abren desde la fila y
+   * el formulario aparece ARRIBA, asi que sin realzar la fila el formulario no
+   * dice de quien es —y con quince vias en pantalla, «Corregir la via» sobre la
+   * que no es se pinta exactamente igual que sobre la que si—.
+   */
+  filas: readonly { llave: string; celdas: readonly Celda[]; realzada?: boolean }[];
   vacio: ReactNode;
   /** La prosa del pie. Va en un `<p>`: solo texto. */
   pie?: ReactNode;
@@ -213,7 +228,14 @@ function TablaFija({
         </thead>
         <tbody>
           {filas.map((f) => (
-            <tr key={f.llave} style={{ borderTop: '1px solid var(--linea-2)', background: 'var(--blanco)' }}>
+            <tr
+              key={f.llave}
+              aria-current={f.realzada ? 'true' : undefined}
+              style={{
+                borderTop: '1px solid var(--linea-2)',
+                background: f.realzada ? 'var(--azul-suave)' : 'var(--blanco)',
+              }}
+            >
               {f.celdas.map((celda, i) => (
                 <td key={columnas[i]?.label ?? String(i)} style={i === 0 ? TD1 : celda.numerica ? TDN : TD}>
                   {celda.texto}
@@ -1163,7 +1185,11 @@ export function Predios({ ruta, onSujeto, onFiltros, onIr }: PantallaProps) {
           }
           /* Las CUATRO, porque el alta va a una u otra segun la clase de ficha
              que se elija en el primer paso, y cada una exige su propio permiso. */
-          escribe={esNuevo ? api.TIPOS_DE_FICHA.map((t) => api.RUTA_DEL_ALTA[t]) : undefined}
+          escribe={
+            esNuevo
+              ? api.TIPOS_DE_FICHA.map((t) => ({ metodo: 'POST', ruta: api.RUTA_DEL_ALTA[t] }))
+              : undefined
+          }
           falta={
             esNuevo
               ? ALTA.noViajanNota
@@ -1729,7 +1755,68 @@ const ACCION_SECUNDARIA: CSSProperties = {
 
 const NODO_DE_VIAS = 'vias';
 
-export function Territorio({ ruta, onSujeto }: PantallaProps) {
+/**
+ * Las claves que un acto de esta hoja pone en la ruta.
+ *
+ * El formulario se abre desde la ruta —`?acto=altaDeSector`— y no desde un
+ * estado interno, por lo mismo que el asistente de alta de ficha: asi la
+ * pantalla abierta se comparte por su URL, sobrevive a una recarga, y los
+ * arneses pueden llegar a ella sin pulsar nada. Cerrarlo quita estas dos y
+ * conserva las demas.
+ */
+const CLAVES_DEL_ACTO = ['acto', 'via'];
+
+type ActoDelTerritorio = keyof typeof ACTOS_DEL_TERRITORIO;
+
+function esActoDelTerritorio(k: string): k is ActoDelTerritorio {
+  return Object.hasOwn(ACTOS_DEL_TERRITORIO, k);
+}
+
+/**
+ * El catalogo territorial: sectores, sus manzanas y el catalogo vial, **y su
+ * mantenimiento** (#72).
+ *
+ * <h2>Cinco escrituras que hasta aqui no ofrecia ninguna pantalla</h2>
+ *
+ * `SectorController` y `ViaController` publican el alta de un sector, su
+ * correccion, el alta de una manzana, el alta de una via y su correccion. Esta
+ * hoja las leia las tres y no escribia ninguna: el catalogo se podia mirar y no
+ * mantener, y eso bloquea algo mas que si mismo —**el alta de un predio obliga a
+ * elegir la via del catalogo**, asi que una calle que no este cargada no se
+ * puede inscribir desde ningun sitio de esta interfaz—.
+ *
+ * <h2>La baja logica es OTRO acto, porque es otro privilegio</h2>
+ *
+ * En el backend la correccion y la baja son la **misma ruta**: un `PUT` cuyo
+ * cuerpo decide cual de las dos es. El guardia comprueba `MODIFICACION`, que es
+ * lo que la anotacion declara, y el controlador comprueba `ELIMINACION` **a
+ * mano** cuando el cuerpo trae el estado en falso. O sea que quien puede
+ * corregir y no retirar recibe un `403 SIN_PRIVILEGIO` en una pantalla en la que
+ * acaba de guardar sin problema.
+ *
+ * Aqui son dos botones y dos formularios, y no una casilla dentro de «guardar»:
+ * con la casilla, quien corrige un nombre y de paso la desmarca sin darse cuenta
+ * pierde las dos cosas de un golpe, y el rechazo habla de un privilegio que no
+ * tiene nada que ver con lo que creia estar haciendo.
+ *
+ * **Y no se esconde el boton a quien no lo tenga**, porque no se puede saber:
+ * ADR-0030 §3 pone la sesion y los permisos en `rentas`, y este backend no
+ * publica ninguna lectura de «que privilegios tengo» —medido sobre sus
+ * `@RequestMapping`—. Adivinarlo escondiendo el acto seria peor que el 403: un
+ * boton que no esta no se puede preguntar. Se ofrece, y el rechazo dice de que
+ * privilegio se trata y quien lo concede (`QUE_HACER.sinPrivilegioDeRetirar`).
+ *
+ * <h2>Y no se ofrece ningun control que el servidor no lea</h2>
+ *
+ * El alta de sector **no lleva casilla de estado** —un sector nace activo y el
+ * `activo` del cuerpo se ignora— y la correccion **ensena el codigo sin dejar
+ * cambiarlo** —el `codigo` del cuerpo se ignora, porque es un tramo del codigo
+ * de referencia catastral de todos sus predios—. Las dos cosas estan declaradas
+ * con su motivo en `LO_QUE_EL_SERVIDOR_DESCARTA`, y `verificaciones/territorio.mjs`
+ * mide el cuerpo que de verdad viaja: un control que se rellena y se descarta en
+ * silencio es peor que uno que falta, porque el servidor contesta que se guardo.
+ */
+export function Territorio({ ruta, onSujeto, onFiltros }: PantallaProps) {
   const sectores = useRecurso((senal) => api.sectores({ tamano: 100 }, senal), ['territorio-sectores']);
   const vias = useRecurso((senal) => api.vias({}, { tamano: 500 }, senal), ['territorio-vias']);
   const nodo = ruta.sujeto === '' ? (sectores.datos?.contenido[0]?.codigo ?? '') : ruta.sujeto;
@@ -1742,6 +1829,24 @@ export function Territorio({ ruta, onSujeto }: PantallaProps) {
 
   const ubigeos = [...new Set((vias.datos?.contenido ?? []).map((v) => v.ubigeo).filter((u) => u !== null))];
   const sector = sectores.datos?.contenido.find((s) => s.codigo === nodo) ?? null;
+
+  const acto = ruta.filtros.acto ?? '';
+  const laVia = vias.datos?.contenido.find((v) => v.codigo === (ruta.filtros.via ?? '')) ?? null;
+  const abrir = (k: ActoDelTerritorio, via?: string) =>
+    onFiltros({ ...ruta.filtros, acto: k, ...(via === undefined ? {} : { via }) });
+  const cerrarElActo = () => onFiltros(sinClaves(ruta.filtros, CLAVES_DEL_ACTO));
+
+  /* Tras una escritura, el catalogo se vuelve a pedir: lo que tiene lo dice el
+     servidor, y quedarse con lo de antes ofreceria otra vez lo que se acaba de
+     hacer —«Retirar» sobre una via que se acaba de retirar—. Es un boton y no
+     algo automatico por lo mismo que en fiscalizacion: lo que el acto ensena
+     arriba es lo que el servidor contesto, y refrescar la lista sola dejaria a
+     quien mira sin saber cual de las dos cosas esta viendo. */
+  const volverALeerElCatalogo = () => {
+    sectores.reintentar();
+    vias.reintentar();
+    manzanas.reintentar();
+  };
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, width: '100%' }}>
@@ -1757,7 +1862,7 @@ export function Territorio({ ruta, onSujeto }: PantallaProps) {
               fontWeight: 700,
             }}
           >
-            {ubigeos.length === 1 ? `Distrito ${ubigeos[0]}` : 'Sectores y catalogo vial'}
+            {ubigeos.length === 1 ? `Distrito ${ubigeos[0]}` : TERRITORIO.sectores}
           </p>
           <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
             <Lectura recurso={sectores} espera="">
@@ -1767,7 +1872,25 @@ export function Territorio({ ruta, onSujeto }: PantallaProps) {
                     <NodoDelArbol
                       key={s.id}
                       label={`Sector ${s.codigo} — ${s.nombre}`}
-                      conteo={s.lotes === null ? '—' : `${s.lotes} lotes`}
+                      /* Un sector retirado lo dice el ARBOL, que es donde se
+                         elige. Hasta #72 daba igual —nadie podia retirar nada
+                         desde aqui—, y en cuanto se puede, un retirado que se
+                         pinta igual que uno vigente es un dato degradado que no
+                         se distingue de uno bueno: se elegiria para trabajar
+                         sobre el sin saberlo. Sustituye al conteo y no se pone al
+                         lado a proposito: en un sector fuera del catalogo, lo que
+                         importa es eso y no cuantos lotes tenia. */
+                      conteo={
+                        s.activo ? (
+                          s.lotes === null ? (
+                            '—'
+                          ) : (
+                            `${s.lotes} lotes`
+                          )
+                        ) : (
+                          <Insignia tono="bad">{TERRITORIO.laRetirada}</Insignia>
+                        )
+                      }
                       on={s.codigo === nodo}
                       onElegir={() => onSujeto(s.codigo)}
                     />
@@ -1788,30 +1911,88 @@ export function Territorio({ ruta, onSujeto }: PantallaProps) {
           <div
             style={{
               flex: '0 0 auto',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 14,
+              flexWrap: 'wrap',
               padding: '13px 18px',
               background: 'var(--blanco)',
               borderBottom: '1px solid var(--linea)',
             }}
           >
-            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
-              {esVias ? TERRITORIO.catalogoVial : sector ? `Sector ${sector.codigo} — ${sector.nombre}` : 'Sectores'}
-            </h2>
-            <p
-              style={{
-                margin: '5px 0 0',
-                fontSize: 13.5,
-                lineHeight: 1.55,
-                color: 'var(--tinta-3)',
-                maxWidth: '78ch',
-                textWrap: 'pretty',
-              }}
+            <div style={{ flex: 1, minWidth: 260 }}>
+              <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
+                {esVias ? TERRITORIO.catalogoVial : sector ? `Sector ${sector.codigo} — ${sector.nombre}` : 'Sectores'}
+              </h2>
+              <p
+                style={{
+                  margin: '5px 0 0',
+                  fontSize: 13.5,
+                  lineHeight: 1.55,
+                  color: 'var(--tinta-3)',
+                  maxWidth: '78ch',
+                  textWrap: 'pretty',
+                }}
+              >
+                {esVias ? TERRITORIO.notaDeVias : TERRITORIO.notaDeManzanas}
+              </p>
+            </div>
+            <div
+              role="group"
+              aria-label={TERRITORIO.acciones}
+              style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}
             >
-              {esVias ? TERRITORIO.notaDeVias : TERRITORIO.notaDeManzanas}
-            </p>
+              {esVias ? (
+                <Boton tipo="primario" onClick={() => abrir('altaDeVia')}>
+                  {ACTOS_DEL_TERRITORIO.altaDeVia}
+                </Boton>
+              ) : (
+                <>
+                  <Boton tipo="primario" onClick={() => abrir('altaDeSector')}>
+                    {ACTOS_DEL_TERRITORIO.altaDeSector}
+                  </Boton>
+                  <Boton
+                    impedido={sector === null}
+                    motivo="Falta elegir un sector en la lista de la izquierda."
+                    onClick={() => abrir('corregirSector')}
+                  >
+                    {ACTOS_DEL_TERRITORIO.corregirSector}
+                  </Boton>
+                  <Boton
+                    impedido={sector === null}
+                    motivo="Falta elegir un sector en la lista de la izquierda."
+                    onClick={() => abrir(sector?.activo === false ? 'reactivarSector' : 'bajaDeSector')}
+                  >
+                    {sector?.activo === false
+                      ? ACTOS_DEL_TERRITORIO.reactivarSector
+                      : ACTOS_DEL_TERRITORIO.bajaDeSector}
+                  </Boton>
+                  <Boton
+                    impedido={sector === null}
+                    motivo="Falta elegir un sector: una manzana se da de alta dentro del suyo."
+                    onClick={() => abrir('altaDeManzana')}
+                  >
+                    {ACTOS_DEL_TERRITORIO.altaDeManzana}
+                  </Boton>
+                </>
+              )}
+            </div>
           </div>
 
+          {esActoDelTerritorio(acto) ? (
+            <div style={{ flex: '0 1 auto', maxHeight: '62%', overflow: 'auto', padding: '14px 18px 0' }}>
+              <ActoDelCatalogo
+                acto={acto}
+                sector={sector}
+                via={laVia}
+                onCerrar={cerrarElActo}
+                onHecho={volverALeerElCatalogo}
+              />
+            </div>
+          ) : null}
+
           {esVias ? (
-            <CatalogoVial vias={vias} />
+            <CatalogoVial vias={vias} elegido={laVia} onActo={abrir} />
           ) : (
             <Lectura recurso={manzanas} espera="Elija un sector en la lista de la izquierda.">
               {(r) => (
@@ -1842,6 +2023,13 @@ export function Territorio({ ruta, onSujeto }: PantallaProps) {
       <PieDeSangre>
         <Servida
           lee={[api.RUTAS.sectores, api.RUTAS.manzanas, api.RUTAS.vias]}
+          escribe={[
+            { metodo: 'POST', ruta: api.RUTAS.sectores },
+            { metodo: 'PUT', ruta: api.RUTAS.sector },
+            { metodo: 'POST', ruta: api.RUTAS.manzanas },
+            { metodo: 'POST', ruta: api.RUTAS.vias },
+            { metodo: 'PUT', ruta: api.RUTAS.via },
+          ]}
           falta={`${MOTIVOS.viasNoCuelganDelSector} El arancel de cada via no sale aqui sino en Valores del ejercicio: cuelga del conjunto sellado de un anio, y esta lectura no lo tiene.`}
         />
       </PieDeSangre>
@@ -1856,7 +2044,7 @@ function NodoDelArbol({
   onElegir,
 }: {
   label: string;
-  conteo: string;
+  conteo: ReactNode;
   on: boolean;
   onElegir: () => void;
 }) {
@@ -1888,14 +2076,26 @@ function NodoDelArbol({
 }
 
 /**
- * El catalogo vial, con el arancel del ejercicio de cada via.
+ * El catalogo vial, con lo que se le puede hacer a cada via.
  *
- * El arancel sale de OTRA lectura y se cruza por `viaId`. Cuando una via tiene
- * mas de un arancel —el cuadro publica tramos— **no se elige ninguno**: se dice
- * cuantos hay. Elegir uno seria inventar el tramo en el que esta el predio, que
- * es el defecto que #8 midio en el backend.
+ * Los dos actos van **en la fila** y no en la cabecera, porque cuelgan de una
+ * via concreta: una cabecera con «Corregir» obligaria a elegir antes la via en
+ * otro sitio, y elegir en un sitio para actuar en otro es como se acaba
+ * corrigiendo la calle de al lado. La fila elegida se realza, para que el
+ * formulario de abajo se sepa de quien es.
+ *
+ * El arancel de cada via NO sale aqui: cuelga del conjunto sellado de un anio y
+ * lo ensena «Valores del ejercicio», que es la lectura que lo tiene.
  */
-function CatalogoVial({ vias }: { vias: Recurso<RespuestaPaginada<api.Via>> }) {
+function CatalogoVial({
+  vias,
+  elegido,
+  onActo,
+}: {
+  vias: Recurso<RespuestaPaginada<api.Via>>;
+  elegido: api.Via | null;
+  onActo: (acto: ActoDelTerritorio, via: string) => void;
+}) {
   return (
     <Lectura recurso={vias} espera="">
       {(r) => (
@@ -1905,17 +2105,37 @@ function CatalogoVial({ vias }: { vias: Recurso<RespuestaPaginada<api.Via>> }) {
             { label: 'Via' },
             { label: 'Tipo' },
             { label: 'Ubigeo' },
-            { label: 'Activa' },
+            { label: TERRITORIO.activa },
+            { label: TERRITORIO.acciones },
           ]}
           filas={r.contenido.map((v) => ({
             llave: String(v.id),
+            realzada: elegido?.codigo === v.codigo,
             celdas: [
               { texto: v.codigo },
               { texto: v.nombre },
               { texto: v.tipo },
               { texto: guion(v.ubigeo) },
               {
-                texto: v.activa ? <Insignia tono="ok">Si</Insignia> : <Insignia tono="bad">No</Insignia>,
+                texto: v.activa ? (
+                  <Insignia tono="ok">{TERRITORIO.laVigente}</Insignia>
+                ) : (
+                  <Insignia tono="bad">{TERRITORIO.laRetirada}</Insignia>
+                ),
+              },
+              {
+                texto: (
+                  <div
+                    role="group"
+                    aria-label={`Via ${v.codigo} · ${v.activa ? TERRITORIO.laVigente : TERRITORIO.laRetirada}`}
+                    style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}
+                  >
+                    <Boton onClick={() => onActo('corregirVia', v.codigo)}>{TERRITORIO.corregir}</Boton>
+                    <Boton onClick={() => onActo(v.activa ? 'bajaDeVia' : 'reactivarVia', v.codigo)}>
+                      {v.activa ? TERRITORIO.retirar : TERRITORIO.devolver}
+                    </Boton>
+                  </div>
+                ),
               },
             ],
           }))}
@@ -1924,6 +2144,362 @@ function CatalogoVial({ vias }: { vias: Recurso<RespuestaPaginada<api.Via>> }) {
         />
       )}
     </Lectura>
+  );
+}
+
+/* ── Los nueve actos del catalogo, cada uno con lo que su ruta pide ──────── */
+
+/**
+ * Que formulario abre cada acto, y sobre que.
+ *
+ * Los cuatro campos de sector y de via se declaran aqui y no dentro de cada
+ * `Acto` porque son los mismos en el alta y en la correccion: lo que cambia es
+ * si son obligatorios —en el alta lo son, y el servidor los exige— y si el
+ * codigo se puede escribir o solo se ensena.
+ */
+function ActoDelCatalogo({
+  acto,
+  sector,
+  via,
+  onCerrar,
+  onHecho,
+}: {
+  acto: ActoDelTerritorio;
+  sector: api.Sector | null;
+  via: api.Via | null;
+  onCerrar: () => void;
+  onHecho: () => void;
+}) {
+  const titulo = ACTOS_DEL_TERRITORIO[acto];
+  const nota = NOTAS_DE_LOS_ACTOS_DEL_TERRITORIO[acto];
+  /* Lo que el usuario no rellena NO viaja: en un `PUT` la ausencia conserva el
+     valor y la cadena vacia lo BORRA, asi que mandar `''` por un campo que nadie
+     toco borraria la zona o el ubigeo sin que nadie lo pidiera. */
+  const oNada = (v: string | undefined) => (v === undefined || v === '' ? undefined : v);
+
+  if (acto === 'altaDeSector') {
+    return (
+      <Acto
+        key="altaDeSector"
+        titulo={titulo}
+        nota={nota}
+        campos={[
+          { k: 'codigo', ...CAMPOS_DEL_TERRITORIO.codigoDeSector },
+          { k: 'nombre', ...CAMPOS_DEL_TERRITORIO.nombreDelSector, ancho: 320 },
+          { k: 'zona', ...CAMPOS_DEL_TERRITORIO.zona, opcional: true },
+        ]}
+        explicaciones={{
+          CONFLICTO: QUE_HACER.codigoDeSectorRepetido,
+          VALIDACION: QUE_HACER.campoRechazado,
+          SIN_PRIVILEGIO: QUE_HACER.sinPrivilegioDeEscribir,
+        }}
+        enviar={(v) =>
+          api.registrarSector({
+            codigo: v.codigo!,
+            nombre: v.nombre!,
+            zona: oNada(v.zona),
+            observacion: v.observacion!,
+          })
+        }
+        pinta={(s) => <ElSector sector={s} onHecho={onHecho} />}
+        onCerrar={onCerrar}
+      />
+    );
+  }
+
+  if (acto === 'altaDeVia') {
+    return (
+      <Acto
+        key="altaDeVia"
+        titulo={titulo}
+        nota={nota}
+        campos={[
+          { k: 'codigo', ...CAMPOS_DEL_TERRITORIO.codigoDeVia },
+          { k: 'tipo', ...CAMPOS_DEL_TERRITORIO.tipoDeVia, opciones: api.TIPOS_DE_VIA },
+          { k: 'nombre', ...CAMPOS_DEL_TERRITORIO.nombreDeLaVia, ancho: 320 },
+          { k: 'ubigeo', ...CAMPOS_DEL_TERRITORIO.ubigeo, opcional: true },
+        ]}
+        explicaciones={{
+          CONFLICTO: QUE_HACER.codigoDeViaRepetido,
+          VALIDACION: QUE_HACER.campoRechazado,
+          SIN_PRIVILEGIO: QUE_HACER.sinPrivilegioDeEscribir,
+        }}
+        enviar={(v) =>
+          api.registrarVia({
+            codigo: v.codigo!,
+            tipo: v.tipo!,
+            nombre: v.nombre!,
+            ubigeo: oNada(v.ubigeo),
+            observacion: v.observacion!,
+          })
+        }
+        pinta={(x) => <LaVia via={x} onHecho={onHecho} />}
+        onCerrar={onCerrar}
+      />
+    );
+  }
+
+  if (acto === 'altaDeManzana' || acto === 'corregirSector' || acto === 'bajaDeSector' || acto === 'reactivarSector') {
+    if (sector === null) return <SinSujeto que="sector" onCerrar={onCerrar} />;
+    if (acto === 'altaDeManzana') {
+      return (
+        <Acto
+          key={`altaDeManzana-${sector.codigo}`}
+          titulo={titulo}
+          nota={nota}
+          campos={[
+            {
+              k: 'sector',
+              rotulo: CAMPOS_DEL_TERRITORIO.codigoDeSector.rotulo,
+              fijo: sector.codigo,
+              ayuda: 'El de la lista de la izquierda: la manzana se da de alta dentro de el.',
+            },
+            { k: 'codigo', ...CAMPOS_DEL_TERRITORIO.codigoDeManzana },
+          ]}
+          explicaciones={{
+            CONFLICTO: QUE_HACER.codigoDeManzanaRepetido,
+            NO_ENCONTRADO: QUE_HACER.sectorQueNoEsta,
+            VALIDACION: QUE_HACER.campoRechazado,
+            SIN_PRIVILEGIO: QUE_HACER.sinPrivilegioDeEscribir,
+          }}
+          enviar={(v) => api.registrarManzana(sector.codigo, { codigo: v.codigo!, observacion: v.observacion! })}
+          pinta={(m) => <LaManzana manzana={m} onHecho={onHecho} />}
+          onCerrar={onCerrar}
+        />
+      );
+    }
+    if (acto === 'corregirSector') {
+      return (
+        <Acto
+          key={`corregirSector-${sector.codigo}`}
+          titulo={titulo}
+          nota={nota}
+          campos={[
+            {
+              k: 'codigo',
+              rotulo: CAMPOS_DEL_TERRITORIO.codigoDeSector.rotulo,
+              fijo: sector.codigo,
+              ayuda: LO_QUE_NO_SE_EDITA.sector,
+            },
+            { k: 'nombre', ...CAMPOS_DEL_TERRITORIO.nombreDelSector, opcional: true, ancho: 320 },
+            { k: 'zona', ...CAMPOS_DEL_TERRITORIO.zona, opcional: true },
+          ]}
+          explicaciones={{
+            NO_ENCONTRADO: QUE_HACER.sectorQueNoEsta,
+            VALIDACION: QUE_HACER.campoRechazado,
+            SIN_PRIVILEGIO: QUE_HACER.sinPrivilegioDeEscribir,
+          }}
+          enviar={(v) =>
+            api.modificarSector(sector.codigo, {
+              nombre: oNada(v.nombre),
+              zona: oNada(v.zona),
+              observacion: v.observacion!,
+            })
+          }
+          pinta={(s) => <ElSector sector={s} onHecho={onHecho} />}
+          onCerrar={onCerrar}
+        />
+      );
+    }
+    const retirando = acto === 'bajaDeSector';
+    return (
+      <Acto
+        key={`${acto}-${sector.codigo}`}
+        titulo={titulo}
+        nota={nota}
+        campos={[
+          {
+            k: 'codigo',
+            rotulo: CAMPOS_DEL_TERRITORIO.codigoDeSector.rotulo,
+            fijo: `${sector.codigo} — ${sector.nombre}`,
+            ayuda: 'El sector elegido en la lista de la izquierda.',
+          },
+        ]}
+        advertencia={retirando ? RETIRADAS.sector : undefined}
+        explicaciones={{
+          NO_ENCONTRADO: QUE_HACER.sectorQueNoEsta,
+          VALIDACION: QUE_HACER.campoRechazado,
+          SIN_PRIVILEGIO: retirando ? QUE_HACER.sinPrivilegioDeRetirar : QUE_HACER.sinPrivilegioDeEscribir,
+        }}
+        enviar={(v) => api.modificarSector(sector.codigo, { activo: !retirando, observacion: v.observacion! })}
+        pinta={(s) => <ElSector sector={s} onHecho={onHecho} />}
+        onCerrar={onCerrar}
+      />
+    );
+  }
+
+  if (via === null) return <SinSujeto que="via" onCerrar={onCerrar} />;
+  if (acto === 'corregirVia') {
+    return (
+      <Acto
+        key={`corregirVia-${via.codigo}`}
+        titulo={titulo}
+        nota={nota}
+        campos={[
+          {
+            k: 'codigo',
+            rotulo: CAMPOS_DEL_TERRITORIO.codigoDeVia.rotulo,
+            fijo: via.codigo,
+            ayuda: LO_QUE_NO_SE_EDITA.via,
+          },
+          { k: 'tipo', ...CAMPOS_DEL_TERRITORIO.tipoDeVia, opciones: api.TIPOS_DE_VIA, opcional: true },
+          { k: 'nombre', ...CAMPOS_DEL_TERRITORIO.nombreDeLaVia, opcional: true, ancho: 320 },
+          { k: 'ubigeo', ...CAMPOS_DEL_TERRITORIO.ubigeo, opcional: true },
+        ]}
+        explicaciones={{
+          NO_ENCONTRADO: QUE_HACER.viaQueNoEsta,
+          VALIDACION: QUE_HACER.campoRechazado,
+          SIN_PRIVILEGIO: QUE_HACER.sinPrivilegioDeEscribir,
+        }}
+        enviar={(v) =>
+          api.modificarVia(via.codigo, {
+            tipo: oNada(v.tipo),
+            nombre: oNada(v.nombre),
+            ubigeo: oNada(v.ubigeo),
+            observacion: v.observacion!,
+          })
+        }
+        pinta={(x) => <LaVia via={x} onHecho={onHecho} />}
+        onCerrar={onCerrar}
+      />
+    );
+  }
+  const retirando = acto === 'bajaDeVia';
+  return (
+    <Acto
+      key={`${acto}-${via.codigo}`}
+      titulo={titulo}
+      nota={nota}
+      campos={[
+        {
+          k: 'codigo',
+          rotulo: CAMPOS_DEL_TERRITORIO.codigoDeVia.rotulo,
+          fijo: `${via.codigo} — ${via.tipo} ${via.nombre}`,
+          ayuda: 'La via elegida en la tabla.',
+        },
+      ]}
+      advertencia={retirando ? RETIRADAS.via : undefined}
+      explicaciones={{
+        NO_ENCONTRADO: QUE_HACER.viaQueNoEsta,
+        VALIDACION: QUE_HACER.campoRechazado,
+        SIN_PRIVILEGIO: retirando ? QUE_HACER.sinPrivilegioDeRetirar : QUE_HACER.sinPrivilegioDeEscribir,
+      }}
+      enviar={(v) => api.modificarVia(via.codigo, { activa: !retirando, observacion: v.observacion! })}
+      pinta={(x) => <LaVia via={x} onHecho={onHecho} />}
+      onCerrar={onCerrar}
+    />
+  );
+}
+
+/** Por que un campo se ensena y no se puede escribir. Es el motivo del backend. */
+const LO_QUE_NO_SE_EDITA = {
+  sector:
+    'Se ensena y no se edita: es uno de los tramos del codigo de referencia catastral de todos sus predios, y cambiarlo los desalinearia. El servidor descarta el que llegue en el cuerpo.',
+  via: 'Se ensena y no se edita: es lo que la direccion de cada predio cita. El servidor descarta el que llegue en el cuerpo.',
+} as const;
+
+/** Un acto que necesita un sujeto que no esta elegido. */
+function SinSujeto({ que, onCerrar }: { que: string; onCerrar: () => void }) {
+  return (
+    <Seccion titulo="Falta elegir" derecha={<Boton onClick={onCerrar}>Cerrar</Boton>}>
+      <div style={{ padding: '14px 16px' }}>
+        <Aviso tono="warn" titulo="Este acto cuelga de algo que no esta elegido">
+          {`Esta direccion abre un acto sobre un ${que} que no esta en el catalogo leido, asi que no hay sobre que actuar. Se elige en la lista y se vuelve a abrir: actuar sobre lo que la pantalla no pudo leer seria escribir a ciegas.`}
+        </Aviso>
+      </div>
+    </Seccion>
+  );
+}
+
+/**
+ * El sector que el servidor acaba de devolver.
+ *
+ * **Los tres conteos salen «—» y no cero**, y eso no es cosmetica: la respuesta
+ * de una escritura los trae NULOS —`SectorResource.de(Sector)`, frente al
+ * `SectorResource.de(SectorConConteos)` del listado— porque quien escribe un
+ * sector no pidio contar nada. Un `0` diria «no tiene ninguna manzana», que en
+ * la correccion de un sector con cuarenta seria sencillamente falso, y se
+ * pintaria exactamente igual que una cifra leida. Lo hace `Dato`, que ya
+ * distingue el nulo del cero, y lo mide `verificaciones/territorio.mjs`
+ * comparando toda cifra del panel contra el JSON que la pagina recibio.
+ */
+function ElSector({ sector, onHecho }: { sector: api.Sector; onHecho: () => void }) {
+  return (
+    <>
+      <Rejilla>
+        <Dato rotulo="Identificador">{sector.id}</Dato>
+        <Dato rotulo={CAMPOS_DEL_TERRITORIO.codigoDeSector.rotulo}>{sector.codigo}</Dato>
+        <Dato rotulo={CAMPOS_DEL_TERRITORIO.nombreDelSector.rotulo}>{sector.nombre}</Dato>
+        <Dato rotulo={CAMPOS_DEL_TERRITORIO.zona.rotulo}>{sector.zona}</Dato>
+        <Dato rotulo="Estado">
+          <Insignia tono={sector.activo ? 'ok' : 'bad'}>
+            {sector.activo ? TERRITORIO.laVigente : TERRITORIO.laRetirada}
+          </Insignia>
+        </Dato>
+        <Dato rotulo="Manzanas">{sector.manzanas}</Dato>
+        <Dato rotulo="Predios activos">{sector.predios}</Dato>
+        <Dato rotulo="Lotes distintos">{sector.lotes}</Dato>
+      </Rejilla>
+      <p style={{ margin: 0, padding: '0 16px', fontSize: 12.5, lineHeight: 1.5, color: 'var(--tinta-3)' }}>
+        {MOTIVOS.conteosDeLaEscritura}
+      </p>
+      <VolverALeerElCatalogo onHecho={onHecho} />
+    </>
+  );
+}
+
+function LaManzana({ manzana, onHecho }: { manzana: api.Manzana; onHecho: () => void }) {
+  return (
+    <>
+      <Rejilla>
+        <Dato rotulo="Identificador">{manzana.id}</Dato>
+        <Dato rotulo={CAMPOS_DEL_TERRITORIO.codigoDeManzana.rotulo}>{manzana.codigo}</Dato>
+        <Dato rotulo={CAMPOS_DEL_TERRITORIO.codigoDeSector.rotulo}>{manzana.sectorCodigo}</Dato>
+        <Dato rotulo="Predios activos">{manzana.predios}</Dato>
+        <Dato rotulo="Lotes distintos">{manzana.lotes}</Dato>
+      </Rejilla>
+      <p style={{ margin: 0, padding: '0 16px', fontSize: 12.5, lineHeight: 1.5, color: 'var(--tinta-3)' }}>
+        {MOTIVOS.conteosDeLaEscritura}
+      </p>
+      <VolverALeerElCatalogo onHecho={onHecho} />
+    </>
+  );
+}
+
+function LaVia({ via, onHecho }: { via: api.Via; onHecho: () => void }) {
+  return (
+    <>
+      <Rejilla>
+        <Dato rotulo="Identificador">{via.id}</Dato>
+        <Dato rotulo={CAMPOS_DEL_TERRITORIO.codigoDeVia.rotulo}>{via.codigo}</Dato>
+        <Dato rotulo={CAMPOS_DEL_TERRITORIO.tipoDeVia.rotulo}>{via.tipo}</Dato>
+        <Dato rotulo={CAMPOS_DEL_TERRITORIO.nombreDeLaVia.rotulo}>{via.nombre}</Dato>
+        <Dato rotulo={CAMPOS_DEL_TERRITORIO.ubigeo.rotulo}>{via.ubigeo}</Dato>
+        <Dato rotulo="Estado">
+          <Insignia tono={via.activa ? 'ok' : 'bad'}>
+            {via.activa ? TERRITORIO.laVigente : TERRITORIO.laRetirada}
+          </Insignia>
+        </Dato>
+      </Rejilla>
+      <VolverALeerElCatalogo onHecho={onHecho} />
+    </>
+  );
+}
+
+/**
+ * Volver a leer el catalogo, y **por que es un boton y no algo automatico**.
+ *
+ * El acto ya se hizo: lo que se ensena arriba es lo que el servidor contesto,
+ * que es la respuesta autorizada. El arbol y la tabla salen de OTRAS lecturas, y
+ * refrescarlas solas dejaria a quien mira sin saber cual de las dos cosas esta
+ * viendo. Se ofrece, se dice, y quien lo pulse ve el catalogo con lo que acaba
+ * de escribir dentro.
+ */
+function VolverALeerElCatalogo({ onHecho }: { onHecho: () => void }) {
+  return (
+    <div style={{ padding: '0 16px 4px' }}>
+      <Boton onClick={onHecho}>Volver a leer el catalogo</Boton>
+    </div>
   );
 }
 

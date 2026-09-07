@@ -1,29 +1,30 @@
-import { useState } from 'react';
 import type { ReactNode } from 'react';
 import type { PantallaProps } from '../../App';
 import * as api from '../../api/fiscalizacion';
-import { ErrorDeApi } from '../../api/cliente';
 import { useRecurso } from '../../api/useRecurso';
+import { sinClaves } from '../../shell/ruta';
 import {
   Aviso,
   Boton,
   Campo,
   Dato,
-  Fallo,
   Insignia,
   Lectura,
   Rejilla,
   Seccion,
-  Selector,
   Servida,
   Tabla,
 } from '../../ds/componentes';
+/* El formulario de un acto vive en el sistema de diseno desde #72, que trajo el
+   segundo modulo que escribe. Lo que era suyo se queda: los rotulos y las notas
+   de LOS ACTOS de fiscalizacion, que son los que se le pasan. */
+import { Acto } from '../../ds/Acto';
+import type { CampoDelActo } from '../../ds/Acto';
 import {
   ACTOS,
   CAMPOS,
   COLUMNAS,
   ESPERAS,
-  FALTA,
   IRREVERSIBLES,
   MOTIVOS,
   NOTAS_DE_LOS_ACTOS,
@@ -75,23 +76,6 @@ function numeroDe(texto: string): number | null {
   return /^\d+$/.test(texto) ? Number(texto) : null;
 }
 
-/**
- * Los filtros sin las claves del acto, para cerrarlo.
- *
- * Se escribe asi y no con un `rest` que descarte por nombre porque un
- * `const { acto: _fuera, ...resto }` deja variables que nadie lee, y eso lo
- * prohibe la configuracion de ESLint —con razon: una variable inutilizada es
- * indistinguible de una que se olvido usar—.
- */
-function sinClaves(
-  filtros: Readonly<Record<string, string>>,
-  claves: readonly string[],
-): Record<string, string> {
-  const resto: Record<string, string> = {};
-  for (const [k, v] of Object.entries(filtros)) if (!claves.includes(k)) resto[k] = v;
-  return resto;
-}
-
 /* ── El sujeto que estas pantallas piden a mano ─────────────────────────── */
 
 function CajaDeCampania({
@@ -112,184 +96,6 @@ function CajaDeCampania({
         <Aviso tono="warn" titulo="No hay listado de campanias, y por eso se pide a mano">
           {MOTIVOS.sinListadoDeCampanias}
         </Aviso>
-      </div>
-    </Seccion>
-  );
-}
-
-/* ── Un acto: sus campos, su observacion y su desenlace ─────────────────── */
-
-type CampoDelActo = {
-  k: string;
-  rotulo: string;
-  ayuda?: string;
-  /** Cuando el campo sale de un enumerado del backend. */
-  opciones?: readonly string[];
-  /** El unico opcional de todo el modulo es `dispositivo`. */
-  opcional?: boolean;
-  ancho?: number;
-};
-
-/** La observacion va la ULTIMA en todos, y en todos es obligatoria (RNF-052). */
-const LA_OBSERVACION: CampoDelActo = {
-  k: 'observacion',
-  rotulo: CAMPOS.observacion.rotulo,
-  ayuda: CAMPOS.observacion.ayuda,
-  ancho: 460,
-};
-
-/**
- * El formulario de un acto, con sus tres desenlaces separados.
- *
- * <h2>El primario nace apagado y dice que falta</h2>
- *
- * No se copia aqui ningun limite del dominio —el largo minimo de una
- * observacion, el rango de un umbral, la forma de una huella—: lo que se exige
- * es que **todo campo obligatorio tenga algo**, y lo demas lo dice el servidor
- * al rechazar. Copiar los limites daria dos sitios con la misma verdad y la
- * pantalla acabaria afirmando el limite viejo.
- *
- * <h2>Los actos irreversibles se confirman aparte</h2>
- *
- * Con `advertencia`, el primario no envia: abre un panel con lo que va a pasar
- * escrito delante y dos botones. **Nunca un `confirm()` del navegador**: bloquea
- * el hilo, no se puede leer con un lector de pantalla y deja los arneses
- * colgados esperando a un dialogo que nadie va a cerrar.
- *
- * <h2>Y el fallo pasa por `Fallo`, entero</h2>
- *
- * Los 409 de este modulo son muchos y cada uno significa otra cosa —campania ya
- * abierta, ya cerrada, transicion que no existe, hallazgo ya sin efecto, huella
- * repetida, acta repetida, sin las dos compuertas, predio sin ficha que
- * contrastar—. El mensaje del servidor los distingue, asi que se deja llegar
- * entero en vez de sustituirlo por un «conflicto» generico.
- */
-function Acto<T>({
-  acto,
-  campos,
-  advertencia,
-  enviar,
-  pinta,
-  onCerrar,
-}: {
-  /** La clave del acto: de ahi salen su rotulo y su nota. */
-  acto: keyof typeof ACTOS;
-  campos: readonly CampoDelActo[];
-  /** Si esta, el acto no se deshace y se confirma aparte. */
-  advertencia?: string;
-  enviar: (valores: Readonly<Record<string, string>>) => Promise<T>;
-  pinta: (hecho: T) => ReactNode;
-  onCerrar: () => void;
-}) {
-  const todos = [...campos, LA_OBSERVACION];
-  const [valores, setValores] = useState<Record<string, string>>({});
-  const [enviando, setEnviando] = useState(false);
-  const [error, setError] = useState<ErrorDeApi | null>(null);
-  const [hecho, setHecho] = useState<T | null>(null);
-  const [confirmando, setConfirmando] = useState(false);
-
-  const faltan = todos.filter((c) => c.opcional !== true && (valores[c.k] ?? '').trim() === '');
-  const motivo = enviando ? 'Escribiendo…' : faltan.length ? FALTA + faltan.map((c) => c.rotulo).join(', ') : '';
-  const puede = motivo === '';
-
-  const mandar = () => {
-    if (!puede) return;
-    setEnviando(true);
-    setError(null);
-    setConfirmando(false);
-    enviar(valores)
-      .then((r) => {
-        setEnviando(false);
-        setHecho(r);
-      })
-      .catch((fallo: unknown) => {
-        setEnviando(false);
-        setHecho(null);
-        setError(
-          fallo instanceof ErrorDeApi
-            ? fallo
-            : new ErrorDeApi('SIN_RESPUESTA', 'No se pudo completar la operacion', 0),
-        );
-      });
-  };
-
-  return (
-    <Seccion
-      titulo={ACTOS[acto]}
-      nota={hecho === null ? undefined : TITULOS.loQueSeAcabaDeHacer}
-      derecha={<Boton onClick={onCerrar}>Cerrar</Boton>}
-    >
-      <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.55, color: 'var(--tinta-3)', textWrap: 'pretty' }}>
-          {NOTAS_DE_LOS_ACTOS[acto]}
-        </p>
-
-        {error !== null ? <Fallo error={error} reintentar={mandar} /> : null}
-
-        {hecho !== null ? (
-          <>
-            {pinta(hecho)}
-            <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: 'var(--tinta-3)' }}>
-              {MOTIVOS.elProxyNoPersiste}
-            </p>
-          </>
-        ) : (
-          <>
-            <Rejilla>
-              {todos.map((c) =>
-                c.opciones ? (
-                  <Selector
-                    key={c.k}
-                    rotulo={c.rotulo}
-                    valor={valores[c.k] ?? ''}
-                    onCambio={(v) => setValores((x) => ({ ...x, [c.k]: v }))}
-                    opciones={[
-                      { valor: '', label: 'Elija uno' },
-                      ...c.opciones.map((o) => ({ valor: o, label: o })),
-                    ]}
-                    ayuda={c.ayuda}
-                    ancho={c.ancho}
-                  />
-                ) : (
-                  <Campo
-                    key={c.k}
-                    rotulo={c.rotulo}
-                    valor={valores[c.k] ?? ''}
-                    onCambio={(v) => setValores((x) => ({ ...x, [c.k]: v }))}
-                    ayuda={c.ayuda}
-                    ancho={c.ancho}
-                  />
-                ),
-              )}
-            </Rejilla>
-
-            {confirmando ? (
-              <Aviso tono="bad" titulo={IRREVERSIBLES.titulo}>
-                <p style={{ margin: 0 }}>{advertencia}</p>
-                <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-                  <Boton tipo="primario" onClick={mandar}>
-                    {IRREVERSIBLES.confirmar}
-                  </Boton>
-                  <Boton onClick={() => setConfirmando(false)}>{IRREVERSIBLES.cancelar}</Boton>
-                </div>
-              </Aviso>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                <Boton
-                  tipo="primario"
-                  impedido={!puede}
-                  motivo={motivo}
-                  onClick={() => (advertencia === undefined ? mandar() : setConfirmando(true))}
-                >
-                  {ACTOS[acto]}
-                </Boton>
-                <p style={{ margin: 0, flex: 1, minWidth: 180, fontSize: 12.5, color: 'var(--tinta-3)' }}>
-                  {puede ? MOTIVOS.observacion : motivo}
-                </p>
-              </div>
-            )}
-          </>
-        )}
       </div>
     </Seccion>
   );
@@ -385,7 +191,8 @@ export function Campanias({ ruta, onSujeto, onFiltros }: PantallaProps) {
       {acto === 'abrirCampania' ? (
         <Acto
           key="abrirCampania"
-          acto="abrirCampania"
+          titulo={ACTOS.abrirCampania}
+          nota={NOTAS_DE_LOS_ACTOS.abrirCampania}
           campos={[
             { k: 'codigo', rotulo: CAMPOS.codigo.rotulo, ayuda: CAMPOS.codigo.ayuda },
             { k: 'nombre', rotulo: CAMPOS.nombre.rotulo, ayuda: CAMPOS.nombre.ayuda, ancho: 320 },
@@ -409,7 +216,8 @@ export function Campanias({ ruta, onSujeto, onFiltros }: PantallaProps) {
       {acto === 'cerrarCampania' && campaniaId !== null ? (
         <Acto
           key="cerrarCampania"
-          acto="cerrarCampania"
+          titulo={ACTOS.cerrarCampania}
+          nota={NOTAS_DE_LOS_ACTOS.cerrarCampania}
           campos={[]}
           advertencia={IRREVERSIBLES.cierre}
           enviar={(v) => api.cerrarCampania(campaniaId, { observacion: v.observacion! })}
@@ -446,7 +254,7 @@ export function Campanias({ ruta, onSujeto, onFiltros }: PantallaProps) {
 
       <Servida
         lee={[api.RUTAS.tasaDeDescarte]}
-        escribe={[api.RUTAS.campanias, api.RUTAS.cierre]}
+        escribe={[{ metodo: 'POST', ruta: api.RUTAS.campanias }, { metodo: 'POST', ruta: api.RUTAS.cierre }]}
         falta={MOTIVOS.sinListadoDeCampanias}
       />
     </div>
@@ -556,7 +364,7 @@ export function Candidatos({ ruta, onSujeto, onFiltros }: PantallaProps) {
 
       <Servida
         lee={[api.RUTAS.candidatos]}
-        escribe={[api.RUTAS.gabinete, api.RUTAS.campo, api.RUTAS.descarteEnCampo]}
+        escribe={[{ metodo: 'POST', ruta: api.RUTAS.gabinete }, { metodo: 'POST', ruta: api.RUTAS.campo }, { metodo: 'POST', ruta: api.RUTAS.descarteEnCampo }]}
         falta="Los candidatos cuelgan de una campania y no hay lectura por predio ni por municipalidad, ni lectura de UNO suelto: sin el identificador de la campania no hay a quien preguntar."
       />
     </div>
@@ -620,7 +428,8 @@ function ActoDelCandidato({
     return (
       <Acto
         key={`${acto}-${candidatoId}`}
-        acto={acto}
+        titulo={ACTOS[acto]}
+        nota={NOTAS_DE_LOS_ACTOS[acto]}
         campos={[]}
         enviar={(v) => api.enGabinete(candidatoId, { admite: true, observacion: v.observacion! })}
         pinta={(c) => <ElCandidato candidato={c} onHecho={onHecho} />}
@@ -632,7 +441,8 @@ function ActoDelCandidato({
     return (
       <Acto
         key={`${acto}-${candidatoId}`}
-        acto={acto}
+        titulo={ACTOS[acto]}
+        nota={NOTAS_DE_LOS_ACTOS[acto]}
         campos={[elMotivo]}
         enviar={(v) =>
           api.enGabinete(candidatoId, { admite: false, motivo: v.motivo!, observacion: v.observacion! })
@@ -646,7 +456,8 @@ function ActoDelCandidato({
     return (
       <Acto
         key={`${acto}-${candidatoId}`}
-        acto={acto}
+        titulo={ACTOS[acto]}
+        nota={NOTAS_DE_LOS_ACTOS[acto]}
         campos={[elMotivo]}
         enviar={(v) =>
           api.descartarEnCampo(candidatoId, { admite: false, motivo: v.motivo!, observacion: v.observacion! })
@@ -659,7 +470,8 @@ function ActoDelCandidato({
   return (
     <Acto
       key={`${acto}-${candidatoId}`}
-      acto={acto}
+      titulo={ACTOS[acto]}
+      nota={NOTAS_DE_LOS_ACTOS[acto]}
       campos={[
         { k: 'areaVerificada', rotulo: CAMPOS.areaVerificada.rotulo, ayuda: CAMPOS.areaVerificada.ayuda },
         { k: 'inspector', rotulo: CAMPOS.inspector.rotulo, ayuda: CAMPOS.inspector.ayuda },
@@ -767,7 +579,8 @@ export function Hallazgos({ ruta, onSujeto, onFiltros, onIr }: PantallaProps) {
       {acto === 'dejarSinEfecto' && hallazgoId !== null ? (
         <Acto
           key={`anulacion-${hallazgoId}`}
-          acto="dejarSinEfecto"
+          titulo={ACTOS.dejarSinEfecto}
+          nota={NOTAS_DE_LOS_ACTOS.dejarSinEfecto}
           campos={[{ k: 'motivo', rotulo: CAMPOS.motivo.rotulo, ayuda: CAMPOS.motivo.ayuda, ancho: 460 }]}
           advertencia={IRREVERSIBLES.anulacion}
           enviar={(v) => api.dejarSinEfecto(hallazgoId, { motivo: v.motivo!, observacion: v.observacion! })}
@@ -836,7 +649,7 @@ export function Hallazgos({ ruta, onSujeto, onFiltros, onIr }: PantallaProps) {
 
       <Servida
         lee={[api.RUTAS.hallazgos]}
-        escribe={[api.RUTAS.anulacion]}
+        escribe={[{ metodo: 'POST', ruta: api.RUTAS.anulacion }]}
         falta="Ninguna ruta corrige la ficha desde un hallazgo, y no falta: corregirla es versionar la ficha con su observacion, y ese acto lo ejecuta una persona (ADR-0021, ADR-0035)."
       />
     </div>
@@ -909,7 +722,8 @@ export function Actas({ ruta, onSujeto, onFiltros }: PantallaProps) {
       {acto === 'adjuntarEvidencia' && hallazgoId !== null ? (
         <Acto
           key={`evidencia-${hallazgoId}`}
-          acto="adjuntarEvidencia"
+          titulo={ACTOS.adjuntarEvidencia}
+          nota={NOTAS_DE_LOS_ACTOS.adjuntarEvidencia}
           campos={[
             {
               k: 'tipo',
@@ -945,7 +759,8 @@ export function Actas({ ruta, onSujeto, onFiltros }: PantallaProps) {
       {acto === 'levantarActa' && hallazgoId !== null ? (
         <Acto
           key={`acta-${hallazgoId}`}
-          acto="levantarActa"
+          titulo={ACTOS.levantarActa}
+          nota={NOTAS_DE_LOS_ACTOS.levantarActa}
           campos={[
             { k: 'numero', rotulo: CAMPOS.numeroDelActa.rotulo, ayuda: CAMPOS.numeroDelActa.ayuda },
             { k: 'inspector', rotulo: CAMPOS.inspector.rotulo, ayuda: CAMPOS.inspector.ayuda },
@@ -993,7 +808,7 @@ export function Actas({ ruta, onSujeto, onFiltros }: PantallaProps) {
 
       <Servida
         lee={[api.RUTAS.evidencias]}
-        escribe={[api.RUTAS.evidencias, api.RUTAS.acta]}
+        escribe={[{ metodo: 'POST', ruta: api.RUTAS.evidencias }, { metodo: 'POST', ruta: api.RUTAS.acta }]}
         falta={MOTIVOS.sinLecturaDeActas}
       />
     </div>

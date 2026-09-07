@@ -49,6 +49,7 @@ import { RAIZ } from '../api/cliente';
 import { YA_SERVIDAS, laSirveElBackend } from './servidas';
 import type { OperacionServida } from './servidas';
 import * as D from './datos';
+import * as catalogo from './catalogo';
 import * as ciclo from './ciclo';
 import { ok, pagina, problema } from './respuestas';
 import type { Respuesta } from './respuestas';
@@ -394,14 +395,31 @@ const TABLA: readonly { metodo: string; ruta: string; responder: Manejador }[] =
   /* ── El alta de una ficha (#34): las cuatro rutas ───────────────────── */
   ...ALTAS_DE_FICHA,
 
-  /* ── Territorio ─────────────────────────────────────────────────────── */
-  { metodo: 'GET', ruta: '/catastro/sectores', responder: () => pagina(D.SECTORES) },
+  /* ── Territorio: las tres lecturas y las cinco escrituras de #72 ────── */
+  { metodo: 'GET', ruta: '/catastro/sectores', responder: () => catalogo.listarSectores() },
+  { metodo: 'POST', ruta: '/catastro/sectores', responder: (c) => catalogo.registrarSector(c.cuerpo) },
+  {
+    metodo: 'PUT',
+    ruta: '/catastro/sectores/{codigo}',
+    responder: (c) => catalogo.modificarSector(c.parametros.codigo!, c.cuerpo),
+  },
   {
     metodo: 'GET',
     ruta: '/catastro/sectores/{codigo}/manzanas',
-    responder: (c) => pagina(D.MANZANAS.filter((m) => m.sectorCodigo === c.parametros.codigo)),
+    responder: (c) => catalogo.listarManzanas(c.parametros.codigo!),
   },
-  { metodo: 'GET', ruta: '/catastro/vias', responder: () => pagina(D.VIAS) },
+  {
+    metodo: 'POST',
+    ruta: '/catastro/sectores/{codigo}/manzanas',
+    responder: (c) => catalogo.registrarManzana(c.parametros.codigo!, c.cuerpo),
+  },
+  { metodo: 'GET', ruta: '/catastro/vias', responder: () => catalogo.listarVias() },
+  { metodo: 'POST', ruta: '/catastro/vias', responder: (c) => catalogo.registrarVia(c.cuerpo) },
+  {
+    metodo: 'PUT',
+    ruta: '/catastro/vias/{codigo}',
+    responder: (c) => catalogo.modificarVia(c.parametros.codigo!, c.cuerpo),
+  },
 
   /* ── Cuadros del ejercicio ──────────────────────────────────────────── */
   {

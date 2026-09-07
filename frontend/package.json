@@ -23,6 +23,7 @@
     "ejercicios": "node verificaciones/ejercicios.mjs",
     "ficha": "node verificaciones/ficha.mjs",
     "transiciones": "node verificaciones/transiciones.mjs",
+    "territorio": "node verificaciones/territorio.mjs",
     "paleta": "node verificaciones/paleta.mjs",
     "imagen": "node verificaciones/imagen.mjs"
   },

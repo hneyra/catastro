@@ -110,6 +110,9 @@ export const MOTIVOS = {
   /** Que significan los conteos del sector. */
   conteosDelSector:
     'Las tres cifras las cuenta el servidor y significan cosas distintas: «manzanas» son todas las del sector; «predios» son los ACTIVOS; y «lotes» son los pares manzana-lote distintos de esos predios activos, sin contar los que no tienen lote. Un nulo es «no se conto», y se pinta «—»: nunca cero.',
+  /** Y por que la respuesta de una ESCRITURA no trae ninguna de las tres. */
+  conteosDeLaEscritura:
+    'Los conteos salen «—» porque el servidor no los mando: quien escribe un sector o una manzana no pidio contar nada, y esa peticion no cuenta. Un cero diria «no tiene ninguna», que al corregir un sector que ya tiene manzanas seria falso —y se pintaria igual que una cifra leida—. Con cifra salen en la lista, que es la lectura que si cuenta.',
 
   /** Por que el arancel de una via puede no poder ensenarse. */
   arancelConVariosTramos:
@@ -278,6 +281,143 @@ export const TERRITORIO = {
     'Manzanas del sector, con los predios activos que cuelgan de cada una y los lotes distintos que ocupan.',
   notaDeVias:
     'Las vias con su arancel por metro cuadrado. Este arancel es el que la ficha de un predio aplica a su area de terreno.',
+  sectores: 'Sectores y catalogo vial',
+  acciones: 'Acciones',
+  activa: 'Activa',
+  laVigente: 'Vigente',
+  laRetirada: 'Retirada',
+  /* Los de la columna de acciones. Cortos a proposito: son los mismos actos que
+     el formulario titula entero —«Retirar la via del catalogo»—, y con el titulo
+     largo la tabla deja de caber en los 1 440 px del artboard, que es donde el
+     ultimo control se queda cortado por el borde (#71). */
+  corregir: 'Corregir',
+  retirar: 'Retirar',
+  devolver: 'Devolver',
+} as const;
+
+/* ── El mantenimiento del catalogo territorial (#72) ─────────────────────── */
+
+/**
+ * Los actos que esta hoja OFRECE, con el rotulo que se lee en el boton.
+ *
+ * Las claves son las que viajan en la ruta —`?acto=altaDeSector`—, para que el
+ * formulario abierto sea enlazable y para que los arneses puedan llegar a el sin
+ * pulsar nada, igual que hace el asistente de alta de ficha.
+ */
+export const ACTOS_DEL_TERRITORIO = {
+  altaDeSector: 'Registrar el sector',
+  corregirSector: 'Corregir el sector',
+  bajaDeSector: 'Retirar el sector del catalogo',
+  reactivarSector: 'Devolver el sector al catalogo',
+  altaDeManzana: 'Registrar la manzana',
+  altaDeVia: 'Registrar la via',
+  corregirVia: 'Corregir la via',
+  bajaDeVia: 'Retirar la via del catalogo',
+  reactivarVia: 'Devolver la via al catalogo',
+} as const;
+
+export const NOTAS_DE_LOS_ACTOS_DEL_TERRITORIO = {
+  altaDeSector:
+    'Un sector nuevo del catastro. Nace activo, y por eso no hay casilla de estado: darlo de alta ya retirado del catalogo seria un alta y una baja en un solo acto, y dejaria la auditoria con un ALTA donde hubo dos cosas.',
+  corregirSector:
+    'Cambia el nombre o la zona. El codigo no: es uno de los tramos del codigo de referencia catastral, y cambiarlo desalinearia el de todos los predios del sector. Lo que no se rellene, no cambia.',
+  bajaDeSector:
+    'El sector deja de estar en el catalogo. No se borra —sus predios siguen citandolo en codigos ya emitidos— y sus manzanas se quedan donde estan.',
+  reactivarSector:
+    'El sector vuelve al catalogo, con el nombre y la zona que tenia. Es la misma operacion que la baja con el estado al reves, y por eso no exige el privilegio de retirar: devolver algo al catalogo no retira nada.',
+  altaDeManzana:
+    'Una manzana nueva dentro de este sector. Su codigo es unico dentro del sector y no se edita despues: es otro tramo del codigo catastral de sus predios. Una manzana equivocada se resuelve dando de alta la correcta y moviendo los predios.',
+  altaDeVia:
+    'Una via nueva del catalogo vial. Hace falta antes de poder inscribir un predio en ella: el alta de ficha exige elegir la via del catalogo, y una que no este da un rechazo por via inexistente.',
+  corregirVia:
+    'Cambia el tipo, el nombre o el ubigeo. El codigo no: es lo que la direccion de cada predio cita. Lo que no se rellene, no cambia.',
+  bajaDeVia:
+    'La via deja de estar en el catalogo y deja de poder elegirse para un predio nuevo. No se borra: aparece en direcciones ya emitidas.',
+  reactivarVia:
+    'La via vuelve al catalogo y puede volver a elegirse. Como en el sector, devolver al catalogo no exige el privilegio de retirar.',
+} as const;
+
+/**
+ * Lo que se advierte antes de retirar algo del catalogo, y **se confirma aparte**.
+ *
+ * Una baja logica no se deshace por la misma via por la que se hizo: quien la
+ * revierta necesita el privilegio de modificar, y ademas el catalogo ya cambio
+ * para todo el mundo mientras tanto —una via retirada deja de poder elegirse en
+ * el alta de un predio—. Es el mismo trato que la anulacion de un hallazgo.
+ */
+export const RETIRADAS = {
+  sector:
+    'El sector deja de estar en el catalogo para todo el mundo. Sus predios y sus manzanas se quedan donde estan —el codigo del sector viaja dentro del codigo de referencia catastral de cada predio y no se borra nunca—, pero el sector deja de ofrecerse. Y no lo puede deshacer cualquiera: devolverlo al catalogo es otra escritura.',
+  via:
+    'La via deja de estar en el catalogo para todo el mundo, y con ella deja de poder elegirse al inscribir un predio nuevo. Las direcciones ya emitidas la siguen citando: aqui no se borra nada. Devolverla al catalogo es otra escritura.',
+} as const;
+
+/**
+ * Que hay que HACER con cada rechazo, por operacion.
+ *
+ * <h2>El `403` es el que obliga a que esto exista</h2>
+ *
+ * La baja logica de un sector o de una via exige `ELIMINACION`, que **no es el
+ * privilegio de la ruta**: el guardia comprueba `MODIFICACION` —que es lo que la
+ * anotacion declara— y el controlador comprueba el otro a mano, porque cual de
+ * los dos actos es depende del cuerpo y el guardia no lo lee. Asi que quien
+ * puede corregir y no retirar recibe un `403` en una pantalla donde acaba de
+ * guardar sin problema.
+ *
+ * **Y esta interfaz no puede saberlo por adelantado**: ADR-0030 §3 pone la
+ * sesion y los permisos en `rentas`, y en este backend no hay ningun endpoint de
+ * «quien soy» ni de «que privilegios tengo» —medido sobre los veintidos
+ * `@RequestMapping` de `backend/`—. O sea que las dos salidas eran ofrecerlo
+ * siempre y explicar el rechazo, o esconder el boton adivinando. Se ofrece, y el
+ * rechazo dice **de que privilegio se trata y quien lo concede**, que es lo que
+ * separa «no le toca a usted» de «el sistema se rompio».
+ */
+export const QUE_HACER = {
+  codigoDeSectorRepetido:
+    'Ese codigo ya lo tiene otro sector de esta municipalidad. No se arregla reintentando: se arregla con otro codigo, o corrigiendo el sector que ya lo tiene, que esta en la lista de la izquierda.',
+  codigoDeManzanaRepetido:
+    'Ese codigo de manzana ya esta usado EN ESTE SECTOR. El mismo codigo en otro sector es otra manzana y entra sin problema, asi que lo que hay que comprobar es en que sector se esta dando de alta.',
+  codigoDeViaRepetido:
+    'Ese codigo ya lo tiene otra via de esta municipalidad. Se arregla con otro codigo, o corrigiendo la via que ya lo tiene: dos vias con el mismo nombre y distinto codigo producen dos direcciones que nadie cruza.',
+  sectorQueNoEsta:
+    'No hay ningun sector con ese codigo en esta municipalidad. Se elige uno de la lista de la izquierda; si el que hace falta no esta, primero se da de alta.',
+  viaQueNoEsta:
+    'No hay ninguna via con ese codigo en esta municipalidad. Puede que se haya escrito a mano o que la lista de la tabla este vieja: conviene volver a leerla antes de insistir.',
+  campoRechazado:
+    'El servidor rechazo un campo del formulario y dice cual arriba. Se corrige aqui mismo y se vuelve a enviar: nada se ha guardado.',
+  sinPrivilegioDeRetirar:
+    'Retirar algo del catalogo exige el privilegio de ELIMINACION, que es distinto del de modificar: es lo que permite dar el mantenimiento del catalogo a quien corrige nombres sin darle con ello la potestad de retirar un sector o una via del padron. Esta pantalla no puede saber de antemano quien lo tiene —este backend no publica ninguna lectura de «que privilegios tengo»—, asi que ofrece el acto y el servidor decide. No es una averia y no se arregla desde aqui: lo concede quien administra los permisos.',
+  sinPrivilegioDeEscribir:
+    'Su cuenta puede leer el catalogo territorial y no escribirlo. No es una averia: es otro permiso sobre la misma pantalla, y lo concede quien administra los accesos.',
+} as const;
+
+export const CAMPOS_DEL_TERRITORIO = {
+  codigoDeSector: {
+    rotulo: 'Codigo del sector',
+    ayuda: 'Unico en la municipalidad, y uno de los tramos del codigo de referencia catastral de sus predios. No se puede cambiar despues.',
+  },
+  nombreDelSector: { rotulo: 'Nombre', ayuda: 'Como se le llama en el plano y en la lista.' },
+  zona: {
+    rotulo: 'Zona',
+    ayuda: 'Opcional. Al corregir, dejarlo en blanco conserva la que tiene: para borrarla hay que escribir un espacio, que es una instruccion y no una omision.',
+  },
+  codigoDeManzana: {
+    rotulo: 'Codigo de la manzana',
+    ayuda: 'Unico DENTRO de este sector: la misma numeracion en otro sector es otra manzana. Es otro tramo del codigo catastral, asi que tampoco se edita despues.',
+  },
+  codigoDeVia: {
+    rotulo: 'Codigo de la via',
+    ayuda: 'Unico en la municipalidad. Es lo que la direccion de cada predio cita, y no se puede cambiar despues.',
+  },
+  tipoDeVia: {
+    rotulo: 'Tipo de via',
+    ayuda: 'Del catalogo del manual. Es un enumerado y no texto libre: con texto libre la misma calle entra tres veces y el padron acaba con tres vias donde hay una.',
+  },
+  nombreDeLaVia: { rotulo: 'Nombre de la via', ayuda: 'Sin el tipo delante: el tipo va en su propio campo.' },
+  ubigeo: {
+    rotulo: 'Ubigeo',
+    ayuda: 'Opcional, y son las posiciones que el INEI da al distrito. Al corregir, en blanco conserva el que tiene.',
+  },
 } as const;
 
 /* ── Valores del ejercicio ──────────────────────────────────────────────── */

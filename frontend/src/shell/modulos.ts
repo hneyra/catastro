@@ -71,7 +71,19 @@ export const MODULOS: readonly Modulo[] = [
            catastro rural puede abrir un predio rustico y recibe 403 en uno
            urbano. Declararlos es lo que hace que la pantalla lo diga en vez de
            quedarse sin la mitad del detalle sin explicar por que. */
-        tambien: ['ficha_urbana', 'ficha_economica', 'ficha_bienes', 'ficha_rural'],
+        /* Y `fiscalizacion_catastral`, que es de OTRO modulo del backend: la
+           pestana de hallazgos del predio (#71, AC-4) lee
+           `GET /fiscalizacion/predios/{predioId}/hallazgos`, cuyo
+           `@RequiereAcceso` es el de la clase entera del controlador de
+           fiscalizacion. Declararlo es lo que hace que la pantalla diga por que
+           contesta 403 a quien levanta el catastro y no fiscaliza. */
+        tambien: [
+          'ficha_urbana',
+          'ficha_economica',
+          'ficha_bienes',
+          'ficha_rural',
+          'fiscalizacion_catastral',
+        ],
       },
       { k: 'fichas', label: 'Fichas', nota: 'La grilla de fichas versionadas', acceso: 'consulta_fichas' },
       {

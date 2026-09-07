@@ -214,6 +214,12 @@ export const VISTAS_DEL_PREDIO = [
      vigente no tiene por que pagarlas. */
   { k: 'movimientos', label: 'Movimientos' },
   { k: 'frentes', label: 'Frentes' },
+  /* Los hallazgos de fiscalizacion cuelgan del PREDIO y no de la campania (#71,
+     AC-4): «que se le ha encontrado a este predio» es una pregunta que se hace
+     mirando el predio, y la lectura que la contesta —`GET
+     /fiscalizacion/predios/{predioId}/hallazgos`— existe desde #17 y no la leia
+     ninguna pantalla. Es la unica ruta por la que se puede LEER un acta. */
+  { k: 'hallazgos', label: 'Hallazgos' },
 ] as const;
 
 /**

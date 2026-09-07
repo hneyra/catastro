@@ -45,7 +45,10 @@ yarn errores    # que lo que `cliente.ts` distingue LLEGUE a la pantalla: rompe
 yarn sin-red    # compila CON EL PROXY APAGADO, corta la red y comprueba que
                 # ninguna pantalla enseña una cifra —y que todas siguen diciendo
                 # QUÉ ruta no pudieron leer—
-yarn impedimentos # ningún control apagado sin decir por qué
+yarn impedimentos # ningún control apagado sin decir por qué, y ninguno CORTADO
+                # por el borde a la anchura del artboard (1 440 px): uno apagado
+                # no se puede pulsar y sí se puede ver; uno cortado no se puede
+                # ni lo uno ni lo otro, así que no se concluye nada
 yarn paleta     # la paleta de comandos se opera sólo con el teclado
 yarn ejercicios # el desplegable de ejercicios sale del RELOJ, y se mide
                 # MOVIÉNDOLO: fija el reloj del navegador en dos años que no son
@@ -62,6 +65,14 @@ yarn ficha      # la ficha dibuja lo que la respuesta TRAE, y dice lo que no
                 # está transcrito y `otra_instalacion` no tiene columna de
                 # importe—, y mide el `?historico=` en las dos direcciones: que
                 # viaje en la pestaña que lo pinta y NO en la que no
+yarn transiciones # cada fila de la cola de fiscalización ofrece EXACTAMENTE lo
+                # que su estado admite, y ni uno más. El dominio ya impide el
+                # atajo —`Candidato.verificadoEnCampo()` exige venir de gabinete—,
+                # así que ofrecerlo no rompe nada: contesta 409. Por eso no lo ve
+                # ningún otro arnés, y por eso hace falta éste: un camino que no
+                # existe manda a concluir que el sistema está roto. Ejecuta además
+                # UN acto y comprueba que la fila cambia de estado y de lo que
+                # ofrece, porque comparar una cola en reposo se cumple sola
 yarn imagen     # los dos archivos que deciden CÓMO SE SIRVE: levanta `nginx.conf`
                 # sobre la base del `Dockerfile` y pregunta POR HTTP si las tres
                 # cabeceras de seguridad llegan en cada ruta —`add_header` no se
@@ -70,7 +81,7 @@ yarn imagen     # los dos archivos que deciden CÓMO SE SIRVE: levanta `nginx.co
                 # construcción
 ```
 
-`mirar`, `impedimentos`, `paleta`, `errores`, `ejercicios` y `ficha` necesitan una vista previa levantada; si no está en el 5190, se le dice con
+`mirar`, `impedimentos`, `paleta`, `errores`, `ejercicios`, `ficha` y `transiciones` necesitan una vista previa levantada; si no está en el 5190, se le dice con
 `CATASTRO_BASE=http://localhost:5210 yarn mirar`. `sin-red` **levanta la suya**, y hace falta:
 la bandera del proxy la resuelve Vite al compilar, así que correrlo contra otra vista previa
 mediría el paquete equivocado. `imagen` necesita **Docker**, y sin Docker **sale con 2, no se
@@ -89,8 +100,14 @@ src/
     useRecurso.ts   una lectura con sus cuatro estados
   datos/          Los RÓTULOS: columnas, motivos y enumerados. Ni una cifra
     catastro.ts   los del módulo · alta.ts   los seis pasos del asistente
+    fiscalizacion.ts  los del ciclo: actos, campos y lo que el backend no publica
   simulado/       La pieza que desaparece (ADR-0010)
     proxy.ts      sustituye `fetch` y devuelve `Response` de verdad
+    respuestas.ts la forma de un rechazo, de un listado y de lo recién creado
+    ciclo.ts      las nueve operaciones de fiscalización, y la ÚNICA excepción de
+                  ADR-0010 que hay aquí: recuerda lo escrito mientras dure la
+                  página, porque sin memoria la lectura siguiente contradiría a
+                  la escritura anterior — un par que el backend no puede producir
     servidas.ts   lo que el backend YA sirve. Nace vacía y crece hasta las 64
     padron.ts     GENERADO de `infra/carga-de-datos/ejemplos/`: el padrón y el
                   detalle de las 23 fichas, con sus dos versiones
@@ -104,9 +121,11 @@ src/
     tokens/       colores, tipografía y medidas, con sus valores literales
     fuentes/      Source Sans 3, auto-hospedada
   modulos/<k>/    Un módulo por carpeta
-    catastro/AltaDeFicha.tsx   el asistente de seis pasos: la ÚNICA escritura
-verificaciones/   Los once arneses, sus vistas y las muestras que violan cada regla
-                  Diez miran `src/`; `imagen.mjs` mira los dos archivos que deciden
+    catastro/AltaDeFicha.tsx   el asistente de seis pasos del alta
+    fiscalizacion/Fiscalizacion.tsx  el ciclo entero: las dos compuertas, la
+                  evidencia, el acta, la anulación y el cierre (#71)
+verificaciones/   Los trece arneses, sus vistas y las muestras que violan cada regla
+                  Doce miran `src/`; `imagen.mjs` mira los dos archivos que deciden
                   cómo se sirve: `nginx.conf` y `Dockerfile`
 ```
 
@@ -261,8 +280,19 @@ motivo, en `src/datos/catastro.ts`:
 > hoy el catálogo declara **dieciséis** opciones y `yarn rutas` no nombra ningún huérfano.
 
 - **Fiscalización no publica ni el listado de campañas ni ninguna lectura de actas.** De sus
-  once operaciones, cuatro son lecturas. Las dos pantallas lo dicen y piden el identificador a
-  mano, en vez de dibujar una tabla contra una operación que no existe.
+  **trece** operaciones, **cinco** son lecturas —el censo decía «once» y «cuatro», y las dos
+  cifras estaban viejas: #17 añadió los hallazgos por predio y #23 el cierre y la anulación—.
+  Ninguna enumera campañas y ninguna lee un acta por campaña o por hallazgo, así que las
+  pantallas piden el identificador a mano y lo dicen, en vez de dibujar una tabla contra una
+  operación que no existe. La única forma de LEER un acta es por el predio del hallazgo, donde
+  viaja dentro de la respuesta.
+- **Tampoco publica la lectura de UN candidato ni de UN hallazgo sueltos**, así que la hoja de
+  Actas ofrece los dos actos que cuelgan de un hallazgo y deja que el servidor conteste si ese
+  hallazgo está dejado sin efecto: es una respuesta con su motivo, no un camino inventado.
+- **Y la corrida de detección NO es un endpoint** desde #30: corre en el perfil `batch`. Por eso
+  la pantalla de campañas **no lleva botón de «lanzar detección»** y dice dónde corre. Ponerlo
+  reintroduciría por la interfaz lo que aquel issue sacó del backend, y hoy no fallaría —no hay
+  ni un polígono cargado— sino el día de la primera carga cartográfica.
 
 ## Un error se dice ENTERO, y las tres superficies que no lo hacían
 

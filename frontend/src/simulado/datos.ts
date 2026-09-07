@@ -264,14 +264,40 @@ export const ITSE = {
 
 /* ── Fiscalizacion ──────────────────────────────────────────────────────── */
 
+/**
+ * El ciclo de fiscalizacion, sembrado **en todos sus estados a la vez**.
+ *
+ * <h2>Por que hay un candidato en cada uno de los cuatro estados</h2>
+ *
+ * Porque lo que la pantalla ofrece se deriva del estado de la fila
+ * (`TRANSICIONES_DEL_CANDIDATO`), y con un solo estado sembrado las demas ramas
+ * serian codigo que ninguna vista alcanza: los arneses informarian en verde
+ * sobre las tres cuartas partes de la cola. Con los cuatro, una sola carga de la
+ * pagina de candidatos ensena las dos compuertas, el descarte con su etapa y los
+ * dos terminales, y `verificaciones/transiciones.mjs` puede comparar lo ofrecido
+ * con lo declarado **en los cuatro**.
+ *
+ * <h2>Y los valores son los del enumerado, que antes NO lo eran</h2>
+ *
+ * Hasta #71 esta siembra contestaba `EN_CURSO`, `PASO_GABINETE`, `GABINETE` como
+ * origen, `CRUCE`, `OMISO` y `FOTOGRAFIA`: **seis valores que ningun enumerado
+ * del backend admite**, pintados tal cual en pantalla. No lo cazaba nada porque
+ * `src/api/fiscalizacion.ts` no declaraba ni una lista, y el punto 8 de
+ * `rutas.mjs` solo mira las que estan declaradas. Ahora las declara las siete, y
+ * ademas el estado de cada fila decide que se le puede hacer — de modo que un
+ * estado inventado deja la fila sin ningun acto y sale rojo.
+ */
 export const CAMPANIA = {
   id: 1,
   codigo: 'CAM-2026-001',
   nombre: 'Subvaluacion en el cercado',
-  estado: 'EN_CURSO',
+  estado: 'ABIERTA',
   inicio: '2026-03-02',
   fin: null,
   umbral: '0.15',
+  /* Lo exige el borde y no tiene valor por omision (#25): sin el, la tasa de
+     descarte sale de un conjunto recortado por una cifra que nadie puede leer. */
+  tope: 500,
 };
 
 export const CANDIDATOS = [
@@ -280,10 +306,10 @@ export const CANDIDATOS = [
     campaniaId: 1,
     predioId: 3,
     clase: 'SUBVALUADOR',
-    origen: 'GABINETE',
+    origen: 'ORTOFOTO',
     score: '0.82',
     insumos: 'Area declarada frente a huella levantada',
-    estado: 'PASO_GABINETE',
+    estado: 'DETECTADO',
     etapaDeDescarte: null,
     motivoDeDescarte: null,
     descartadoPor: null,
@@ -293,23 +319,65 @@ export const CANDIDATOS = [
     campaniaId: 1,
     predioId: 7,
     clase: 'SUBVALUADOR',
-    origen: 'GABINETE',
+    origen: 'CRUCE_DE_AREAS',
     score: '0.61',
-    insumos: 'Area declarada frente a huella levantada',
+    insumos: 'Area de la ficha frente a la del lote levantado',
+    estado: 'ADMITIDO_EN_GABINETE',
+    etapaDeDescarte: null,
+    motivoDeDescarte: null,
+    descartadoPor: null,
+  },
+  {
+    id: 3,
+    campaniaId: 1,
+    predioId: 3,
+    clase: 'SUBVALUADOR',
+    origen: 'DRON',
+    score: '0.91',
+    insumos: 'Vuelo del sector, techos no declarados en el patio interior',
+    estado: 'VERIFICADO_EN_CAMPO',
+    etapaDeDescarte: null,
+    motivoDeDescarte: null,
+    descartadoPor: null,
+  },
+  {
+    id: 4,
+    campaniaId: 1,
+    predioId: 12,
+    clase: 'SUBVALUADOR',
+    origen: 'DENUNCIA',
+    score: '0.55',
+    insumos: 'Denuncia vecinal por ampliacion sin licencia',
     estado: 'DESCARTADO',
     etapaDeDescarte: 'GABINETE',
     motivoDeDescarte: 'La diferencia cae dentro del error de restitucion',
     descartadoPor: 'v.reto',
   },
+  /* Los dos omisos van SIN predio, y no es un hueco: un omiso catastral es un
+     techo sin fila de predio, asi que exigirle uno obligaria a inventar el
+     predio que se afirma que falta. */
   {
-    id: 3,
+    id: 5,
     campaniaId: 1,
-    predioId: 12,
-    clase: 'OMISO',
-    origen: 'CRUCE',
+    predioId: null,
+    clase: 'OMISO_CATASTRAL',
+    origen: 'BARRIDO_DE_CAMPO',
     score: '0.74',
-    insumos: 'Predio levantado sin ficha vigente',
-    estado: 'EN_CURSO',
+    insumos: 'Edificacion levantada sin ninguna ficha vigente en la manzana',
+    estado: 'DETECTADO',
+    etapaDeDescarte: null,
+    motivoDeDescarte: null,
+    descartadoPor: null,
+  },
+  {
+    id: 6,
+    campaniaId: 1,
+    predioId: null,
+    clase: 'OMISO_CATASTRAL',
+    origen: 'ORTOFOTO',
+    score: '0.68',
+    insumos: 'Techo en la ortofoto sin predio inscrito debajo',
+    estado: 'VERIFICADO_EN_CAMPO',
     etapaDeDescarte: null,
     motivoDeDescarte: null,
     descartadoPor: null,
@@ -317,27 +385,57 @@ export const CANDIDATOS = [
 ];
 
 export const TASA_DE_DESCARTE = {
-  detectados: 3,
+  detectados: 6,
   descartadosEnGabinete: 1,
-  loQuePasoGabinete: 2,
+  loQuePasoGabinete: 3,
   descartadosEnCampo: 0,
-  verificados: 1,
-  enCurso: 1,
+  verificados: 2,
+  enCurso: 3,
 };
 
+/**
+ * Los dos hallazgos, uno firme y otro dejado sin efecto (#23).
+ *
+ * El segundo existe para que el acto de la anulacion —su motivo, quien y
+ * cuando— tenga donde verse: sin el, los tres campos que #23 anadio al recurso
+ * saldrian nulos en todas las filas y la pantalla que los dibuja no se
+ * ejerceria nunca.
+ */
 export const HALLAZGOS = [
   {
     id: 1,
-    candidatoId: 1,
+    candidatoId: 3,
     clase: 'SUBVALUADOR',
     predioId: 3,
-    fichaId: 3,
+    fichaId: idDeLaVersion(3, 2),
     areaDeLaFicha: '265.75',
     areaVerificada: '318.40',
     excesoVerificado: '52.65',
     inspector: 'v.reto',
     verificadoEn: '2026-04-18',
     estado: 'FIRME',
+    motivoAnulacion: null,
+    anuladoPor: null,
+    anuladoEn: null,
+  },
+  {
+    id: 2,
+    candidatoId: 6,
+    clase: 'OMISO_CATASTRAL',
+    /* Nulo, y por construccion: la restriccion de contraste del esquema le exige
+       el predio nulo a un omiso catastral. Es tambien lo que hace que
+       `GET /fiscalizacion/predios/{id}/hallazgos` no pueda alcanzarlo. */
+    predioId: null,
+    fichaId: null,
+    areaDeLaFicha: null,
+    areaVerificada: '96.20',
+    excesoVerificado: null,
+    inspector: 'm.castillo',
+    verificadoEn: '2026-04-20',
+    estado: 'DEJADO_SIN_EFECTO',
+    motivoAnulacion: 'La edificacion resulto estar en el predio vecino, ya inscrito y con ficha vigente',
+    anuladoPor: 'j.alburqueque',
+    anuladoEn: '2026-05-04T15:12:33Z',
   },
 ];
 
@@ -345,7 +443,7 @@ export const EVIDENCIAS = [
   {
     id: 1,
     hallazgoId: 1,
-    tipo: 'FOTOGRAFIA',
+    tipo: 'FOTO',
     sha256: 'b1f4c2a09d6e8f3517ac4d0b2e97615833f0a4cd8b21e7695fd0c34a8e1b7d92',
     ruta: 'evidencias/2026/CAM-2026-001/h-1/frente.jpg',
     capturadoEn: '2026-04-18T14:32:11Z',
@@ -363,6 +461,26 @@ export const EVIDENCIAS = [
     recibidoEn: '2026-04-18T19:04:52Z',
     desfaseEnSegundos: 15409,
     dispositivo: 'GNSS-CAT-04',
+  },
+];
+
+/**
+ * El acta del hallazgo firme.
+ *
+ * Ninguna lectura del backend la enumera —no hay `GET` de actas—, asi que la
+ * unica ruta por la que sale es dentro de `HallazgosDelPredioResource`. Aqui
+ * esta por eso: para que la pestana de hallazgos del predio tenga un acta que
+ * ensenar, que es el unico sitio donde se puede leer una.
+ */
+export const ACTAS = [
+  {
+    id: 1,
+    numero: 'ACT-2026-0041',
+    hallazgoId: 1,
+    fecha: '2026-04-25',
+    inspector: 'v.reto',
+    detalle:
+      'Se verifica en campo una ampliacion de dos niveles en el patio interior que la ficha vigente no declara',
   },
 ];
 

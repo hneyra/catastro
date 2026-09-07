@@ -22,6 +22,7 @@
     "impedimentos": "node verificaciones/impedimentos.mjs",
     "ejercicios": "node verificaciones/ejercicios.mjs",
     "ficha": "node verificaciones/ficha.mjs",
+    "transiciones": "node verificaciones/transiciones.mjs",
     "paleta": "node verificaciones/paleta.mjs",
     "imagen": "node verificaciones/imagen.mjs"
   },

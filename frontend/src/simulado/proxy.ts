@@ -49,6 +49,9 @@ import { RAIZ } from '../api/cliente';
 import { YA_SERVIDAS, laSirveElBackend } from './servidas';
 import type { OperacionServida } from './servidas';
 import * as D from './datos';
+import * as ciclo from './ciclo';
+import { ok, pagina, problema } from './respuestas';
+import type { Respuesta } from './respuestas';
 
 /** Latencia simulada, para que los estados de carga se vean en desarrollo. */
 const LATENCIA_MINIMA_MS = 120;
@@ -61,58 +64,19 @@ type Parametros = Record<string, string>;
  * Hace falta desde #34: las cuatro altas de ficha se distinguen entre si por lo
  * que lleva el cuerpo, y sin el las tres respuestas que el backend YA TIENE
  * ESCRITAS —el 409 del codigo repetido, el 404 de la referencia que no existe y
- * el 201— serian indistinguibles. Sigue sin persistir nada.
+ * el 201— serian indistinguibles.
+ *
+ * **Y desde #71 hay una excepcion, una sola y declarada**: el ciclo de
+ * fiscalizacion (`ciclo.ts`) recuerda lo que se le escribe mientras dure la
+ * pagina, porque simula una maquina de estados y sin memoria produciria un par
+ * de respuestas que el backend no puede producir —un `200` que admite un
+ * candidato y un `GET` siguiente que lo devuelve sin admitir—. Lo demas sigue
+ * sin persistir nada.
  */
 type Contexto = { parametros: Parametros; consulta: URLSearchParams; cuerpo: unknown };
-type Respuesta = { estado: number; cuerpo: unknown };
 type Manejador = (contexto: Contexto) => Respuesta;
 
 const esperar = (ms: number) => new Promise((listo) => setTimeout(listo, ms));
-
-function problema(
-  codigo: string,
-  estado: number,
-  mensaje: string,
-  parametroQueFalta?: { ejercicio: number; llave?: string },
-): Respuesta {
-  /* Con la forma COMPLETA del `ManejadorDeErrores` —con `type` y `detail`—
-     porque estos rechazos vienen de un controlador y no de un filtro. Los 401 y
-     403 de los filtros salen mas cortos, y quien los lee no puede confiar en
-     esos dos campos: eso lo sujeta `cliente.ts`. */
-  return {
-    estado,
-    cuerpo: {
-      type: `https://sgtm.gob.pe/errores/${codigo.toLowerCase()}`,
-      title: mensaje,
-      status: estado,
-      detail: mensaje,
-      codigo,
-      mensaje,
-      /* `ManejadorDeErrores` lo pone con `setProperty` **solo cuando el problema
-         lo trae**, y por eso significa algo: un rechazo con este miembro no se
-         arregla desde la pantalla —hay que sellar el conjunto o publicar la
-         fila—. Se omite cuando no lo hay, en vez de mandarlo nulo. */
-      ...(parametroQueFalta === undefined ? {} : { parametroQueFalta }),
-    },
-  };
-}
-
-/** El sobre de un listado, sin paginar: se devuelve todo lo que hay. */
-function pagina<T>(contenido: readonly T[]): Respuesta {
-  return {
-    estado: 200,
-    cuerpo: {
-      contenido,
-      pagina: 0,
-      tamano: contenido.length,
-      totalElementos: contenido.length,
-      totalPaginas: contenido.length === 0 ? 0 : 1,
-      hayMas: false,
-    },
-  };
-}
-
-const ok = (cuerpo: unknown): Respuesta => ({ estado: 200, cuerpo });
 
 function predioDe(contexto: Contexto, clave = 'predioId'): D.FilaDelPadron | undefined {
   const id = Number(contexto.parametros[clave] ?? contexto.consulta.get(clave) ?? '');
@@ -493,35 +457,67 @@ const TABLA: readonly { metodo: string; ruta: string; responder: Manejador }[] =
     },
   },
 
-  /* ── Fiscalizacion ──────────────────────────────────────────────────── */
+  /* ── Fiscalizacion: las cuatro lecturas y las nueve operaciones de #71 ── */
+  { metodo: 'POST', ruta: '/fiscalizacion/campanias', responder: (c) => ciclo.abrirCampania(c.cuerpo) },
+  {
+    metodo: 'POST',
+    ruta: '/fiscalizacion/campanias/{campaniaId}/cierre',
+    responder: (c) => ciclo.cerrarCampania(Number(c.parametros.campaniaId), c.cuerpo),
+  },
   {
     metodo: 'GET',
     ruta: '/fiscalizacion/campanias/{campaniaId}/candidatos',
-    responder: (c) => enLaCampania(c, D.CANDIDATOS),
+    responder: (c) => ciclo.enLaCampania(Number(c.parametros.campaniaId), ciclo.losCandidatos()),
   },
   {
     metodo: 'GET',
     ruta: '/fiscalizacion/campanias/{campaniaId}/tasa-de-descarte',
-    responder: (c) =>
-      Number(c.parametros.campaniaId) === D.CAMPANIA.id
-        ? ok(D.TASA_DE_DESCARTE)
-        : problema('NO_ENCONTRADO', 404, 'No hay ninguna campania con ese identificador'),
+    responder: (c) => ciclo.tasaDeLaCampania(Number(c.parametros.campaniaId)),
+  },
+  {
+    metodo: 'POST',
+    ruta: '/fiscalizacion/candidatos/{candidatoId}/gabinete',
+    responder: (c) => ciclo.enGabinete(Number(c.parametros.candidatoId), c.cuerpo),
+  },
+  {
+    metodo: 'POST',
+    ruta: '/fiscalizacion/candidatos/{candidatoId}/campo',
+    responder: (c) => ciclo.enCampo(Number(c.parametros.candidatoId), c.cuerpo),
+  },
+  {
+    metodo: 'POST',
+    ruta: '/fiscalizacion/candidatos/{candidatoId}/campo/descarte',
+    responder: (c) => ciclo.descartarEnCampo(Number(c.parametros.candidatoId), c.cuerpo),
   },
   {
     metodo: 'GET',
     ruta: '/fiscalizacion/campanias/{campaniaId}/hallazgos',
-    responder: (c) => enLaCampania(c, D.HALLAZGOS),
+    responder: (c) => ciclo.enLaCampania(Number(c.parametros.campaniaId), ciclo.losHallazgos()),
+  },
+  {
+    metodo: 'GET',
+    ruta: '/fiscalizacion/predios/{predioId}/hallazgos',
+    responder: (c) => ciclo.hallazgosDelPredio(Number(c.parametros.predioId)),
   },
   {
     metodo: 'GET',
     ruta: '/fiscalizacion/hallazgos/{hallazgoId}/evidencias',
-    responder: (c) => {
-      const id = Number(c.parametros.hallazgoId);
-      if (!D.HALLAZGOS.some((h) => h.id === id)) {
-        return problema('NO_ENCONTRADO', 404, 'No hay ningun hallazgo con ese identificador');
-      }
-      return ok(D.EVIDENCIAS.filter((e) => e.hallazgoId === id));
-    },
+    responder: (c) => ciclo.evidenciasDe(Number(c.parametros.hallazgoId)),
+  },
+  {
+    metodo: 'POST',
+    ruta: '/fiscalizacion/hallazgos/{hallazgoId}/evidencias',
+    responder: (c) => ciclo.adjuntarEvidencia(Number(c.parametros.hallazgoId), c.cuerpo),
+  },
+  {
+    metodo: 'POST',
+    ruta: '/fiscalizacion/hallazgos/{hallazgoId}/anulacion',
+    responder: (c) => ciclo.dejarSinEfecto(Number(c.parametros.hallazgoId), c.cuerpo),
+  },
+  {
+    metodo: 'POST',
+    ruta: '/fiscalizacion/hallazgos/{hallazgoId}/acta',
+    responder: (c) => ciclo.levantarActa(Number(c.parametros.hallazgoId), c.cuerpo),
   },
 
   /* ── Ventanilla ─────────────────────────────────────────────────────── */
@@ -600,12 +596,6 @@ function cuadroDe(contexto: Contexto, filas: readonly unknown[]): Respuesta {
   return ok(filas);
 }
 
-/** Lo de una campania, o el 404 si no es la que hay. */
-function enLaCampania(contexto: Contexto, filas: readonly unknown[]): Respuesta {
-  const id = Number(contexto.parametros.campaniaId);
-  if (id !== D.CAMPANIA.id) return problema('NO_ENCONTRADO', 404, 'No hay ninguna campania con ese identificador');
-  return pagina(filas);
-}
 
 /**
  * El 422 por predio sin poligono, que es el desenlace que ocurre de verdad.

@@ -63,6 +63,21 @@
 # `rutas` SI necesita el arbol del backend, y lo tiene: vive en este mismo
 # repositorio, y por eso `backend/**` entra en los caminos que disparan el flujo
 # —una ruta que se renombra alli tiene que ponerse roja aqui—.
+#
+# <h2>Por que el job de navegador se cronometra a si mismo</h2>
+#
+# Porque `timeout-minutes` no es un presupuesto sino una guillotina: solo se
+# conoce cuando se cruza, y cuando se cruza el desenlace es `cancelled` —sin
+# registro, sin causa y sin nada que leer—. Medido en las cinco corridas verdes
+# anteriores a #66, este job consumia **682-790 s de 900**, hasta el 88 %, y en
+# el PR #64 —que ni siquiera tocaba `frontend/`— quedo cancelado. Un check
+# bloqueante que a veces acaba asi ensena a **relanzar en vez de a leer**.
+#
+# Asi que el primer paso abre un cronometro y el ultimo lo cierra contra el
+# `timeout-minutes` de este mismo archivo: avisa al 60 % y falla al 85 %, o sea
+# ANTES del corte. No hay una segunda tabla de plazos escrita a mano —esa se
+# queda vieja sola— ni un sistema de medicion nuevo: el reparto paso a paso ya
+# lo publica Actions, y la API lo sirve en `steps[]`.
 name: Frontend
 
 on:
@@ -151,13 +166,28 @@ jobs:
   navegador:
     name: Los destinos, en un navegador de verdad
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Este numero NO es decorativo y no se sube para ganar meses: es el
+    # presupuesto que el primer y el ultimo paso del job miden contra el reloj.
+    # Baja de 15 a 10 porque el job paso de 785 s a ~240 s al arreglar el
+    # recorrido de `sin-red` (#66), y un tope tres veces mayor que la duracion
+    # real no avisa de nada: la alarma solo sonaria despues de una regresion del
+    # 200 %.
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: frontend
 
     steps:
       - uses: actions/checkout@v4
+
+      # El primero que ejecuta algo, y no por gusto: lo que quede por delante no
+      # entra en el presupuesto. Lo comprueba `cerrar` leyendo este mismo
+      # archivo, y sale con 2 —«no se pudo comprobar»— si dejara de serlo.
+      #
+      # Corre con el Node del runner porque `setup-node` todavia no ha pasado:
+      # solo usa `node:fs`, `node:os` y `node:path`.
+      - name: Abrir el presupuesto de reloj
+        run: node verificaciones/presupuesto.mjs abrir navegador
 
       - uses: actions/setup-node@v4
         with:
@@ -225,6 +255,12 @@ jobs:
       # paquete equivocado y pasaria en verde sin haber apagado nada.
       - name: Con el proxy apagado, ninguna pantalla ensena una cifra
         run: node verificaciones/sin-red.mjs
+
+      # El ultimo que ejecuta algo, por lo mismo: lo que quede detras no se
+      # contaria. Avisa al 60 % del tope y falla al 85 %, o sea ANTES de que la
+      # guillotina de `timeout-minutes` deje un `cancelled` sin causa que leer.
+      - name: El job no va justo de tiempo
+        run: node verificaciones/presupuesto.mjs cerrar
 
       - name: Publicar las capturas de lo que fallara
         if: failure()

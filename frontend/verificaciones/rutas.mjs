@@ -154,8 +154,10 @@ async function accesosDelBackend(archivos) {
   for (const camino of archivos) {
     const texto = await readFile(camino, 'utf8');
     /* Tres formas, y **hay que leer las tres**: la guarda del propio backend
-       —`CatalogoDelSistemaTest`— solo lee la primera, y por eso no ve `sectores`
-       ni `calles`. Leer solo literales aqui repetiria su punto ciego. */
+       leia solo la primera, y por eso no veia `sectores` ni `calles` —ocho
+       endpoints contestando 403 a todo el mundo con la guarda en verde—. Desde
+       #43 lee el bytecode y ya no tiene ese punto ciego; leer solo literales
+       aqui lo repetiria. */
     for (const casa of texto.matchAll(/acceso\s*=\s*"([a-z0-9_]+)"/g)) accesos.add(casa[1]);
     for (const casa of texto.matchAll(/acceso\s*=\s*(\w+\.ACCESO)\b/g)) {
       const valor = constantes.get(casa[1]);
@@ -251,20 +253,173 @@ async function camposDelAltaEnElBackend(archivos) {
 }
 
 /**
+ * El fuente Java sin comentarios y con el contenido de las cadenas vaciado.
+ *
+ * Las dos cosas hacen falta antes de leer un enumerado, y por el mismo motivo:
+ * lo que viene despues cuenta parentesis y llaves para saber que esta al nivel
+ * de las constantes, y un `{` dentro de un javadoc —«{@code X}», que estos
+ * enumerados usan a manos llenas— o un parentesis dentro de un texto lo
+ * descuadran. La cadena se vacia y no se quita, asi que lo que queda sigue
+ * siendo Java bien formado.
+ */
+function soloElCodigo(java) {
+  let salida = '';
+  let i = 0;
+  while (i < java.length) {
+    if (java.startsWith('//', i)) {
+      while (i < java.length && java[i] !== '\n') i++;
+      continue;
+    }
+    if (java.startsWith('/*', i)) {
+      const fin = java.indexOf('*/', i + 2);
+      i = fin < 0 ? java.length : fin + 2;
+      continue;
+    }
+    if (java.startsWith('"""', i)) {
+      const fin = java.indexOf('"""', i + 3);
+      salida += '""';
+      i = fin < 0 ? java.length : fin + 3;
+      continue;
+    }
+    if (java[i] === '"' || java[i] === "'") {
+      const comilla = java[i];
+      let j = i + 1;
+      while (j < java.length && java[j] !== comilla) j += java[j] === '\\' ? 2 : 1;
+      salida += comilla + comilla;
+      i = j + 1;
+      continue;
+    }
+    salida += java[i];
+    i++;
+  }
+  return salida;
+}
+
+/** El nombre que encabeza un trozo del cuerpo de un enumerado, o `null`. */
+function nombreDeLaConstante(trozo) {
+  const sinAnotaciones = trozo.replace(/@[\w.]+\s*(\([^)]*\))?/g, ' ').trim();
+  const casa = /^([A-Za-z_$][\w$]*)/.exec(sinAnotaciones);
+  return casa === null ? null : casa[1];
+}
+
+/**
+ * Las constantes de un enumerado del backend, en su orden de declaracion.
+ *
+ * Se lee el fuente porque aqui no hay classpath con que preguntarle al bytecode,
+ * pero **no con una expresion regular sobre el archivo entero**, que es donde
+ * cayo #43: una expresion solo ve la forma que espera, y lo que no la tiene lo
+ * da por inexistente **en verde**. Buscar `[A-Z_]+` se traeria ademas `RNF-051`
+ * de un javadoc y `{@code FISCALIZACION}` de otro.
+ *
+ * Asi que se recorre: se quitan comentarios y cadenas, se busca la unica forma
+ * que el lenguaje admite para declarar un enumerado —`enum <Nombre>`, con los
+ * modificadores siempre delante—, y del cuerpo se toman los trozos separados por
+ * comas hasta el primer `;` al nivel de la llave, que es donde acaban las
+ * constantes y empiezan los miembros. Con eso entran las tres formas que estos
+ * enumerados usan: la pelada (`MIGRACION`), la que lleva argumentos
+ * (`PDF("application/pdf", "pdf")`) y la que ademas parte de linea.
+ *
+ * Devuelve los tres desenlaces por separado —no lo declara, lo declara y hay un
+ * trozo que no se supo leer, lo declara vacio— porque **ninguno puede pasar por
+ * «cuadra»**. Y el trozo ilegible se devuelve en vez de descartarse: un nombre
+ * que se cae del recorrido es un valor que deja de compararse, en verde, que es
+ * la misma forma del defecto que este lector viene a quitar.
+ */
+function constantesDelEnumerado(java, nombre) {
+  const fuente = soloElCodigo(java);
+  const declaracion = new RegExp(`\\benum\\s+${nombre}\\b`).exec(fuente);
+  if (declaracion === null) return { declarado: false, constantes: [], ilegible: null };
+  const abre = fuente.indexOf('{', declaracion.index + declaracion[0].length);
+  if (abre < 0) return { declarado: false, constantes: [], ilegible: null };
+  const trozos = [];
+  let trozo = '';
+  let profundidad = 0;
+  let cerrado = false;
+  for (let i = abre + 1; i < fuente.length; i++) {
+    const caracter = fuente[i];
+    if (caracter === '(' || caracter === '{' || caracter === '[') profundidad++;
+    else if (caracter === ')' || caracter === '}' || caracter === ']') {
+      /* La llave que cierra el enumerado: no habia `;`, o sea que no hay miembros. */
+      if (profundidad === 0) {
+        cerrado = true;
+        break;
+      }
+      profundidad--;
+    } else if (profundidad === 0 && (caracter === ',' || caracter === ';')) {
+      trozos.push(trozo);
+      trozo = '';
+      if (caracter === ';') {
+        cerrado = true;
+        break;
+      }
+      continue;
+    }
+    trozo += caracter;
+  }
+  if (!cerrado || trozo.trim() !== '') trozos.push(trozo);
+  const constantes = [];
+  for (const cada of trozos) {
+    /* La coma final es legal —`enum E { A, B, ; }`— y no es una constante. */
+    if (cada.trim() === '') continue;
+    const constante = nombreDeLaConstante(cada);
+    if (constante === null) {
+      return { declarado: true, constantes: [], ilegible: cada.trim().slice(0, 60) };
+    }
+    constantes.push(constante);
+  }
+  return { declarado: true, constantes, ilegible: null };
+}
+
+/**
+ * Un enumerado del backend por su nombre de clase, con el motivo si no se pudo.
+ *
+ * El motivo se devuelve en vez de lanzarlo porque los tres desenlaces que no son
+ * «lo lei» **tienen que distinguirse**: no existe el archivo, existe y no declara
+ * ese enumerado, y lo declara y no tiene ni una constante. Los tres dejarian la
+ * comparacion sin sujeto, y una comparacion sin sujeto pasa en verde.
+ */
+async function enumeradoDelBackend(archivos, nombre) {
+  if (!/^[A-Za-z_$][\w$]*$/.test(nombre)) {
+    return { constantes: null, problema: `«${nombre}» no es un nombre de clase de Java` };
+  }
+  const candidatos = archivos.filter((f) => f.endsWith(`/${nombre}.java`));
+  if (candidatos.length === 0) {
+    return { constantes: null, problema: `«backend/» no tiene ningun «${nombre}.java»` };
+  }
+  if (candidatos.length > 1) {
+    return {
+      constantes: null,
+      problema: `«backend/» tiene ${candidatos.length} archivos «${nombre}.java» y no se sabe cual es la fuente`,
+    };
+  }
+  const lectura = constantesDelEnumerado(await readFile(candidatos[0], 'utf8'), nombre);
+  if (!lectura.declarado) {
+    return { constantes: null, problema: `«${nombre}.java» existe y no declara ningun «enum ${nombre}»` };
+  }
+  if (lectura.ilegible !== null) {
+    return {
+      constantes: null,
+      problema: `«enum ${nombre}» tiene un trozo que no empieza por un nombre —«${lectura.ilegible}»—, y lo que no se sabe leer no se descarta`,
+    };
+  }
+  if (lectura.constantes.length === 0) {
+    return { constantes: null, problema: `«enum ${nombre}» se leyo y no tiene ni una constante` };
+  }
+  return { constantes: lectura.constantes, problema: null };
+}
+
+/**
  * Las constantes de `CodigoDeError.java`, en su orden.
  *
- * Se lee el enumerado y no el archivo entero: la clase documenta cada codigo con
- * un javadoc largo que nombra otros —«no es {@link #VALIDACION}», «tampoco es
- * {@link #ERROR_INTERNO}»—, y una lectura ancha se traeria esas menciones como
- * si fueran constantes. Se toma lo que precede a `(HttpStatus.`, que es la forma
- * en que este enumerado declara las suyas y solo ellas.
+ * Sale del mismo lector que los demas enumerados. Antes tenia el suyo, anclado a
+ * `(HttpStatus.`, y eso era un punto ciego con la forma de #43: un codigo que
+ * tomara su estado de otro sitio —una constante, o el estado de otro codigo—
+ * seguiria siendo un codigo del contrato y esa lectura **no lo veria**, asi que
+ * el punto 6 dejaria de comprobarlo sin decir nada.
  */
 async function codigosDeErrorDelBackend(archivos) {
-  const camino = archivos.find((f) => f.endsWith('/CodigoDeError.java'));
-  if (!camino) return null;
-  const texto = await readFile(camino, 'utf8');
-  const cuerpo = texto.slice(texto.search(/enum CodigoDeError\s*\{/));
-  return [...cuerpo.matchAll(/^\s*([A-Z][A-Z0-9_]*)\(\s*HttpStatus\./gm)].map((c) => c[1]);
+  const { constantes } = await enumeradoDelBackend(archivos, 'CodigoDeError');
+  return constantes;
 }
 
 /**
@@ -576,6 +731,168 @@ if (camposComprobados === 0) {
   );
 }
 
+/**
+ * 8. Cada lista de `src/api/` contra el enumerado del que dice salir.
+ *
+ * <h2>Que existe para impedir</h2>
+ *
+ * Cuatro de estas listas alimentan un `<select>` del asistente de alta —origen,
+ * material, estado de conservacion y condicion de titularidad—, y hasta este
+ * punto **ninguna la miraba nadie**. El dia que el backend anada un valor al
+ * enumerado, el desplegable sigue ofreciendo los de antes: no hay error, no hay
+ * aviso, y el tecnico simplemente no encuentra la opcion.
+ *
+ * <h2>Los dos sentidos, que no se arreglan en el mismo sitio</h2>
+ *
+ *   · **Falta en el frontend**: una opcion que no se puede elegir. Invisible.
+ *   · **Sobra en el frontend**: un `422` al enviar, despues de rellenar seis
+ *     pasos. Se ve, pero tarde y en el sitio equivocado.
+ *
+ * <h2>Por que el pareo se DECLARA</h2>
+ *
+ * Porque adivinarlo por el nombre no funciona y esta medido: `TITULARIDADES` se
+ * parece a `CondicionDeTitularidad` y es otra cosa —el filtro del padron,
+ * `TitularidadDelPredio`—, asi que un pareo por parecido da un desajuste falso
+ * de seis valores. Cada modulo declara el suyo en `LISTAS_DERIVADAS_DE_UN_ENUM`
+ * o dice por que no sale de ninguno en `LISTAS_QUE_NO_SALEN_DE_UN_ENUM`, y aqui
+ * se exige que **toda** lista este en una de las dos: es lo que impide que la
+ * siguiente nazca sin nadie que la mire.
+ *
+ * <h2>Y el sujeto se censa en tiempo de EJECUCION, no leyendo `as const`</h2>
+ *
+ * Buscar `as const` en el fuente con una expresion regular es la trampa de #43
+ * otra vez: lo que no tenga esa forma no sale, y no sale **en verde**. Aqui se
+ * compila cada modulo y se recorren sus exportaciones, asi que un array es un
+ * sujeto lo declare `as const` o no. Medido: son **15** y no las 14 que se ven
+ * en el fuente — la que no lleva `as const` es `CODIGOS_DEL_BACKEND`, que se
+ * deriva con un `filter`.
+ */
+const listasDeLaApi = [];
+const pareosPorArchivo = new Map();
+for (const archivo of (await readdir(new URL('src/api/', RAIZ_DEL_FRONTEND).pathname))
+  .filter((f) => f.endsWith('.ts'))
+  .sort()) {
+  /* El nombre del temporal lleva el del modulo, y no es cosmetica: Node cachea
+     por URL, asi que dos modulos escritos en el mismo archivo devolverian los
+     dos el primero que se importo. */
+  const modulo = await leerModulo(`src/api/${archivo}`, `.censo-de-listas-${archivo.replace(/\.ts$/, '')}`);
+  pareosPorArchivo.set(archivo, {
+    derivadas: modulo.LISTAS_DERIVADAS_DE_UN_ENUM ?? {},
+    noDerivadas: modulo.LISTAS_QUE_NO_SALEN_DE_UN_ENUM ?? {},
+  });
+  for (const [nombre, valor] of Object.entries(modulo)) {
+    if (Array.isArray(valor)) listasDeLaApi.push({ archivo, nombre, valores: valor });
+  }
+}
+
+let listasAtadas = 0;
+let valoresComprobados = 0;
+let listasDeclaradas = 0;
+
+if (listasDeLaApi.length === 0) {
+  fallos.push(
+    'No se encontro ni una lista exportada por «src/api/», asi que no se comparo ninguna con ningun\n' +
+      '      enumerado del backend: esta parte se estaria cumpliendo sola. Falla en vez de saltarsela.',
+  );
+}
+
+for (const { archivo, nombre, valores } of listasDeLaApi) {
+  const { derivadas, noDerivadas } = pareosPorArchivo.get(archivo);
+  const enumerado = derivadas[nombre];
+  const motivo = noDerivadas[nombre];
+
+  if (enumerado !== undefined && motivo !== undefined) {
+    fallos.push(
+      `«${nombre}» (${archivo}) esta declarada en las DOS tablas: sale de «${enumerado}» y a la vez no\n` +
+        '      sale de ningun enumerado. Sobra una de las dos, y mientras esten las dos nadie sabe cual manda.',
+    );
+    continue;
+  }
+
+  if (enumerado === undefined && motivo === undefined) {
+    fallos.push(
+      `«${nombre}» (${archivo}) es una lista que no dice de donde sale.\n` +
+        '      O se declara en «LISTAS_DERIVADAS_DE_UN_ENUM» con el enumerado del que sale, o en\n' +
+        '      «LISTAS_QUE_NO_SALEN_DE_UN_ENUM» con el motivo de que no salga de ninguno. Sin una de las\n' +
+        '      dos cosas nadie la contrasta con nada, y el dia que el backend anada un valor la interfaz\n' +
+        '      seguira ofreciendo los de antes sin un error, sin un aviso y sin un tipo que se queje.',
+    );
+    continue;
+  }
+
+  if (motivo !== undefined) {
+    if (motivo.trim() === '') {
+      fallos.push(
+        `«${nombre}» (${archivo}) esta en «LISTAS_QUE_NO_SALEN_DE_UN_ENUM» con el motivo en blanco.\n` +
+          '      Una exencion sin motivo escrito es indistinguible de un olvido.',
+      );
+      continue;
+    }
+    listasDeclaradas++;
+    continue;
+  }
+
+  const noSonCadenas = valores.filter((v) => typeof v !== 'string');
+  if (noSonCadenas.length > 0) {
+    fallos.push(
+      `«${nombre}» (${archivo}) dice salir de «${enumerado}» y sus elementos no son cadenas: hay\n` +
+        `      ${noSonCadenas.length} que no lo son. Lo que se compara con una constante de Java es su nombre,\n` +
+        '      asi que o la lista es de cadenas o no sale de un enumerado.',
+    );
+    continue;
+  }
+
+  const { constantes, problema } = await enumeradoDelBackend(archivos, enumerado);
+  if (constantes === null) {
+    fallos.push(
+      `«${nombre}» (${archivo}) dice salir de «${enumerado}» y no se pudo leer: ${problema}.\n` +
+        '      La lista se quedaria sin nada con que compararse, o sea comprobandose sola y en verde, que es\n' +
+        '      justo el estado del que sale este arnes. Falla diciendo que no midio.',
+    );
+    continue;
+  }
+
+  listasAtadas++;
+  const enLaLista = new Set(valores);
+  for (const constante of constantes) {
+    valoresComprobados++;
+    if (enLaLista.has(constante)) continue;
+    fallos.push(
+      `«${enumerado}» tiene «${constante}» y «${nombre}» (${archivo}) no lo ofrece.\n` +
+        `      La lista ofrece: ${valores.join(', ')}.\n` +
+        '      Es el fallo INVISIBLE de los dos: la opcion no se puede elegir, no hay error, no hay aviso y\n' +
+        '      quien atiende no encuentra el valor que la norma le pide. Se arregla AQUI, en la lista.',
+    );
+  }
+  const enElEnumerado = new Set(constantes);
+  for (const valor of valores) {
+    if (enElEnumerado.has(valor)) continue;
+    fallos.push(
+      `«${nombre}» (${archivo}) ofrece «${valor}» y «${enumerado}» no lo admite.\n` +
+        `      El enumerado tiene: ${constantes.join(', ')}.\n` +
+        '      Este se ve, y tarde: el backend contesta 422 AL ENVIAR, despues de rellenar los seis pasos\n' +
+        '      del asistente. Y no se arregla en el mismo sitio que el anterior — o sobra aqui, o falta en\n' +
+        '      el enumerado, que es `backend/`.',
+    );
+  }
+}
+
+for (const [archivo, { derivadas, noDerivadas }] of pareosPorArchivo) {
+  const exportadas = new Set(listasDeLaApi.filter((l) => l.archivo === archivo).map((l) => l.nombre));
+  for (const [tabla, declaradas] of [
+    ['LISTAS_DERIVADAS_DE_UN_ENUM', derivadas],
+    ['LISTAS_QUE_NO_SALEN_DE_UN_ENUM', noDerivadas],
+  ]) {
+    for (const nombre of Object.keys(declaradas)) {
+      if (exportadas.has(nombre)) continue;
+      fallos.push(
+        `«${archivo}» declara «${nombre}» en «${tabla}» y ya no exporta ninguna lista con ese nombre.\n` +
+          '      La declaracion sobra, y una tabla de pareos que se queda vieja deja de decir cuales faltan.',
+      );
+    }
+  }
+}
+
 /* Y los campos que el cuerpo del alta admite y esta interfaz NO manda. No es un
    fallo —el artboard no dibuja ningun paso que los recoja— y tampoco se calla:
    es la mitad del contrato que esta pantalla deja sin llenar. */
@@ -597,7 +914,9 @@ console.log(
     `${componentesComprobados} componentes de la ficha contra ${CAMPOS_DE_FICHA.length} del tipo ` +
     `(+${Object.keys(CAMPOS_DE_FICHA_QUE_NO_SE_LEEN).length} huecos declarados) · ` +
     `${CODIGOS_DE_ERROR.length} codigos de error contra ${codigosDelBackend === null ? '?' : codigosDelBackend.length} ` +
-    `(+${Object.keys(CODIGOS_QUE_ANADE_EL_CLIENTE).length} que el cliente anade y declara)`,
+    `(+${Object.keys(CODIGOS_QUE_ANADE_EL_CLIENTE).length} que el cliente anade y declara) · ` +
+    `${listasAtadas} de ${listasDeLaApi.length} listas de «src/api/» atadas a su enumerado ` +
+    `(${valoresComprobados} valores en los dos sentidos, +${listasDeclaradas} declaradas como no derivadas)`,
 );
 
 if (huerfanos.length) {
@@ -610,9 +929,10 @@ if (huerfanos.length) {
   }
   console.log(
     '\n  No es un fallo de este frontend y por eso no pone el arnes en rojo, pero tampoco se calla.\n' +
-      '  La causa esta medida: sus controladores pasan el acceso como CONSTANTE —«SectorController.ACCESO»—\n' +
-      '  y «CatalogoDelSistemaTest» busca literales de cadena, asi que no los ve y sigue en verde.\n' +
-      '  Mientras no se siembren, nadie puede recibir esos permisos y sus pantallas contestaran 403.',
+      '  Mientras no esten en el catalogo, nadie puede recibir esos permisos y sus pantallas\n' +
+      '  contestaran 403 —a todo el mundo, administrador incluido—. Asi estuvieron `sectores` y\n' +
+      '  `calles` hasta #43: sus controladores pasan el acceso como CONSTANTE y la guarda del backend\n' +
+      '  buscaba literales de cadena, de modo que no los veia y seguia en verde.',
   );
 }
 
@@ -636,6 +956,7 @@ if (fallos.length) {
 console.log(
   '\ntoda ruta declarada existe en el backend, todo acceso tambien, ningun orden ofrecido da 422,\n' +
     'los ocho tramos del codigo cubren la composicion del backend, todo campo del alta esta en su `record`,\n' +
-    'todo componente de «FichaResource» esta declarado o esta nombrado como hueco, y todo codigo de\n' +
-    '«CodigoDeError» lo conoce el cliente',
+    'todo componente de «FichaResource» esta declarado o esta nombrado como hueco, todo codigo de\n' +
+    '«CodigoDeError» lo conoce el cliente, y toda lista de «src/api/» dice de que enumerado sale —o por\n' +
+    'que no sale de ninguno— y cuadra con el en los dos sentidos',
 );

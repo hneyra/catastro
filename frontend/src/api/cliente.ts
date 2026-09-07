@@ -421,6 +421,41 @@ function porEstado(estado: number): CodigoDeError {
 export const FORMATOS_DE_DOCUMENTO = ['PDF', 'XLS', 'RTF'] as const;
 export type FormatoDeDocumento = (typeof FORMATOS_DE_DOCUMENTO)[number];
 
+/* ── De donde sale cada lista de este modulo ─────────────────────────────── */
+
+/**
+ * El enumerado del backend del que sale cada lista, por su nombre de clase.
+ *
+ * La forma y el motivo estan escritos en el gemelo de `catastro.ts`. Aqui solo
+ * hay una: los tres formatos salen de `FormatoDeDocumento`, que **no vive en el
+ * nucleo** sino en `kamayuk-catastro-plataforma`, y que declara sus constantes
+ * con argumentos —`PDF("application/pdf", "pdf")`—. Se nombra la clase y no el
+ * camino: quien lo busque por el nombre lo encuentra, y quien mueva el archivo
+ * de modulo no rompe esta declaracion.
+ */
+export const LISTAS_DERIVADAS_DE_UN_ENUM: Readonly<Record<string, string>> = {
+  FORMATOS_DE_DOCUMENTO: 'FormatoDeDocumento',
+};
+
+/**
+ * Las listas de este modulo que NO salen de ningun enumerado, con su motivo.
+ *
+ * Las dos de los codigos de error lo son **aunque `CodigoDeError` sea un
+ * enumerado**, y esa es la parte que hay que leer: la relacion no es igualdad,
+ * asi que compararlas como conjuntos pondria roja una diferencia correcta.
+ */
+export const LISTAS_QUE_NO_SALEN_DE_UN_ENUM: Readonly<Record<string, string>> = {
+  CODIGOS_DE_ERROR:
+    'Tiene los once de «CodigoDeError» y ademas «SIN_RESPUESTA», que ningun servidor produce. La ' +
+    'relacion no es igualdad, asi que la contrasta el punto 6 de `rutas.mjs` con sus dos mitades ' +
+    'por separado: los del backend estan todos, y lo anadido esta declarado en ' +
+    '«CODIGOS_QUE_ANADE_EL_CLIENTE» con su motivo.',
+  CODIGOS_DEL_BACKEND:
+    'No la escribe nadie: se deriva de «CODIGOS_DE_ERROR» quitandole lo que esta interfaz anade. ' +
+    'El punto 6 de `rutas.mjs` la compara contra «CodigoDeError.java» letra por letra Y EN SU ' +
+    'ORDEN, que es mas de lo que exige el pareo de esta tabla.',
+};
+
 /** Lo que el servidor acabo de entregar. */
 export type DocumentoEntregado = { nombre: string; tipoDeMedio: string };
 

@@ -1023,3 +1023,64 @@ export function inscribirFicha(
 ): Promise<Ficha> {
   return solicitar(RUTA_DEL_ALTA[tipo], { metodo: 'POST', cuerpo: peticion, senal });
 }
+
+/* ── De donde sale cada lista de este modulo ─────────────────────────────── */
+
+/**
+ * El enumerado del backend del que sale cada lista, por su nombre de clase.
+ *
+ * No es documentacion: lo lee `verificaciones/rutas.mjs`, que abre ese `.java`,
+ * le saca las constantes y compara los dos conjuntos **en los dos sentidos**.
+ *
+ * <h2>Por que el pareo se declara y no se adivina</h2>
+ *
+ * Porque adivinarlo por el nombre no funciona, y esta medido: `TITULARIDADES`
+ * se parece a `CondicionDeTitularidad` y **no tiene nada que ver con el** —es el
+ * filtro del padron, `TitularidadDelPredio`—, asi que un pareo por parecido de
+ * nombre da un desajuste falso de seis valores donde no hay ninguno. Y una
+ * guarda que grita en lo correcto se acaba apagando.
+ *
+ * <h2>Por que los dos sentidos, y por que no se arreglan en el mismo sitio</h2>
+ *
+ * Un valor que el enumerado tiene y la lista no ofrece es una opcion que **no se
+ * puede elegir**: no hay error, no hay aviso, y el tecnico simplemente no la
+ * encuentra. Se arregla AQUI, anadiendolo a la lista. Un valor que la lista
+ * ofrece y el enumerado no admite es un **422 al enviar**, despues de rellenar
+ * los seis pasos del asistente: se ve, pero tarde y en el sitio equivocado, y se
+ * arregla quitandolo de aqui o anadiendolo al enumerado, que es `backend/`.
+ */
+export const LISTAS_DERIVADAS_DE_UN_ENUM: Readonly<Record<string, string>> = {
+  ESTADOS_DE_PREDIO: 'EstadoPredio',
+  TIPOS_DE_PREDIO: 'TipoPredio',
+  TITULARIDADES: 'TitularidadDelPredio',
+  TIPOS_DE_FICHA: 'TipoFicha',
+  ORIGENES_DE_FICHA: 'OrigenDeLaFicha',
+  MATERIALES: 'MaterialEstructural',
+  ESTADOS_DE_CONSERVACION: 'EstadoDeConservacion',
+  CONDICIONES_DE_TITULARIDAD: 'CondicionDeTitularidad',
+  ORIENTACIONES: 'Orientacion',
+};
+
+/**
+ * Las listas de este modulo que NO salen de ningun enumerado, con su motivo.
+ *
+ * `rutas.mjs` exige que **toda** lista exportada por `src/api/` este o aqui o en
+ * `LISTAS_DERIVADAS_DE_UN_ENUM`: es lo que impide que la siguiente nazca sin
+ * nadie que la mire, que es como llegaron estas nueve. Un motivo que dice quien
+ * la contrasta se puede discutir; una lista callada se descubre el dia que el
+ * backend anade un valor y el desplegable sigue ofreciendo los de antes.
+ */
+export const LISTAS_QUE_NO_SALEN_DE_UN_ENUM: Readonly<Record<string, string>> = {
+  CAMPOS_DE_FICHA:
+    'Son los componentes del `record` «FichaResource», no un enumerado. Los contrasta el punto 7 ' +
+    'de `rutas.mjs`, que ademas admite huecos declarados en «CAMPOS_DE_FICHA_QUE_NO_SE_LEEN».',
+  CAMPOS_DEL_ALTA:
+    'Son los componentes del `record` «FichaController.PeticionDeAlta», no un enumerado. Los ' +
+    'contrasta el punto 4 de `rutas.mjs`, y ademas «CampoDelAltaSinPareja» los ata al tipo ' +
+    '«PeticionDeAlta» de este mismo modulo en tiempo de compilacion.',
+  CATEGORIAS_CONSTRUCTIVAS:
+    'Son las siete partidas del `record` «CategoriasConstructivas» y no un enumerado, y ademas ' +
+    'sus claves NO se llaman como sus componentes —«categoriaMuros» aqui, «muros» alli—: viajan ' +
+    'con ese prefijo dentro de «ConstruccionDeclarada». No hay conjunto que comparar letra por ' +
+    'letra sin inventar la traduccion, que es justo lo que una guarda no debe hacer.',
+};

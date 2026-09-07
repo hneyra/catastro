@@ -20,8 +20,14 @@ yarn reglas     # cada prohibición muerde sobre su muestra que la viola
 yarn rutas      # lo que esta interfaz dice del backend sigue siendo verdad:
                 # sus rutas, sus accesos, los campos por los que ofrece ordenar,
                 # los ocho tramos del código catastral contra la
-                # `ComposicionCatastral` del backend, y los campos del cuerpo
-                # del alta contra su `record`
+                # `ComposicionCatastral` del backend, los campos del cuerpo
+                # del alta contra su `record`, y **cada lista de `src/api/`
+                # contra el enumerado del que dice salir** —en los dos
+                # sentidos, porque fallan distinto: lo que falta aquí es una
+                # opción que no se puede elegir y lo que sobra es un 422 al
+                # enviar—. Toda lista está pareada o declarada como no
+                # derivada con su motivo: la que no diga de dónde sale es un
+                # hallazgo
 yarn datos      # en `src/datos/` no hay ni una cifra, solo rotulos y motivos
 yarn motor      # `.nvmrc` y `engines` dicen lo mismo, vite lo admite, y ningún
                 # guión se llama como un comando de yarn —se llamaba `node`, y
@@ -247,12 +253,13 @@ motivo, en `src/datos/catastro.ts`:
   `ACTIVO`/`DADO_DE_BAJA`, `Fichado`/`Sin ficha`, `PROPUESTA`/`CONFIRMADA` y el
   tipo de ficha.
 
-## Dos huecos del backend que se nombran y no se rellenan
+## Un hueco del backend que se nombra y no se rellena
 
-- **`sectores` y `calles` no están en `CatalogoDelSistema`**, que declara catorce opciones. Sus
-  controladores pasan el acceso como **constante** (`SectorController.ACCESO`) y la guarda que
-  compara los dos conjuntos busca literales de cadena, así que no los ve y sigue en verde.
-  Mientras no se siembren, `Catastro · Territorio` contestará 403. `yarn rutas` lo nombra.
+> **`sectores` y `calles` ya no son el segundo.** Estuvieron fuera de `CatalogoDelSistema`
+> —ocho endpoints contestando 403 a todo el mundo, con la guarda del backend en verde porque
+> buscaba literales de cadena y esos dos accesos se pasan como constante—, y **#43** los metió:
+> hoy el catálogo declara **dieciséis** opciones y `yarn rutas` no nombra ningún huérfano.
+
 - **Fiscalización no publica ni el listado de campañas ni ninguna lectura de actas.** De sus
   once operaciones, cuatro son lecturas. Las dos pantallas lo dicen y piden el identificador a
   mano, en vez de dibujar una tabla contra una operación que no existe.

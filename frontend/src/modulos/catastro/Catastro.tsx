@@ -1456,30 +1456,29 @@ function DetalleDelPredio({
                           pinta: (h: fiscalizacion.HallazgoDelPredio) => guion(h.excesoVerificado),
                         },
                         {
-                          label: COLUMNAS_DE_FISCALIZACION.inspector,
-                          pinta: (h: fiscalizacion.HallazgoDelPredio) => h.inspector,
-                        },
-                        {
-                          label: COLUMNAS_DE_FISCALIZACION.verificado,
-                          pinta: (h: fiscalizacion.HallazgoDelPredio) => h.verificadoEn,
-                        },
-                        {
                           label: COLUMNAS_DE_FISCALIZACION.estado,
                           pinta: (h: fiscalizacion.HallazgoDelPredio) => (
                             <Insignia tono={h.estado === 'FIRME' ? 'ok' : 'bad'}>{h.estado}</Insignia>
                           ),
                         },
-                        /* El acta, que es lo unico que este `record` anade y lo
-                           unico que esta interfaz puede LEER de un acta: no hay
-                           ningun `GET` de actas ni por campania ni por hallazgo. */
-                        {
-                          label: COLUMNAS_DE_FISCALIZACION.acta,
-                          pinta: (h: fiscalizacion.HallazgoDelPredio) =>
-                            h.acta === null ? 'Sin acta' : `${h.acta.numero} · ${h.acta.fecha}`,
-                        },
                       ]}
                       filas={r.hallazgos}
                       llave={(h) => h.id}
+                      /* Quien verifico, cuando, y **el acta** van debajo de su
+                         fila y no en tres columnas mas. El panel de detalle de
+                         un predio mide 774 px y con nueve columnas la tabla se
+                         iba a 878: la del acta —que es lo unico que este
+                         `record` anade, y lo unico que esta interfaz puede LEER
+                         de un acta— quedaba fuera del borde de la pagina.
+                         Abajo caben enteras y se leen como una frase. */
+                      detalle={(h) => (
+                        <>
+                          {COLUMNAS_DE_FISCALIZACION.verificado} {h.verificadoEn} ·{' '}
+                          {COLUMNAS_DE_FISCALIZACION.inspector} {h.inspector} ·{' '}
+                          {COLUMNAS_DE_FISCALIZACION.acta}{' '}
+                          {h.acta === null ? 'Sin acta' : `${h.acta.numero} del ${h.acta.fecha}`}
+                        </>
+                      )}
                       vacio={VACIOS_DE_FISCALIZACION.hallazgosDelPredio}
                       pie={PIES_DE_FISCALIZACION.hallazgosDelPredio}
                     />

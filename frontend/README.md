@@ -45,7 +45,10 @@ yarn errores    # que lo que `cliente.ts` distingue LLEGUE a la pantalla: rompe
 yarn sin-red    # compila CON EL PROXY APAGADO, corta la red y comprueba que
                 # ninguna pantalla enseña una cifra —y que todas siguen diciendo
                 # QUÉ ruta no pudieron leer—
-yarn impedimentos # ningún control apagado sin decir por qué
+yarn impedimentos # ningún control apagado sin decir por qué, y ninguno CORTADO
+                # por el borde a la anchura del artboard (1 440 px): uno apagado
+                # no se puede pulsar y sí se puede ver; uno cortado no se puede
+                # ni lo uno ni lo otro, así que no se concluye nada
 yarn paleta     # la paleta de comandos se opera sólo con el teclado
 yarn ejercicios # el desplegable de ejercicios sale del RELOJ, y se mide
                 # MOVIÉNDOLO: fija el reloj del navegador en dos años que no son

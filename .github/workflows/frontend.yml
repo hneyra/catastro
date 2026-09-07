@@ -227,8 +227,13 @@ jobs:
         run: CATASTRO_BASE=http://localhost:5210 node verificaciones/paleta.mjs
 
       # Un boton apagado es la unica pieza que no puede explicarse a si misma:
-      # no se puede pulsar, asi que no hay como averiguar que le falta.
-      - name: Ningun control impedido sin decir por que
+      # no se puede pulsar, asi que no hay como averiguar que le falta. Y desde
+      # #71 tambien los que quedan CORTADOS por el borde a la anchura del
+      # artboard, que estan un escalon por debajo: no se pueden pulsar Y no se
+      # pueden ver, asi que quien mira no concluye nada. Ocurrio de verdad —la
+      # tabla de hallazgos con diez columnas dejaba «Adjuntar evidencia» fuera— y
+      # no lo veia ningun arnes, porque el control no esta impedido.
+      - name: Ningun control impedido sin decir por que, y ninguno cortado por el borde
         run: CATASTRO_BASE=http://localhost:5210 node verificaciones/impedimentos.mjs
 
       # Corre contra la MISMA vista previa que `mirar`, con el proxy de datos

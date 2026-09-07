@@ -571,14 +571,12 @@ export function Candidatos({ ruta, onSujeto, onFiltros }: PantallaProps) {
  * sin «por que» es un nombre suelto—.
  */
 function LaAnulacion({ hallazgo }: { hallazgo: api.Hallazgo }) {
-  if (hallazgo.motivoAnulacion === null && hallazgo.anuladoPor === null) return <>—</>;
+  if (hallazgo.motivoAnulacion === null && hallazgo.anuladoPor === null) return null;
   return (
-    <span style={{ display: 'block', maxWidth: 260, textWrap: 'pretty' }}>
-      {hallazgo.motivoAnulacion}
-      <span style={{ display: 'block', fontSize: 12, color: 'var(--tinta-3)' }}>
-        {COLUMNAS.anuladoPor} {hallazgo.anuladoPor} · {COLUMNAS.anuladoEn} {hallazgo.anuladoEn}
-      </span>
-    </span>
+    <>
+      {COLUMNAS.anulacion}: {hallazgo.motivoAnulacion} · {COLUMNAS.anuladoPor} {hallazgo.anuladoPor} ·{' '}
+      {COLUMNAS.anuladoEn} {hallazgo.anuladoEn}
+    </>
   );
 }
 
@@ -800,16 +798,6 @@ export function Hallazgos({ ruta, onSujeto, onFiltros, onIr }: PantallaProps) {
                     <Insignia tono={h.estado === 'FIRME' ? 'ok' : 'bad'}>{h.estado}</Insignia>
                   ),
                 },
-                /* El acto de la anulacion (#23) en UNA columna y no en tres: los
-                   tres campos solo dicen algo juntos —motivo, quien y cuando— y
-                   en un hallazgo firme los tres son nulos. Sin ellos, un estado
-                   que dice DEJADO_SIN_EFECTO no contesta la unica pregunta que
-                   hace falta para atenderlo: por que dejo de valer, y quien lo
-                   decidio. */
-                {
-                  label: COLUMNAS.anulacion,
-                  pinta: (h: api.Hallazgo) => <LaAnulacion hallazgo={h} />,
-                },
                 {
                   label: COLUMNAS.acciones,
                   pinta: (h: api.Hallazgo) => (
@@ -826,6 +814,15 @@ export function Hallazgos({ ruta, onSujeto, onFiltros, onIr }: PantallaProps) {
               ]}
               filas={r.contenido}
               llave={(h) => h.id}
+              /* El acto de la anulacion (#23) va DEBAJO de su fila y no en una
+                 columna, y no es cosmetica: sus tres campos —motivo, quien y
+                 cuando— son nulos en todo hallazgo firme, o sea en la mayoria,
+                 y solo dicen algo juntos. Como columna quedaba vacia casi
+                 siempre y estrujada en el resto, y con ella la tabla no cabia
+                 en los 1 440 px del artboard: el ultimo control —«Adjuntar
+                 evidencia»— quedaba cortado por el borde, que es un boton que
+                 no se puede pulsar Y no se puede ver. */
+              detalle={(h) => <LaAnulacion hallazgo={h} />}
               vacio={VACIOS.hallazgos}
               pie={PIES.hallazgos}
             />

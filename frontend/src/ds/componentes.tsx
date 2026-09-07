@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { Icono } from './Icono';
 import { ICO } from './iconos';
@@ -237,12 +238,26 @@ export function Tabla<T>({
   columnas,
   filas,
   llave,
+  detalle,
   pie,
   vacio,
 }: {
   columnas: readonly Columna<T>[];
   filas: readonly T[];
   llave: (fila: T) => string | number;
+  /**
+   * Lo que cuelga de UNA fila, en una segunda linea a todo el ancho.
+   *
+   * Existe para lo que solo tienen algunas filas y solo dice algo junto: el acto
+   * de una anulacion —motivo, quien y cuando— es nulo en todo hallazgo firme,
+   * asi que como columna esta vacia en la mayoria y estrujada en el resto. Y
+   * estrujada no es un problema de estetica: con diez columnas la tabla deja de
+   * caber en los 1 440 px del artboard y **el ultimo control queda cortado por
+   * el borde**, que es un boton que no se puede pulsar Y no se puede ver.
+   *
+   * Devolver `null` —lo normal— no dibuja ninguna fila de mas.
+   */
+  detalle?: (fila: T) => ReactNode;
   pie?: ReactNode;
   vacio: string;
 }) {
@@ -260,15 +275,36 @@ export function Tabla<T>({
             </tr>
           </thead>
           <tbody>
-            {filas.map((f) => (
-              <tr key={llave(f)} style={{ borderBottom: '1px solid var(--linea-2)' }}>
-                {columnas.map((c) => (
-                  <td key={c.label} style={c.numerica ? TDN : TD}>
-                    {c.pinta(f)}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            {filas.map((f) => {
+              const suyo = detalle?.(f);
+              return (
+                <Fragment key={llave(f)}>
+                  <tr style={suyo ? undefined : { borderBottom: '1px solid var(--linea-2)' }}>
+                    {columnas.map((c) => (
+                      <td key={c.label} style={c.numerica ? TDN : TD}>
+                        {c.pinta(f)}
+                      </td>
+                    ))}
+                  </tr>
+                  {suyo ? (
+                    <tr style={{ borderBottom: '1px solid var(--linea-2)' }}>
+                      <td
+                        colSpan={columnas.length}
+                        style={{
+                          padding: '0 16px 11px',
+                          fontSize: 12.5,
+                          lineHeight: 1.55,
+                          color: 'var(--tinta-3)',
+                          textWrap: 'pretty',
+                        }}
+                      >
+                        {suyo}
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
+              );
+            })}
             {filas.length === 0 ? (
               <tr>
                 <td colSpan={columnas.length} style={{ ...TD, padding: '22px 16px', textAlign: 'center' }}>

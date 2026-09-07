@@ -30,6 +30,7 @@ import { chromium } from 'playwright-core';
 import { spawn } from 'node:child_process';
 import { readFile, readdir, rm } from 'node:fs/promises';
 import { leerRegistro } from './registro.mjs';
+import { CONTAR_PETICIONES, cronometroDeEsperas } from './reposo.mjs';
 import { VISTAS, comprobarVistas, hashDe } from './vistas.mjs';
 
 const { DESTINOS } = await leerRegistro('.registro-sin-red');
@@ -209,6 +210,7 @@ if (!vivo) {
 
 const navegador = await chromium.launch();
 const contexto = await navegador.newContext({ viewport: { width: 1440, height: 1400 } });
+await contexto.addInitScript(CONTAR_PETICIONES);
 const pagina = await contexto.newPage();
 await pagina.route('**/catastro/api/v1/**', (r) => r.abort());
 
@@ -301,6 +303,7 @@ async function loQueEsconden() {
 
 const sucias = [];
 const ciegas = [];
+const reloj = cronometroDeEsperas();
 let vistas = 0;
 let abiertos = 0;
 let rebeldes = 0;
@@ -309,12 +312,16 @@ for (const d of RECORRIDO) {
   if (soloModulo && d.modulo !== soloModulo) continue;
   const ruta = d.hash;
   await pagina.goto(`${BASE}/${ruta}`, { waitUntil: 'domcontentloaded' });
-  await pagina.waitForTimeout(900);
+  /* Hasta 900 ms —el plazo fijo de antes— a que la pantalla deje de cambiar y no
+     quede ninguna peticion en vuelo. Leer antes de tiempo no puede pasar en
+     verde: las dos afirmaciones de mas abajo —que `<main>` tenga texto y que
+     NOMBRE la ruta que no pudo leer— solo se cumplen una vez dibujado el fallo. */
+  await reloj.esperar(pagina, { tope: 900 });
   vistas++;
   /* Un `<details>` si se abre sin pinchar nada, y se abre ANTES de leer para que
      su contenido entre en el texto de la pantalla, como siempre. */
   await pagina.evaluate(() => document.querySelectorAll('details').forEach((x) => (x.open = true)));
-  await pagina.waitForTimeout(200);
+  await reloj.esperar(pagina, { tope: 200, muestras: 2 });
 
   const escondido = await loQueEsconden();
   abiertos += escondido.abiertos;
@@ -363,6 +370,16 @@ console.log(
     `${abiertos} seccion(es) plegada(s) abierta(s) y leida(s)` +
     (rebeldes ? ` · ${rebeldes} que se pincharon y no se abrieron` : ''),
 );
+console.log(reloj.resumen);
+
+/* Y que el detector de reposo haya medido algo. Una espera que vuelve antes de
+   poder haber observado un intervalo de quietud deja este arnes leyendo la
+   pantalla a medias, en verde: es la unica forma en que cambiar una espera fija
+   por una espera a una condicion puede perder una afirmacion. */
+if (reloj.precoces) {
+  console.error(reloj.queja);
+  process.exit(2);
+}
 
 /* La misma guarda que `mirar.mjs`, y por el mismo motivo: con el recorrido
    vacio, las tres afirmaciones de abajo —ninguna cifra, ninguna muda, ninguna

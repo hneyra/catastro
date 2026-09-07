@@ -50,6 +50,7 @@
  */
 import { chromium } from 'playwright-core';
 import { leerRegistro } from './registro.mjs';
+import { CONTAR_PETICIONES, cronometroDeEsperas } from './reposo.mjs';
 import { VISTAS, comprobarVistas, hashDe } from './vistas.mjs';
 
 const { DESTINOS } = await leerRegistro('.registro-impedimentos');
@@ -70,10 +71,12 @@ const soloModulo = process.argv[2]?.startsWith('--') ? null : process.argv[2];
 
 const navegador = await chromium.launch();
 const contexto = await navegador.newContext({ viewport: { width: 1440, height: 1400 } });
+await contexto.addInitScript(CONTAR_PETICIONES);
 const pagina = await contexto.newPage();
 
 const mudos = [];
 const cortados = [];
+const reloj = cronometroDeEsperas();
 let impedidos = 0;
 let controles = 0;
 let vistas = 0;
@@ -81,7 +84,10 @@ let vistas = 0;
 for (const d of RECORRIDO) {
   if (soloModulo && d.modulo !== soloModulo) continue;
   await pagina.goto(`${BASE}/${d.hash}`, { waitUntil: 'networkidle' });
-  await pagina.waitForTimeout(600);
+  /* Hasta 600 ms —el plazo fijo de antes— a que la pantalla deje de cambiar.
+     Leer antes de tiempo no puede pasar en verde: bajaria el numero de controles
+     que este arnes PUBLICA, que es la cifra que el AC-2 de #86 exige que no baje. */
+  await reloj.esperar(pagina, { tope: 600 });
   vistas++;
 
   const hallados = await pagina.evaluate(() => {
@@ -146,6 +152,16 @@ console.log(
   `${vistas} pantallas recorridas · ${impedidos} control(es) impedido(s) · ` +
     `${controles} control(es) de «main» medidos a la anchura del artboard`,
 );
+console.log(reloj.resumen);
+
+/* Y que el detector de reposo haya medido algo. Una espera que vuelve antes de
+   poder haber observado un intervalo de quietud deja este arnes leyendo la
+   pantalla a medias, en verde: es la unica forma en que cambiar una espera fija
+   por una espera a una condicion puede perder una afirmacion. */
+if (reloj.precoces) {
+  console.error(reloj.queja);
+  process.exit(2);
+}
 
 if (impedidos === 0) {
   console.error(

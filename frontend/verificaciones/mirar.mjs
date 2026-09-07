@@ -21,6 +21,7 @@
 import { chromium } from 'playwright-core';
 import { mkdir } from 'node:fs/promises';
 import { leerRegistro } from './registro.mjs';
+import { CONTAR_PETICIONES, cronometroDeEsperas } from './reposo.mjs';
 import { VISTAS, comprobarVistas, hashDe } from './vistas.mjs';
 
 const { DESTINOS } = await leerRegistro('.registro-mirar');
@@ -50,11 +51,13 @@ const alto = Number(process.argv.find((a) => a.startsWith('--alto='))?.slice(7) 
 await mkdir(SALIDA, { recursive: true });
 const navegador = await chromium.launch();
 const contexto = await navegador.newContext({ viewport: { width: 1440, height: alto } });
+await contexto.addInitScript(CONTAR_PETICIONES);
 const TOKEN = process.env.CATASTRO_TOKEN;
 if (TOKEN) await contexto.addInitScript((t) => localStorage.setItem('catastro.token', t), TOKEN);
 const pagina = await contexto.newPage();
 
 const fallos = [];
+const reloj = cronometroDeEsperas();
 let vistas = 0;
 
 for (const d of RECORRIDO) {
@@ -71,7 +74,11 @@ for (const d of RECORRIDO) {
 
   const ruta = d.hash;
   await pagina.goto(`${BASE}/${ruta}`, { waitUntil: 'networkidle' });
-  await pagina.waitForTimeout(700);
+  /* Hasta 700 ms —el plazo fijo de antes— a que la pantalla deje de cambiar y
+     no quede ninguna lectura en vuelo. La captura sale de lo que se lea aqui, y
+     leer antes de tiempo deja el `<main>` a medias, que es lo que la afirmacion
+     de abajo pone en rojo. */
+  await reloj.esperar(pagina, { tope: 700 });
   await pagina.screenshot({ path: `${SALIDA}/${d.archivo}.png` });
   pagina.off('console', oyeConsola);
   pagina.off('pageerror', oyePagina);
@@ -91,6 +98,16 @@ for (const d of RECORRIDO) {
 await navegador.close();
 
 console.log(`${vistas} pantallas recorridas · capturas en ${SALIDA}/`);
+console.log(reloj.resumen);
+
+/* Y que el detector de reposo haya medido algo. Una espera que vuelve antes de
+   poder haber observado un intervalo de quietud deja este arnes leyendo la
+   pantalla a medias, en verde: es la unica forma en que cambiar una espera fija
+   por una espera a una condicion puede perder una afirmacion. */
+if (reloj.precoces) {
+  console.error(reloj.queja);
+  process.exit(2);
+}
 
 /**
  * Un recorrido que no mira nada no informa de nada.

@@ -81,6 +81,10 @@ public class FrenteController {
      *
      * <p>{@code MODIFICACION} y no {@code LECTURA}: esto cambia una cifra de la que cuelga un
      * cobro, y quien puede consultar los frentes no tiene por que poder afirmarlos.
+     *
+     * <p><b>Se confirma UNA vez</b> (#26, AC-4): sobre un frente ya confirmado contesta {@code 409}
+     * y no un {@code 200} que pisaria la cifra firmada. Rectificar una longitud confirmada es otro
+     * acto y hoy no existe, asi que este endpoint no lo finge.
      */
     @PostMapping("/{frenteId}/confirmacion")
     @RequiereAcceso(acceso = "actualizacion_catastro", privilegio = Privilegio.MODIFICACION)
@@ -96,6 +100,12 @@ public class FrenteController {
                             observacionDe(peticion.observacion())));
         } catch (FrentesDelPredio.FrenteInexistente noEsta) {
             throw new ProblemaDeNegocio(CodigoDeError.NO_ENCONTRADO, mensajeDe(noEsta));
+        } catch (FrentesDelPredio.LongitudYaConfirmada yaFirmada) {
+            // 409 y no 422: no hay ningun campo de la peticion que corregir. Lo que pasa es que el
+            // estado del frente no admite este acto, y quien lo reciba tiene que decidir otra cosa
+            // —no reintentar con otros metros—. El mensaje lleva dentro la cifra que hay y quien la
+            // firmo, para que esa decision no exija una consulta mas.
+            throw new ProblemaDeNegocio(CodigoDeError.CONFLICTO, mensajeDe(yaFirmada));
         } catch (IllegalArgumentException malFormada) {
             throw new ProblemaDeNegocio(CodigoDeError.VALIDACION, mensajeDe(malFormada));
         }

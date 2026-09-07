@@ -49,3 +49,21 @@ dependencies {
     testImplementation("org.springframework:spring-test")
     testRuntimeOnly(libs.postgresql)
 }
+
+// EL LOTE DE EJEMPLO ES ENTRADA DE ESTA TAREA, y sin declararlo la guarda de #28 no muerde.
+//
+// `PublicacionDelPadronJdbcTest` lo LEE en su `@Order(0)` —para comprobar que el archivo
+// comprometido trae un ejemplo de cada tipo— y lo ESCRIBE en su `@Order(5)`. Sin esta linea,
+// editar `docs/50-api/eventos/lote-de-eventos.json` deja `test` en UP-TO-DATE y la rotura pasa en
+// **verde rancio**: es la leccion de #192 punto 2, la misma por la que `kamayuk-catastro-aplicacion`
+// declara el contrato del consumidor.
+//
+// Que sea ademas salida de la tarea es sabido y no es un problema: Gradle toma la huella de las
+// entradas ANTES de ejecutar, asi que la guarda mide lo que hay en git; lo unico que cuesta es que
+// la corrida siguiente a una regeneracion vuelva a correr la tarea, que es lo que se quiere.
+tasks.test {
+    inputs
+        .files(rootProject.layout.projectDirectory.file("../docs/50-api/eventos/lote-de-eventos.json"))
+        .optional()
+        .withPathSensitivity(PathSensitivity.NONE)
+}

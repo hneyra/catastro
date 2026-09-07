@@ -17,6 +17,8 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import kamayuk.catastro.compartido.TenantContext;
 import kamayuk.catastro.dominio.Ejercicio;
 import kamayuk.catastro.dominio.MunicipalidadId;
@@ -29,6 +31,7 @@ import kamayuk.catastro.nucleo.dominio.TipoDeEventoDeCatastro;
 import kamayuk.catastro.nucleo.infraestructura.BuzonDeSalidaJdbc;
 import kamayuk.catastro.nucleo.infraestructura.ComponedorDeHechos;
 import kamayuk.catastro.nucleo.infraestructura.PadronParaPublicarJdbc;
+import kamayuk.catastro.nucleo.infraestructura.TerritorioParaPublicarJdbc;
 import kamayuk.catastro.nucleo.infraestructura.web.EventoResource;
 import kamayuk.catastro.parametros.LectorDeParametros;
 import kamayuk.catastro.parametros.aplicacion.LectorDeParametrosCacheados;
@@ -123,6 +126,19 @@ class PublicacionDelPadronJdbcTest {
     private static long municipalidadSinLaLlave;
 
     private static PublicacionDelPadron publicacion;
+
+    /**
+     * El otro publicador, y sin el este archivo no puede ensenar los seis tipos (#28).
+     *
+     * <p>{@code PublicacionDelPadron} emite tres de los seis —el predio, la valuacion y el cierre
+     * de la corrida— y los tres del TERRITORIO los emite {@link PublicacionDelTerritorio}. Ese es
+     * el motivo, medido, de que {@code lote-de-eventos.json} se regenerara en #38 y siguiera sin un
+     * solo {@code MANZANA_PUBLICADA}: <b>no era la siembra</b> —{@code sembrarTenant} deja una
+     * manzana, un frente PROPUESTA y un hallazgo FIRME en toda municipalidad desde #7—, era que
+     * este generador no llamaba nunca al otro publicador.
+     */
+    private static PublicacionDelTerritorio territorio;
+
     private static BuzonDeSalida buzon;
     private static EntregaDeEventos entrega;
     private static TenantTransactionManager gestor;
@@ -142,6 +158,11 @@ class PublicacionDelPadronJdbcTest {
                 DatosDePrueba.crearMunicipalidad(base, "202203", "Municipalidad C");
         DatosDePrueba.sembrarTenant(base, municipalidadSinLaLlave, parametroId, "PC", false);
         unSegundoPredio();
+        // El SEGUNDO hallazgo firme, y solo en la municipalidad del lote (#28). `sembrarTenant`
+        // deja uno SUBVALUADOR —con predio— en todas; este es el OMISO_CATASTRAL, que no tiene
+        // ninguno. Son la unica pareja del buzon donde `predio_id` viaja nulo en un caso y no en
+        // el otro, y el consumidor necesita ver las dos formas.
+        DatosDePrueba.sembrarOmisoCatastral(base, municipalidadDelLote, "PB");
         sellarElConjunto();
 
         DriverManagerDataSource pool = new DriverManagerDataSource();
@@ -181,6 +202,13 @@ class PublicacionDelPadronJdbcTest {
                         buzon,
                         jdbc,
                         Clock.fixed(RELOJ, ZoneOffset.UTC));
+        territorio =
+                new PublicacionDelTerritorio(
+                        envolver(
+                                new LecturaDelTerritorioParaPublicar(
+                                        new TerritorioParaPublicarJdbc(jdbc))),
+                        publicador,
+                        new ComponedorDeHechos(json));
     }
 
     @AfterAll
@@ -193,6 +221,68 @@ class PublicacionDelPadronJdbcTest {
     @AfterEach
     void limpiarContexto() {
         TenantContext.limpiar();
+    }
+
+    /**
+     * AC-2 de #28 — el lote COMPROMETIDO trae un ejemplo de cada tipo, y la lista sale del
+     * enumerado.
+     *
+     * <h2>Por que vive en esta clase y con {@code @Order(0)}</h2>
+     *
+     * <p>Porque el generador esta en la misma clase y <b>reescribe el archivo</b>. Una guarda que
+     * lo leyera despues pasaria en VERDE con el defecto puesto: quitarle un tipo al archivo, el
+     * generador lo repone, y la guarda mide lo que acaba de escribirse. Y el orden no puede quedar
+     * a merced de JUnit ni de Gradle —dos clases distintas, o peor, dos tareas distintas, se
+     * ordenan como quieran—, asi que la unica forma de que el orden sea una propiedad y no una
+     * casualidad es que las dos cosas esten en la misma clase ordenada.
+     *
+     * <h2>Y por que hacen falta las dos comprobaciones y no una</h2>
+     *
+     * <p>Esta mira el archivo <b>que esta en git</b>, o sea lo que el consumidor ve al clonar; la
+     * de {@link #publicaElLoteQueRentasLee} mira lo que el generador <b>produce</b>. Se rompen en
+     * direcciones opuestas: un archivo regenerado y no comprometido —que es exactamente lo que paso
+     * en #38— solo lo ve esta; una fixture que deja de producir un tipo solo la ve aquella.
+     *
+     * <p>La lista no se escribe: son los valores de {@link TipoDeEventoDeCatastro}. Escrita a mano
+     * eran tres, y siguieron siendo tres cuando `V10` anadio los del territorio.
+     */
+    @Test
+    @Order(0)
+    @DisplayName("AC-2 — el lote comprometido trae un ejemplo de CADA tipo del enumerado (#28)")
+    void elLoteComprometidoTraeUnEjemploDeCadaTipo() throws IOException {
+        Path archivo = raizDelRepositorio().resolve(LOTE_PUBLICADO);
+        assertThat(archivo)
+                .as(
+                        "sin el archivo esta comprobacion no mide nada, asi que no se salta: falla"
+                                + " diciendo que hay que regenerarlo corriendo esta misma clase")
+                .exists();
+        String comprometido = Files.readString(archivo, StandardCharsets.UTF_8);
+
+        Set<String> enElArchivo = tiposDelLote(comprometido);
+        assertThat(enElArchivo)
+                .as(
+                        "un lote sin ningun tipo dentro no puede fallar por lo que le falta, asi"
+                                + " que no comprobaria nada")
+                .isNotEmpty();
+
+        assertThat(enElArchivo)
+                .as(
+                        "«%s» no tiene un solo ejemplo en el lote que `rentas` lee. Ese archivo"
+                                + " existe para ensenarle la forma del evento al consumidor: un"
+                                + " tipo sin ejemplo llega a produccion sin que nadie de este lado"
+                                + " lo haya visto serializado (#14 lo pago con dos motivos que no"
+                                + " cabian en la columna del consumidor). Se regenera corriendo"
+                                + " esta clase y se COMPROMETE el diff.",
+                        primeroQueFalta(enElArchivo))
+                .containsAll(todosLosTipos());
+
+        assertThat(todosLosTipos())
+                .as(
+                        "y al reves: el lote trae un tipo que «TipoDeEventoDeCatastro» no declara."
+                                + " O el archivo se edito a mano —no se edita: lo escribe el"
+                                + " generador de esta clase—, o alguien retiro un valor del"
+                                + " enumerado y dejo su ejemplo dentro")
+                .containsAll(enElArchivo);
     }
 
     @Test
@@ -375,11 +465,18 @@ class PublicacionDelPadronJdbcTest {
         TenantContext.fijar(new MunicipalidadId(municipalidadDelLote));
         publicacion.proyectarElPadron(LocalDate.of(2026, 3, 1));
         publicacion.correrLaValuacion(new Ejercicio(2026), CORTE);
+        // Y EL TERRITORIO, que es la mitad que este archivo no ensenaba (#28). Los tres tipos de
+        // `V10` no salen de la corrida de valuacion: los emite el OTRO publicador, y hasta aqui
+        // nadie lo llamaba desde este generador.
+        territorio.publicar();
 
         List<EventoDeCatastro> pendientes = entrega.pendientes(500);
         assertThat(pendientes)
-                .as("DOS predios proyectados, sus dos valuaciones y el cierre de la corrida")
-                .hasSize(5);
+                .as(
+                        "DOS predios proyectados, sus dos valuaciones, el cierre de la corrida, la"
+                                + " manzana, los frentes del predio sembrado y los DOS hallazgos"
+                                + " firmes")
+                .hasSize(9);
 
         List<EventoResource> recursos = new ArrayList<>();
         for (EventoDeCatastro evento : pendientes) {
@@ -397,11 +494,17 @@ class PublicacionDelPadronJdbcTest {
         Files.createDirectories(archivo.getParent());
         Files.writeString(archivo, lote + System.lineSeparator(), StandardCharsets.UTF_8);
 
-        assertThat(lote)
-                .as("el lote lleva los tres tipos, que es lo que el ingestor tiene que saber leer")
-                .contains("PREDIO_PROYECTADO")
-                .contains("VALUACION_PUBLICADA")
-                .contains("CORRIDA_CERRADA");
+        // LOS SEIS TIPOS, Y LA LISTA SALE DEL ENUMERADO Y NO DE AQUI (#28, AC-2).
+        //
+        // Escritos a mano eran tres, y siguieron siendo tres cuando `V10` anadio los del
+        // territorio: la lista no puede envejecer si no la escribe nadie. Anadir un septimo valor
+        // a `TipoDeEventoDeCatastro` sin que la fixture produzca un ejemplo suyo pone ESTA linea
+        // roja nombrandolo, en el mismo PR que lo anade.
+        assertThat(tiposDelLote(lote))
+                .as(
+                        "el lote tiene que ensenar un ejemplo de CADA hecho que este sistema"
+                                + " publica: es de donde el ingestor de `rentas` lee la forma")
+                .containsAll(todosLosTipos());
         // EL DIFF DE ESTE ARCHIVO ES LA DEMOSTRACION, Y YA OCURRIO.
         //
         // catastro#8 lo dejo escrito con estas palabras: «el dia que la firma llegue, este archivo
@@ -424,6 +527,30 @@ class PublicacionDelPadronJdbcTest {
         assertThat(lote)
                 .as("y la llave que paraba al padron entero ya no aparece en el lote")
                 .doesNotContain("PORCENTAJE_DE_ACTUALIZACION");
+        // EL FRENTE, CON SU ESTADO VISIBLE (#28, AC-1). Es el campo del que depende que `rentas`
+        // no determine sobre metros que nadie confirmo: `PROPUESTA` la corto una maquina contra el
+        // eje de la via y `CONFIRMADA` la firmo una persona (ADR-0021). Sin este ejemplo, el
+        // consumidor no tiene de donde leer que el campo existe — y `catastro` publica el insumo,
+        // no el arbitrio (ADR-0024).
+        assertThat(deTipo(TipoDeEventoDeCatastro.FRENTE_PUBLICADO).get(0).cuerpo())
+                .as("el frente del lote viaja con el estado de su longitud, y hoy es una PROPUESTA")
+                .contains("longitudEstado")
+                .contains("PROPUESTA");
+
+        // LOS DOS HALLAZGOS, Y HACEN FALTA LOS DOS (#28, AC-1). `HALLAZGO_FIRME` es el unico tipo
+        // del buzon donde `predio_id` viaja nulo en un caso y no en el otro, y
+        // `catastro_evento_predio_ck` lo admite a proposito. Con un solo ejemplo, el consumidor
+        // escribe un NOT NULL sobre esa columna y revienta con el primer omiso que llegue.
+        List<EventoDeCatastro> hallazgos = deTipo(TipoDeEventoDeCatastro.HALLAZGO_FIRME);
+        assertThat(hallazgos).as("uno SUBVALUADOR y uno OMISO_CATASTRAL").hasSize(2);
+        assertThat(hallazgos.stream().filter(h -> h.predioId() == null).count())
+                .as("el omiso catastral es, por definicion, lo que NO tiene predio")
+                .isEqualTo(1);
+        assertThat(hallazgos.stream().filter(h -> h.predioId() != null).count())
+                .as("y el subvaluador contrasta un predio concreto")
+                .isEqualTo(1);
+        assertThat(lote).contains("SUBVALUADOR").contains("OMISO_CATASTRAL");
+
         assertThat(instantesDe(lote))
                 .as(
                         "y los «emitidoEn» son TODOS el reloj fijo de esta prueba (C-12). Con el"
@@ -437,6 +564,41 @@ class PublicacionDelPadronJdbcTest {
     }
 
     // ------------------------------------------------------------------
+
+    /** Los tipos que el lote ensena, leidos del JSON y no de una lista escrita al lado. */
+    private static Set<String> tiposDelLote(String lote) {
+        Set<String> tipos = new TreeSet<>();
+        java.util.regex.Matcher marca =
+                java.util.regex.Pattern.compile("\"tipo\"\\s*:\\s*\"([A-Z_]+)\"").matcher(lote);
+        while (marca.find()) {
+            tipos.add(marca.group(1));
+        }
+        return tipos;
+    }
+
+    /**
+     * Los tipos que este sistema publica, <b>del enumerado</b>.
+     *
+     * <p>Escritos a mano eran tres y siguieron siendo tres cuando `V10` anadio los del territorio,
+     * que es como el lote de ejemplo pudo regenerarse en #38 y salir sin ellos.
+     */
+    private static Set<String> todosLosTipos() {
+        Set<String> tipos = new TreeSet<>();
+        for (TipoDeEventoDeCatastro tipo : TipoDeEventoDeCatastro.values()) {
+            tipos.add(tipo.name());
+        }
+        return tipos;
+    }
+
+    /** El primero que falta, para que el rojo nombre uno y no obligue a comparar dos conjuntos. */
+    private static String primeroQueFalta(Set<String> enElArchivo) {
+        for (String tipo : todosLosTipos()) {
+            if (!enElArchivo.contains(tipo)) {
+                return tipo;
+            }
+        }
+        return "(ninguno)";
+    }
 
     /** Los instantes que el lote publica, uno por evento. */
     private static List<String> instantesDe(String lote) {

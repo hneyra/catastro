@@ -1872,7 +1872,25 @@ export function Territorio({ ruta, onSujeto, onFiltros }: PantallaProps) {
                     <NodoDelArbol
                       key={s.id}
                       label={`Sector ${s.codigo} — ${s.nombre}`}
-                      conteo={s.lotes === null ? '—' : `${s.lotes} lotes`}
+                      /* Un sector retirado lo dice el ARBOL, que es donde se
+                         elige. Hasta #72 daba igual —nadie podia retirar nada
+                         desde aqui—, y en cuanto se puede, un retirado que se
+                         pinta igual que uno vigente es un dato degradado que no
+                         se distingue de uno bueno: se elegiria para trabajar
+                         sobre el sin saberlo. Sustituye al conteo y no se pone al
+                         lado a proposito: en un sector fuera del catalogo, lo que
+                         importa es eso y no cuantos lotes tenia. */
+                      conteo={
+                        s.activo ? (
+                          s.lotes === null ? (
+                            '—'
+                          ) : (
+                            `${s.lotes} lotes`
+                          )
+                        ) : (
+                          <Insignia tono="bad">{TERRITORIO.laRetirada}</Insignia>
+                        )
+                      }
                       on={s.codigo === nodo}
                       onElegir={() => onSujeto(s.codigo)}
                     />
@@ -2026,7 +2044,7 @@ function NodoDelArbol({
   onElegir,
 }: {
   label: string;
-  conteo: string;
+  conteo: ReactNode;
   on: boolean;
   onElegir: () => void;
 }) {

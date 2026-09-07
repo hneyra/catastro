@@ -84,8 +84,14 @@ const BASE = process.env.CATASTRO_BASE ?? 'http://localhost:5190';
 
 const { LO_QUE_EL_SERVIDOR_DESCARTA, RUTAS } = await leerModulo('src/api/catastro.ts', '.modulo-territorio-api');
 const { RAIZ } = await leerModulo('src/api/cliente.ts', '.modulo-territorio-cliente');
-const { ACTOS_DEL_TERRITORIO, CAMPOS_DEL_TERRITORIO, NOTAS_DE_LOS_ACTOS_DEL_TERRITORIO, MOTIVOS, QUE_HACER } =
-  await leerModulo('src/datos/catastro.ts', '.modulo-territorio-datos');
+const {
+  ACTOS_DEL_TERRITORIO,
+  CAMPOS_DEL_TERRITORIO,
+  NOTAS_DE_LOS_ACTOS_DEL_TERRITORIO,
+  MOTIVOS,
+  QUE_HACER,
+  TERRITORIO,
+} = await leerModulo('src/datos/catastro.ts', '.modulo-territorio-datos');
 const { ACTO, IRREVERSIBLE, LA_OBSERVACION } = await leerModulo('src/datos/actos.ts', '.modulo-territorio-actos');
 
 /**
@@ -128,6 +134,18 @@ const RECORRIDO = [
     plantilla: RUTAS.sector,
     camino: '/catastro/sectores/01',
     confirmaAparte: true,
+    /**
+     * Y tras la baja, el ARBOL tiene que decir que ese sector esta retirado.
+     *
+     * Es donde se elige, y hasta #72 daba igual porque nadie podia retirar nada
+     * desde aqui. En cuanto se puede, un sector fuera del catalogo que se pinta
+     * igual que uno vigente es un dato degradado indistinguible de uno bueno: se
+     * elige para trabajar sobre el sin saberlo. Se comprueba en **las dos
+     * direcciones** —ausente antes, presente despues— porque el catalogo de
+     * demostracion no trae ninguno retirado, y sin la mitad de «antes» bastaria
+     * con que la palabra saliera en cualquier sitio de la lista.
+     */
+    seRetiraEn: '[data-lista="1"]',
   },
   {
     k: 'altaDeManzana',
@@ -272,6 +290,7 @@ let marcasComprobadas = 0;
 let cifrasComparadas = 0;
 let confirmacionesMedidas = 0;
 let listasComprobadas = 0;
+let retiradasComprobadas = 0;
 
 for (const caso of elegidos) {
   const titulo = ACTOS_DEL_TERRITORIO[caso.k];
@@ -289,6 +308,19 @@ for (const caso of elegidos) {
         'venga despues se estaria comprobando sobre una pantalla vacia.',
     );
     continue;
+  }
+
+  /* La mitad de «antes» de la retirada: sin ella, «el arbol lo dice» se cumple
+     con un catalogo que ya trajera un retirado de fabrica. */
+  if (caso.seRetiraEn) {
+    const antesDeRetirar = await pagina.locator(caso.seRetiraEn).first().innerText();
+    if (antesDeRetirar.includes(TERRITORIO.laRetirada)) {
+      fallos.push(
+        `«${caso.k}» (${caso.hash}): «${caso.seRetiraEn}» ya dice «${TERRITORIO.laRetirada}» ANTES de\n` +
+          '      retirar nada, asi que la comprobacion de despues se cumpliria sola. O el catalogo de\n' +
+          '      demostracion trae un sector retirado, o la pagina no se recargo entre casos.',
+      );
+    }
   }
 
   /* ── Se rellena TODO control editable, cada uno con su marca ──────────── */
@@ -434,6 +466,31 @@ for (const caso of elegidos) {
         'escritura —quien escribe no pidio contar nada—, y un cero ahi diria «no tiene ninguna». Se pinta ' +
         'exactamente igual que una cifra leida.',
     );
+  }
+
+  /* ── Y lo retirado se DICE donde se elige ─────────────────────────────── */
+
+  if (caso.seRetiraEn) {
+    const lista = pagina.locator(caso.seRetiraEn);
+    if ((await lista.count()) === 0) {
+      fallos.push(
+        `«${caso.k}» (${caso.hash}): no se encontro «${caso.seRetiraEn}», que es donde tiene que decirse\n` +
+          '      que el sector quedo retirado.',
+      );
+    } else {
+      retiradasComprobadas++;
+      await panel.getByRole('button', { name: 'Volver a leer el catalogo' }).click();
+      await pagina.waitForTimeout(800);
+      const despues = await lista.first().innerText();
+      if (!despues.includes(TERRITORIO.laRetirada)) {
+        fallos.push(
+          `«${caso.k}» (${caso.hash}): se retiro el sector del catalogo y «${caso.seRetiraEn}» no dice\n` +
+            `      «${TERRITORIO.laRetirada}» por ninguna parte.\n      ` +
+            'Donde se elige es donde tiene que verse: un sector fuera del catalogo que se pinta igual que ' +
+            'uno vigente se elige para trabajar sobre el sin saberlo.',
+        );
+      }
+    }
   }
 
   /* ── Y la lista siguiente trae lo que se acaba de escribir ─────────────── */
@@ -692,6 +749,7 @@ console.log(
   `${cuerposMedidos} escritura(s) conducidas de ${elegidos.length} · ${marcasComprobadas} campo(s) ` +
     `tecleados contra el cuerpo que viajo · ${cifrasComparadas} cifra(s) del panel contra el JSON · ` +
     `${confirmacionesMedidas} confirmacion(es) aparte · ${listasComprobadas} lista(s) releidas · ` +
+    `${retiradasComprobadas} retirada(s) vistas en el arbol · ` +
     `${rechazosMedidos} rechazo(s) leidos de ${RECHAZOS.length} —dos «409» de verdad y tres inyectados— · ` +
     `${verbosComprobados} verbo(s) del pie contra lo que viajo · ` +
     `${Object.keys(LO_QUE_EL_SERVIDOR_DESCARTA).length} operacion(es) con campos que el servidor descarta`,

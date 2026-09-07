@@ -23,8 +23,8 @@
     "tipo" : "VALUACION_PUBLICADA",
     "predioId" : 2,
     "ejercicio" : 2026,
-    "cuerpo" : "{\"motivo\": \"El conjunto sellado del ejercicio 2026 no trae el «% actualizacion» (D-11). Su fundamento —el supuesto del art. 12 del TUO LTM no se cumple— esta escrito y le falta la segunda firma de ADR-0007, que es un acto de una persona, y no hay valor por omision\", \"predioId\": 2, \"ejercicio\": 2026, \"titulares\": [{\"cuota\": \"100.0000\", \"condicion\": \"PROPIETARIO_UNICO\", \"contribuyenteId\": 900001}], \"conjuntoId\": 2, \"valorObras\": null, \"fechaDeCorte\": \"2026-01-01\", \"valorTerreno\": null, \"llaveQueFalta\": \"PORCENTAJE_DE_ACTUALIZACION\", \"reglasVersion\": \"valuacion-de-terreno-v1\", \"valorDelPredio\": null, \"reglasAplicadas\": \"\", \"fichaCatastralId\": 5, \"valorConstruccion\": null}",
-    "huella" : "4a3ddc9d7965b5e53a254826d22afdc7ca4941320978592acd281b80f2bbedfa",
+    "cuerpo" : "{\"motivo\": \"La construccion del piso 1 no declara la categoria de «TECHOS», que es una de las tres partidas que el cuadro suma. Una categoria sin declarar no es «sin techo» ni «sin puertas»: esas son casillas del cuadro, con su cifra\", \"predioId\": 2, \"ejercicio\": 2026, \"titulares\": [{\"cuota\": \"100.0000\", \"condicion\": \"PROPIETARIO_UNICO\", \"contribuyenteId\": 900001}], \"conjuntoId\": 2, \"valorObras\": null, \"fechaDeCorte\": \"2026-01-01\", \"valorTerreno\": null, \"llaveQueFalta\": null, \"reglasVersion\": \"valuacion-de-terreno-v1\", \"valorDelPredio\": null, \"reglasAplicadas\": \"\", \"fichaCatastralId\": 5, \"valorConstruccion\": null}",
+    "huella" : "4fcb3a47d338cb0e6af63dc78e60a58d96bb2a858182ebd9aad78141d7c94daa",
     "emitidoEn" : "2026-03-01T10:00:00Z"
   }, {
     "eventoId" : "63906f02-8b40-8173-8b7f-c73cda2ef12c",
@@ -32,8 +32,8 @@
     "tipo" : "VALUACION_PUBLICADA",
     "predioId" : 4,
     "ejercicio" : 2026,
-    "cuerpo" : "{\"motivo\": \"El conjunto sellado del ejercicio 2026 no trae el «% actualizacion» (D-11). Su fundamento —el supuesto del art. 12 del TUO LTM no se cumple— esta escrito y le falta la segunda firma de ADR-0007, que es un acto de una persona, y no hay valor por omision\", \"predioId\": 4, \"ejercicio\": 2026, \"titulares\": [{\"cuota\": \"100.0000\", \"condicion\": \"PROPIETARIO_UNICO\", \"contribuyenteId\": 900002}], \"conjuntoId\": 2, \"valorObras\": null, \"fechaDeCorte\": \"2026-01-01\", \"valorTerreno\": null, \"llaveQueFalta\": \"PORCENTAJE_DE_ACTUALIZACION\", \"reglasVersion\": \"valuacion-de-terreno-v1\", \"valorDelPredio\": null, \"reglasAplicadas\": \"\", \"fichaCatastralId\": 13, \"valorConstruccion\": null}",
-    "huella" : "b9773f3b356596249a3dfb053c2f143fc83a7be532088dfe7fa5cf511fe541a0",
+    "cuerpo" : "{\"motivo\": null, \"predioId\": 4, \"ejercicio\": 2026, \"titulares\": [{\"cuota\": \"100.0000\", \"condicion\": \"PROPIETARIO_UNICO\", \"contribuyenteId\": 900002}], \"conjuntoId\": 2, \"valorObras\": \"0\", \"fechaDeCorte\": \"2026-01-01\", \"valorTerreno\": \"240.00000000\", \"llaveQueFalta\": null, \"reglasVersion\": \"valuacion-de-terreno-v1\", \"valorDelPredio\": \"240.00000000\", \"reglasAplicadas\": \"TERRENO\", \"fichaCatastralId\": 13, \"valorConstruccion\": \"0\"}",
+    "huella" : "8982a6897f554396db7a309c1c8898f734adde2e71a0fd09c0be41630896d257",
     "emitidoEn" : "2026-03-01T10:00:00Z"
   }, {
     "eventoId" : "e442d15c-766b-8661-afb4-025c3e7b291d",
@@ -41,8 +41,53 @@
     "tipo" : "CORRIDA_CERRADA",
     "predioId" : null,
     "ejercicio" : 2026,
-    "cuerpo" : "{\"conteo\": 2, \"huella\": \"b5458fab9d297709ca657307a1d4088d5a5119d8ac42e6707d255f38ae55cec8\", \"cerradaEn\": \"2026-03-01T10:00:00Z\", \"corridaId\": 3, \"ejercicio\": 2026, \"conjuntoId\": 2, \"fechaDeCorte\": \"2026-01-01\", \"reglasVersion\": \"valuacion-de-terreno-v1\"}",
-    "huella" : "f6ffbb0395311d7ad8cf644c8eae722d15a32dd5cf628c98884290935b057a57",
+    "cuerpo" : "{\"conteo\": 2, \"huella\": \"a90259fb363bff47f496fb0bc5bd5acebe575309a3bf06d7cf7239f4479ba27f\", \"cerradaEn\": \"2026-03-01T10:00:00Z\", \"corridaId\": 3, \"ejercicio\": 2026, \"conjuntoId\": 2, \"fechaDeCorte\": \"2026-01-01\", \"reglasVersion\": \"valuacion-de-terreno-v1\"}",
+    "huella" : "2510da28ecff824aa1e5969c4573f852ada596ce6fec84a6d174492a78432b8f",
+    "emitidoEn" : "2026-03-01T10:00:00Z"
+  }, {
+    "eventoId" : "968bebb8-56ec-85ac-8daa-525eade1602b",
+    "secuencia" : 15,
+    "tipo" : "MANZANA_PUBLICADA",
+    "predioId" : null,
+    "ejercicio" : null,
+    "cuerpo" : "{\"codigo\": \"M-PB\", \"manzanaId\": 2, \"sectorCodigo\": \"S-PB\", \"sectorNombre\": \"Sector PB\"}",
+    "huella" : "ae3863885f32e9e9d19cb2b7812299b8729f5ebd86159389f6b61b8d88985170",
+    "emitidoEn" : "2026-03-01T10:00:00Z"
+  }, {
+    "eventoId" : "d5bec24c-e753-8abe-83f4-9a90a9ea823a",
+    "secuencia" : 16,
+    "tipo" : "FRENTE_PUBLICADO",
+    "predioId" : 2,
+    "ejercicio" : null,
+    "cuerpo" : "{\"frentes\": [{\"viaId\": 2, \"retiro\": null, \"frenteId\": 2, \"longitud\": \"18.50 ML\", \"viaCodigo\": \"V-PB\", \"viaNombre\": \"Avenida Grau PB\", \"numeracion\": \"101\", \"esPrincipal\": true, \"longitudEstado\": \"PROPUESTA\"}], \"predioId\": 2, \"codigoRefCatastral\": \"200601010150010101056\"}",
+    "huella" : "0c3fab60935a16a5e77fbcff4c6d0365769bbc5ed2839989b33d5e8d0ea9c091",
+    "emitidoEn" : "2026-03-01T10:00:00Z"
+  }, {
+    "eventoId" : "9390c561-0e88-86ac-87f1-cd5ddce7c17b",
+    "secuencia" : 17,
+    "tipo" : "HALLAZGO_FIRME",
+    "predioId" : 2,
+    "ejercicio" : null,
+    "cuerpo" : "{\"clase\": \"SUBVALUADOR\", \"fichaId\": 5, \"predioId\": 2, \"inspector\": \"inspector.prueba\", \"hallazgoId\": 2, \"candidatoId\": 2, \"verificadoEn\": \"2026-01-01\", \"areaDeLaFicha\": \"120.00\", \"areaVerificada\": \"180.00\"}",
+    "huella" : "4fa3cd61cf6970f868fa18355777ad812432966f0843949c93a92e711a021175",
+    "emitidoEn" : "2026-03-01T10:00:00Z"
+  }, {
+    "eventoId" : "5acb6607-2432-8277-9b6d-f8e0ca3de7be",
+    "secuencia" : 18,
+    "tipo" : "HALLAZGO_FIRME",
+    "predioId" : null,
+    "ejercicio" : null,
+    "cuerpo" : "{\"clase\": \"OMISO_CATASTRAL\", \"fichaId\": null, \"predioId\": null, \"inspector\": \"inspector.omisos\", \"hallazgoId\": 4, \"candidatoId\": 4, \"verificadoEn\": \"2026-01-01\", \"areaDeLaFicha\": null, \"areaVerificada\": \"305.00\"}",
+    "huella" : "7c48671cabc554594b7d0a6fbc9aa09931f56770c805a211809a2a9d52443d12",
+    "emitidoEn" : "2026-03-01T10:00:00Z"
+  }, {
+    "eventoId" : "4e3d0308-a7a0-8f50-859c-50ef296c8416",
+    "secuencia" : 19,
+    "tipo" : "HALLAZGO_DEJADO_SIN_EFECTO",
+    "predioId" : 2,
+    "ejercicio" : null,
+    "cuerpo" : "{\"clase\": \"SUBVALUADOR\", \"motivo\": \"La ortofoto era de otro lote\", \"predioId\": 2, \"anuladoEn\": \"2026-02-01T12:00:00Z\", \"anuladoPor\": \"jefe.catastro\", \"hallazgoId\": 5}",
+    "huella" : "4c7c60dfa71ede4e0e0db5a5b2ae011152ac8de04c273ebb015864380b00e529",
     "emitidoEn" : "2026-03-01T10:00:00Z"
   } ],
   "pendientesQueQuedan" : 0,

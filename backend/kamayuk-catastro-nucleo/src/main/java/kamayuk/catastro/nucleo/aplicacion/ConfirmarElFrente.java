@@ -3,10 +3,12 @@ package kamayuk.catastro.nucleo.aplicacion;
 import java.time.Clock;
 import java.time.LocalDate;
 import kamayuk.catastro.auditoria.Auditoria;
+import kamayuk.catastro.auditoria.DatosDeAuditoria;
 import kamayuk.catastro.auditoria.Operacion;
 import kamayuk.catastro.auditoria.RegistroDeAuditoria;
 import kamayuk.catastro.dominio.Medida;
 import kamayuk.catastro.dominio.Observacion;
+import kamayuk.catastro.nucleo.dominio.EstadoDeLaLongitud;
 import kamayuk.catastro.nucleo.dominio.FrenteDelPredio;
 import kamayuk.catastro.nucleo.dominio.FrentesDelPredio;
 import org.springframework.stereotype.Service;
@@ -63,11 +65,15 @@ public class ConfirmarElFrente {
                                 Operacion.MODIFICACION,
                                 observacion)
                         .con(
-                                "Longitud PROPUESTA, derivada del corte contra el eje de calzada",
-                                "Longitud CONFIRMADA por "
-                                        + confirmado.confirmadoPor()
-                                        + ": "
-                                        + confirmado.longitud()));
+                                DatosDeAuditoria.campos()
+                                        .mas("estado", EstadoDeLaLongitud.PROPUESTA)
+                                        .mas("origen", "CORTE_CONTRA_EL_EJE_DE_CALZADA")
+                                        .datos(),
+                                DatosDeAuditoria.campos()
+                                        .mas("estado", confirmado.estado())
+                                        .mas("confirmadoPor", confirmado.confirmadoPor())
+                                        .mas("longitud", confirmado.longitud())
+                                        .datos()));
 
         return confirmado;
     }

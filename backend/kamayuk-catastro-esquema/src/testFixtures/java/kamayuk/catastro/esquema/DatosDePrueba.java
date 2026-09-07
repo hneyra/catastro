@@ -878,6 +878,150 @@ public final class DatosDePrueba {
                 VIGENCIA);
     }
 
+    /**
+     * Los hallazgos que el lote de ejemplo tiene que ensenar y {@code sembrarTenant} no deja (#28).
+     *
+     * <p>Son dos: un {@code OMISO_CATASTRAL} firme y SIN predio, y un {@code SUBVALUADOR} DEJADO
+     * SIN EFECTO.
+     *
+     * <p>No entra en {@link #sembrarTenant} y eso es deliberado: se siembra solo donde hace falta
+     * —la municipalidad desde la que se publica {@code docs/50-api/eventos/lote-de-eventos.json}—,
+     * porque las demas pruebas cuentan hallazgos y una fila mas cambiaria lo que miden sin que
+     * midan nada nuevo.
+     *
+     * <p><b>Por que hace falta.</b> {@code HALLAZGO_FIRME} es el unico tipo del buzon donde {@code
+     * predio_id} viaja nulo en un caso y no en el otro, y {@code catastro_evento_predio_ck} lo
+     * admite a proposito (`V10`). Un consumidor que solo vea el ejemplo del {@code SUBVALUADOR}
+     * escribira un {@code NOT NULL} sobre esa columna, y reventara con el primer omiso que llegue —
+     * de noche, en la entrega del buzon, y sin que nada de este lado lo hubiera predicho. Los dos
+     * ejemplos en el lote son lo que impide esa lectura.
+     *
+     * <p>Los tres campos del contraste van NULOS los tres, y no es una eleccion de la fixture:
+     * {@code hallazgo_contraste_check} de `V9` lo exige —un omiso catastral es, por definicion, lo
+     * que no tiene predio, asi que no hay ficha que contrastar ni area de ficha que copiar—.
+     *
+     * <p>El hallazgo NO lleva geometria: `V12` retiro esa columna (#23) —«una geometria que nadie
+     * puede llenar se retira»—, asi que la del marco de ADR-0034 vive hoy solo en el candidato.
+     *
+     * <p>El candidato tambien va sin predio, por {@code candidato_predio_de_la_clase_check}, y ya
+     * {@code VERIFICADO_EN_CAMPO}: un hallazgo cuelga de un candidato verificado, y sembrarlo en
+     * otro estado dejaria las dos filas sin poder existir a la vez.
+     */
+    public static void sembrarLosHallazgosQueElLoteEnsena(
+            BaseDeDatosDePrueba base, long muni, String sufijo) throws SQLException {
+        try (Connection app = base.conexion(BaseDeDatosDePrueba.APP)) {
+            ContextoDeTenant.fijar(app, muni);
+
+            long campaniaId =
+                    insertar(
+                            app,
+                            "INSERT INTO campania (municipalidad_id, codigo, nombre, inicio,"
+                                    + " umbral, tope, observacion, usuario_registro)"
+                                    + " VALUES (?, ?, ?, ?, 0.6000, 300, 'campania de omisos',"
+                                    + "         'prueba') RETURNING id",
+                            muni,
+                            "CAM-OMI-" + sufijo,
+                            "Campania de omisos " + sufijo,
+                            VIGENCIA);
+
+            long candidatoId =
+                    insertar(
+                            app,
+                            "INSERT INTO candidato (municipalidad_id, campania_id, predio_id,"
+                                    + " clase, origen, score, insumos, geometria, estado,"
+                                    + " observacion, usuario_registro)"
+                                    + " VALUES (?, ?, NULL, 'OMISO_CATASTRAL', 'ORTOFOTO', 0.8800,"
+                                    + "         '{\"fuente\":\"fixture\"}'::jsonb,"
+                                    + "         ST_GeogFromText('SRID=4326;MULTIPOLYGON((('"
+                                    + "                          || ? || ' -4.91,' || ? || ' -4.9102,'"
+                                    + "                          || ? || ' -4.9102,' || ? || ' -4.91,'"
+                                    + "                          || ? || ' -4.91)))'),"
+                                    + "         'VERIFICADO_EN_CAMPO', 'candidato omiso de prueba',"
+                                    + "         'prueba') RETURNING id",
+                            muni,
+                            campaniaId,
+                            desplazamientoDe(sufijo) + " ",
+                            desplazamientoDe(sufijo) + " ",
+                            desplazamientoDe(sufijo) + "01 ",
+                            desplazamientoDe(sufijo) + "01 ",
+                            desplazamientoDe(sufijo) + " ");
+
+            ejecutar(
+                    app,
+                    "INSERT INTO hallazgo (municipalidad_id, candidato_id, clase, predio_id,"
+                            + " ficha_id, area_de_la_ficha, area_verificada, inspector,"
+                            + " verificado_en, observacion, usuario_registro)"
+                            + " VALUES (?, ?, 'OMISO_CATASTRAL', NULL, NULL, NULL, 305.00,"
+                            + "         'inspector.omisos', ?,"
+                            + "         'hallazgo omiso de prueba', 'prueba')",
+                    muni,
+                    candidatoId,
+                    VIGENCIA);
+
+            // Y EL SEPTIMO TIPO, que llego con `V12` mientras este trabajo estaba en curso.
+            //
+            // `HALLAZGO_DEJADO_SIN_EFECTO` (#23, #61) no lo produce ninguna otra fixture, asi que
+            // el lote se habria quedado sin su ejemplo — y esta vez NO paso desapercibido: la
+            // guarda de #28 se puso roja sola al traer `main`, nombrandolo. Es exactamente el caso
+            // que AC-2 describe («si anades un septimo tipo sin ejemplo, tiene que salir roja
+            // nombrandolo»), ocurrido sobre codigo real y no sobre una rotura provocada.
+            //
+            // Va con predio y con ficha —un `SUBVALUADOR`— a proposito: el par de
+            // `HALLAZGO_FIRME` ya ensena las dos formas de `predio_id`, y aqui lo que hace falta
+            // ensenar es que la retractacion tambien lleva su `clase` y los TRES campos del acto
+            // (motivo, quien y cuando), que `hallazgo_estado_anulacion_check` ata al estado.
+            long predioDelLote = insertar(app, "SELECT p.id FROM predio p ORDER BY p.id LIMIT 1");
+            long fichaDelLote =
+                    insertar(
+                            app,
+                            "SELECT f.id FROM ficha_catastral f WHERE f.predio_id = ?"
+                                    + " ORDER BY f.id LIMIT 1",
+                            predioDelLote);
+
+            long candidatoRetractado =
+                    insertar(
+                            app,
+                            "INSERT INTO candidato (municipalidad_id, campania_id, predio_id,"
+                                    + " clase, origen, score, insumos, geometria, estado,"
+                                    + " observacion, usuario_registro)"
+                                    + " VALUES (?, ?, ?, 'SUBVALUADOR', 'DENUNCIA', 0.7500,"
+                                    + "         '{\"fuente\":\"fixture\"}'::jsonb,"
+                                    + "         ST_GeogFromText('SRID=4326;MULTIPOLYGON((('"
+                                    + "                          || ? || ' -4.92,' || ? || ' -4.9202,'"
+                                    + "                          || ? || ' -4.9202,' || ? || ' -4.92,'"
+                                    + "                          || ? || ' -4.92)))'),"
+                                    + "         'VERIFICADO_EN_CAMPO', 'candidato retractado de"
+                                    + " prueba', 'prueba') RETURNING id",
+                            muni,
+                            campaniaId,
+                            predioDelLote,
+                            desplazamientoDe(sufijo) + " ",
+                            desplazamientoDe(sufijo) + " ",
+                            desplazamientoDe(sufijo) + "01 ",
+                            desplazamientoDe(sufijo) + "01 ",
+                            desplazamientoDe(sufijo) + " ");
+
+            ejecutar(
+                    app,
+                    "INSERT INTO hallazgo (municipalidad_id, candidato_id, clase, predio_id,"
+                            + " ficha_id, area_de_la_ficha, area_verificada, inspector,"
+                            + " verificado_en, estado, motivo_anulacion, anulado_por, anulado_en,"
+                            + " observacion, usuario_registro)"
+                            + " VALUES (?, ?, 'SUBVALUADOR', ?, ?, 120.00, 400.00,"
+                            + "         'inspector.prueba', ?, 'DEJADO_SIN_EFECTO',"
+                            + "         'La ortofoto era de otro lote', 'jefe.catastro',"
+                            + "         TIMESTAMPTZ '2026-02-01 12:00:00+00',"
+                            + "         'hallazgo retractado de prueba', 'prueba')",
+                    muni,
+                    candidatoRetractado,
+                    predioDelLote,
+                    fichaDelLote,
+                    VIGENCIA);
+
+            app.commit();
+        }
+    }
+
     /** Sesenta y cuatro hexadigitos distintos por municipalidad. No es un sha256 de nada. */
     private static String huellaDePrueba(String sufijo) {
         String semilla = Integer.toHexString(Math.floorMod(sufijo.hashCode(), 16));

@@ -18,13 +18,18 @@ import org.jspecify.annotations.Nullable;
  * reejecucion tiene que producir el mismo resultado. Para el caso corriente esta {@link
  * #enLaFechaDe}.
  *
+ * <p>El antes y el despues son {@link DatosDeAuditoria} y <b>no {@code String}</b> desde #20, y no
+ * es una preferencia de tipos: las dos columnas son {@code jsonb} y con la firma anterior pasar
+ * prosa compilaba y reventaba en produccion, en el {@code cast} de {@link AuditoriaJdbc}. El motivo
+ * completo, con lo que se midio, esta en {@link DatosDeAuditoria}.
+ *
  * @param ejercicio ejercicio al que se imputa el acto; clave de particion
  * @param tabla tabla afectada
  * @param clave clave de la fila afectada, en texto
  * @param operacion que clase de acto es
  * @param observacion por que se hizo, escrito por quien lo hizo
- * @param datosAnteriores estado previo en JSON, si la operacion lo tenia
- * @param datosNuevos estado resultante en JSON, si lo hay
+ * @param datosAnteriores estado previo, si la operacion lo tenia
+ * @param datosNuevos estado resultante, si lo hay
  */
 public record RegistroDeAuditoria(
         Ejercicio ejercicio,
@@ -32,8 +37,8 @@ public record RegistroDeAuditoria(
         String clave,
         Operacion operacion,
         Observacion observacion,
-        @Nullable String datosAnteriores,
-        @Nullable String datosNuevos) {
+        @Nullable DatosDeAuditoria datosAnteriores,
+        @Nullable DatosDeAuditoria datosNuevos) {
 
     private static final int TABLA_MAXIMO = 60;
     private static final int CLAVE_MAXIMO = 120;
@@ -73,7 +78,8 @@ public record RegistroDeAuditoria(
     }
 
     /** El mismo registro con el antes y el despues. */
-    public RegistroDeAuditoria con(@Nullable String datosAnteriores, @Nullable String datosNuevos) {
+    public RegistroDeAuditoria con(
+            @Nullable DatosDeAuditoria datosAnteriores, @Nullable DatosDeAuditoria datosNuevos) {
         return new RegistroDeAuditoria(
                 ejercicio, tabla, clave, operacion, observacion, datosAnteriores, datosNuevos);
     }

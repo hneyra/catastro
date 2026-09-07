@@ -3,6 +3,7 @@ package kamayuk.catastro.nucleo.aplicacion;
 import java.time.Clock;
 import java.time.LocalDate;
 import kamayuk.catastro.auditoria.Auditoria;
+import kamayuk.catastro.auditoria.DatosDeAuditoria;
 import kamayuk.catastro.auditoria.Operacion;
 import kamayuk.catastro.auditoria.RegistroDeAuditoria;
 import kamayuk.catastro.dominio.Observacion;
@@ -134,19 +135,21 @@ public class RegistrarVia {
     }
 
     /**
-     * Un JSON escrito a mano y no un serializador: son cinco campos, y traer Jackson hasta aqui
-     * ataria la capa de aplicacion a la de presentacion. Cuando haya mas de dos casos de uso que lo
-     * necesiten, saldra a un componente propio.
+     * El estado de la via, para la bitacora.
+     *
+     * <p>Hasta #20 esto era un JSON escrito a mano cuyo javadoc decia que traer un serializador
+     * ataria la capa de aplicacion a la de presentacion. Era cierto y ya no aplica: {@link
+     * DatosDeAuditoria} no nombra Jackson, y quien serializa vive en {@code kamayuk.catastro.json},
+     * que no es la capa de presentacion. Lo que si tenia el JSON a mano era un escape parcial
+     * —{@code nombre} y solo la comilla—, o sea que una via cuyo nombre trajera un salto de linea
+     * reventaba el {@code cast} igual.
      */
-    private static String descripcion(Via via) {
-        return "{\"codigo\":\""
-                + via.codigo()
-                + "\",\"tipo\":\""
-                + via.tipo()
-                + "\",\"nombre\":\""
-                + via.nombre().replace("\"", "\\\"")
-                + "\",\"activa\":"
-                + via.activa()
-                + "}";
+    private static DatosDeAuditoria descripcion(Via via) {
+        return DatosDeAuditoria.campos()
+                .mas("codigo", via.codigo())
+                .mas("tipo", via.tipo())
+                .mas("nombre", via.nombre())
+                .mas("activa", via.activa())
+                .datos();
     }
 }

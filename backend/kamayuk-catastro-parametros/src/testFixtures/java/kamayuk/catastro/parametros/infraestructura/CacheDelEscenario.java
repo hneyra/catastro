@@ -77,6 +77,30 @@ public class CacheDelEscenario implements CacheDeSnapshots {
                 .optional();
     }
 
+    /**
+     * <b>No se sustituye</b>, y falla diciendolo (#51).
+     *
+     * <p>El escenario cambia el ALMACEN por {@code conjunto_parametros_de_prueba}, que no tiene
+     * columna {@code ambito}: la copia local si la tiene, porque el snapshot se pide por mitades y
+     * cada mitad trae su huella. Contestar aqui obligaria a <b>inventar</b> el ambito de cada fila,
+     * y entonces la lista diria que un ejercicio tiene descargados los dos cuadros de la valuacion
+     * cuando quiza solo tiene la mitad de la obligacion — el dato inventado que no se distingue del
+     * real, que es lo que esta prueba existe para no producir.
+     *
+     * <p>Devolver una lista vacia seria peor que lanzar: una prueba que midiera «no ofrece ningun
+     * ejercicio» pasaria en verde <b>sin sujeto</b>, que es el defecto que esta serie lleva seis
+     * veces encontrando. Se mide contra la tabla de produccion y contra PostgreSQL, en {@code
+     * EjerciciosSelladosJdbcTest}.
+     */
+    @Override
+    public List<ConjuntoCacheado> conjuntosCacheados() {
+        throw new UnsupportedOperationException(
+                "El escenario de `normativa` no sustituye esta lectura: `conjunto_parametros_de_prueba`"
+                        + " no tiene ambito y aqui habria que inventarlo. Los ejercicios sellados se"
+                        + " miden contra `normativa_conjunto` y PostgreSQL de verdad"
+                        + " (EjerciciosSelladosJdbcTest, #51)");
+    }
+
     @Override
     public Optional<IdentidadDelConjunto> identidadDe(long conjuntoId) {
         return jdbc.sql(

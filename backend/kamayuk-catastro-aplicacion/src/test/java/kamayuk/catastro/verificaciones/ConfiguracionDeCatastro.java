@@ -511,37 +511,12 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
                 ".nucleo.VersionTransferida",
                 // Y su excepcion: atraparla no es escribir. La captura la capa web, que traduce a
                 // 422 «el predio no tiene ficha vigente».
-                ".nucleo.TransferenciaDeFiscalizacion$SinFichaQueVersionar",
-                // Si un predio declaro en un ejercicio, por lote (RF-055).
-                ".rentas.DeclaracionesDelEjercicio",
-                ".rentas.DeclaracionDelEjercicio",
-                // Cuanto se debe a una fecha, para el estado de cuenta de fiscalizacion (RF-056).
-                // Arista al reves de las otras: la excepcion de ARQ-01 §4 regla 2.
-                ".cuentacorriente.ConsultaDeDeudaPublica",
-                ".cuentacorriente.ObligacionPublica",
-                // Como se llaman los tributos del libro (#553). Es un enumerado: lo que aporta es
-                // que fiscalizacion no declare su propio literal.
-                ".cuentacorriente.TributoDelLibro");
+                ".nucleo.TransferenciaDeFiscalizacion$SinFichaQueVersionar");
     }
 
     @Override
     public Set<String> escriturasSinUsuarioQueObserve() {
         return Set.of(
-                // Reconstruye saldo_proyectado desde el libro (#23). Es un cache derivado: no
-                // modifica ningun dato, lo recalcula. El libro no se toca.
-                ".cuentacorriente.aplicacion.ReconstruirSaldo.deContribuyente(long)",
-                // La lista de predios SIN declaracion jurada (ADR-0015 §2.3, #344). Es una
-                // CONSULTA.
-                // Lo unico que escribe es su propia fila de ACCESO, y esa observacion no la puede
-                // dar el usuario porque nadie escribe un motivo para mirar una grilla.
-                ".rentas.aplicacion.ConsultaDeConciliacion.noConciliadas("
-                        + "kamayuk.catastro.nucleo.BusquedaDeFichas, kamayuk.catastro.dominio.Ejercicio,"
-                        + " java.time.LocalDate, kamayuk.catastro.compartido.Paginacion)",
-                // El titular de un predio, resuelto al clic (ADR-0015 §2.4, #366). Misma forma.
-                ".rentas.aplicacion.ConsultaDeTitulares.resolver(long, java.time.LocalDate)",
-                // La rama del portal del contribuyente (ADR-0020, #57). Misma forma y un motivo
-                // mas fuerte: aqui el usuario ni siquiera es un funcionario.
-                ".rentas.aplicacion.RamaDelCiudadano.leer(java.time.LocalDate)",
                 // La descarga del conjunto sellado de `normativa` (P5B, ADR-0025 §1). Es el caso
                 // mas claro de la lista: lo que escribe es una COPIA de un dato que este sistema no
                 // produjo, ya sellado en el otro y verificado por su sha256. No hay ningun usuario

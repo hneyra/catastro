@@ -185,9 +185,13 @@ class CandidatoOmisoSinPredioTest {
     private static long abrirCampania(Connection app) throws SQLException {
         try (PreparedStatement alta =
                 app.prepareStatement(
+                        // El `tope` es NOT NULL desde la `V12` de #25: quien abre una campania
+                        // tiene que DECIRLO, porque un valor por omision recorta el universo del
+                        // cruce sin que nadie lo haya elegido. Esta prueba no mide el tope, asi
+                        // que lo declara y sigue a lo suyo.
                         "INSERT INTO campania (municipalidad_id, codigo, nombre, inicio, umbral,"
-                                + " observacion, usuario_registro)"
-                                + " VALUES (?, ?, 'Campania de #27', ?, 0.7000,"
+                                + " tope, observacion, usuario_registro)"
+                                + " VALUES (?, ?, 'Campania de #27', ?, 0.7000, 500,"
                                 + "         'campania de la prueba', 'pruebas') RETURNING id")) {
             alta.setLong(1, municipalidad);
             alta.setString(2, "C27-" + CORRELATIVO.incrementAndGet());

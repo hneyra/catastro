@@ -207,6 +207,11 @@ const SUPERFICIES = [
 const soloSuperficie = process.argv[2] ?? null;
 const elegidas = SUPERFICIES.filter((s) => !soloSuperficie || s.k === soloSuperficie);
 
+/* Se dice QUE se va a medir antes de medirlo: un arnes que solo imprime el
+   resultado deja a quien lo lee sin saber sobre que conjunto habla, y ese es
+   justo el hueco que las guardas de recorrido vacio existen para tapar. */
+for (const s of elegidas) console.log(`  · ${s.k.padEnd(32)} ${s.que}`);
+
 const navegador = await chromium.launch();
 const fallos = [];
 let observaciones = 0;

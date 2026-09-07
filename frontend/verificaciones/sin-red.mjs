@@ -217,26 +217,93 @@ await pagina.route('**/catastro/api/v1/**', (r) => r.abort());
  *
  * `innerText` no ve lo que esta oculto, asi que una seccion cerrada seria un
  * escondite perfecto para una cifra.
+ *
+ * <h2>Se pincha DENTRO de la pagina, y esta medido por que</h2>
+ *
+ * La version anterior pinchaba con `locator.click({ timeout: 900 })` sobre
+ * `[aria-expanded="false"]`, por indice y en tres vueltas, y **no abria nada**:
+ * medido sobre el recorrido entero, **1 clic bueno y 612 fallidos**, todos con
+ * el mismo motivo en el registro de Playwright —«`<div></div>` intercepts
+ * pointer events»—. El primer clic del recorrido abre el menu de sesion, ese
+ * menu tiende un velo a pantalla completa para poder cerrarse al pinchar fuera,
+ * y como el armazon vive en una sola pagina —las rutas se mueven por el `#`, sin
+ * recarga—, **ese velo se queda puesto para el resto de la corrida** y tapa
+ * todos los clics que vengan detras. Los 612 fallos costaban 900 ms cada uno:
+ * **551 s de los 606 s** del recorrido, o sea el 90 % del paso mas caro del
+ * flujo, gastados en esperar a que se cumpliera algo que ya no podia cumplirse.
+ *
+ * Y lo caro no era el reloj: mientras tanto **este arnes afirmaba «ninguna
+ * ensena una cifra» sin haber abierto una sola seccion plegada**, que es justo
+ * el escondite que el parrafo de arriba dice vigilar.
+ *
+ * Pinchar con `el.click()` dentro de la pagina no pasa por la prueba de impacto
+ * del raton, asi que ningun velo lo tapa; y como el DOM tarda un fotograma en
+ * reflejar el estado de React, se espera **al atributo** y no un plazo fijo.
+ *
+ * <h2>De una en una, y cerrando detras</h2>
+ *
+ * Los desplegables del armazon son **excluyentes**: abrir uno cierra el
+ * anterior, asi que «abrirlos todos y leer una vez» leeria solo el ultimo.
+ * Se abre uno, se lee, se cierra y se pasa al siguiente; el texto de cada uno
+ * vuelve por separado y se rastrea igual que el de la pantalla.
+ *
+ * Devuelve `{ textos, abiertos, rebeldes }`: `rebeldes` son los que se
+ * pincharon y no se abrieron, y son la senal de que este arnes vuelve a mirar
+ * a ciegas.
  */
-async function desplegarlo() {
-  for (let vuelta = 0; vuelta < 3; vuelta++) {
-    const plegados = pagina.locator('[aria-expanded="false"]');
-    const cuantos = await plegados.count();
-    if (cuantos === 0) break;
-    for (let i = 0; i < cuantos; i++) {
-      await plegados
-        .nth(i)
-        .click({ timeout: 900 })
-        .catch(() => {});
+async function loQueEsconden() {
+  const cuantos = await pagina.evaluate(() => {
+    /* Se congela la lista y se pincha por REFERENCIA: abrir uno cambia el
+       conjunto que casa con el selector, asi que por indice se pincharia otro
+       —que es la segunda mitad del defecto de arriba—. */
+    globalThis.__plegados = [...document.querySelectorAll('[aria-expanded="false"]')];
+    return globalThis.__plegados.length;
+  });
+
+  const abierto = (n) =>
+    pagina
+      .waitForFunction((i) => globalThis.__plegados[i]?.getAttribute('aria-expanded') === 'true', n, { timeout: 1500 })
+      .then(() => true)
+      .catch(() => false);
+
+  const textos = [];
+  let abiertos = 0;
+  let rebeldes = 0;
+  for (let i = 0; i < cuantos; i++) {
+    const pinchado = await pagina.evaluate((n) => {
+      const el = globalThis.__plegados[n];
+      if (!el?.isConnected) return false;
+      el.click();
+      return true;
+    }, i);
+    /* Uno que se desengancho del DOM antes de que le llegara el clic cuenta
+       como rebelde y no se descarta: descartarlo restaria del unico numero que
+       la guarda de abajo mira, y con TODOS descartados esa guarda no veria ni
+       una pantalla a ciegas — que es la forma de esta trampa por el otro eje. */
+    if (!pinchado || !(await abierto(i))) {
+      rebeldes++;
+      continue;
     }
-    await pagina.waitForTimeout(160);
+    abiertos++;
+    textos.push(await pagina.locator('body').innerText());
+    /* Y se cierra: dejarlo abierto arrastraria su velo —y su contenido— a la
+       pantalla siguiente, que es como empezo todo esto. */
+    await pagina.evaluate((n) => {
+      const el = globalThis.__plegados[n];
+      if (el?.isConnected && el.getAttribute('aria-expanded') === 'true') el.click();
+    }, i);
+    await pagina
+      .waitForFunction((n) => globalThis.__plegados[n]?.getAttribute('aria-expanded') !== 'true', i, { timeout: 1500 })
+      .catch(() => {});
   }
-  await pagina.evaluate(() => document.querySelectorAll('details').forEach((d) => (d.open = true)));
-  await pagina.waitForTimeout(200);
+  return { textos, abiertos, rebeldes };
 }
 
 const sucias = [];
+const ciegas = [];
 let vistas = 0;
+let abiertos = 0;
+let rebeldes = 0;
 
 for (const d of RECORRIDO) {
   if (soloModulo && d.modulo !== soloModulo) continue;
@@ -244,14 +311,24 @@ for (const d of RECORRIDO) {
   await pagina.goto(`${BASE}/${ruta}`, { waitUntil: 'domcontentloaded' });
   await pagina.waitForTimeout(900);
   vistas++;
-  await desplegarlo();
+  /* Un `<details>` si se abre sin pinchar nada, y se abre ANTES de leer para que
+     su contenido entre en el texto de la pantalla, como siempre. */
+  await pagina.evaluate(() => document.querySelectorAll('details').forEach((x) => (x.open = true)));
+  await pagina.waitForTimeout(200);
+
+  const escondido = await loQueEsconden();
+  abiertos += escondido.abiertos;
+  rebeldes += escondido.rebeldes;
+  if (escondido.abiertos === 0 && escondido.rebeldes > 0) ciegas.push({ ruta, rebeldes: escondido.rebeldes });
 
   const texto = await pagina.locator('body').innerText();
-  for (const { nombre, re } of CIFRAS) {
-    const halladas = [...texto.matchAll(re)].map((x) => x[0]).filter((x) => !/^S\/\s?[—-]$/.test(x));
-    if (halladas.length) {
-      const unicas = [...new Set(halladas)];
-      sucias.push({ ruta, nombre, halladas: unicas.slice(0, 6), total: unicas.length });
+  for (const cuerpoLeido of [texto, ...escondido.textos]) {
+    for (const { nombre, re } of CIFRAS) {
+      const halladas = [...cuerpoLeido.matchAll(re)].map((x) => x[0]).filter((x) => !/^S\/\s?[—-]$/.test(x));
+      if (halladas.length) {
+        const unicas = [...new Set(halladas)];
+        sucias.push({ ruta, nombre, halladas: unicas.slice(0, 6), total: unicas.length });
+      }
     }
   }
 
@@ -281,7 +358,11 @@ for (const d of RECORRIDO) {
 await navegador.close();
 servidor.kill();
 
-console.log(`\n${vistas} pantallas recorridas con el proxy apagado y la red cortada`);
+console.log(
+  `\n${vistas} pantallas recorridas con el proxy apagado y la red cortada · ` +
+    `${abiertos} seccion(es) plegada(s) abierta(s) y leida(s)` +
+    (rebeldes ? ` · ${rebeldes} que se pincharon y no se abrieron` : ''),
+);
 
 /* La misma guarda que `mirar.mjs`, y por el mismo motivo: con el recorrido
    vacio, las tres afirmaciones de abajo —ninguna cifra, ninguna muda, ninguna
@@ -292,6 +373,31 @@ if (vistas === 0) {
     'No se recorrio NI UNA pantalla, asi que este arnes no midio nada: la regla que gobierna esta\n' +
       'interfaz se estaria cumpliendo sola. O el registro se quedo sin destinos, o el modulo que se\n' +
       `pidio —«${soloModulo ?? '(ninguno)'}»— no es ninguno de los que hay.`,
+  );
+  process.exit(2);
+}
+
+/**
+ * Y la misma exigencia por el eje de lo que esta ESCONDIDO.
+ *
+ * Una pantalla que tenia secciones plegadas y de la que no se abrio ni una se
+ * miro a ciegas: `innerText` no ve lo que esta oculto, asi que la afirmacion
+ * «ninguna ensena una cifra» no cubre esa mitad y sale igual de verde.
+ *
+ * No es hipotetico. Es exactamente lo que este arnes hacia hasta #66, medido:
+ * **1 clic bueno y 612 fallidos** —«`<div></div>` intercepts pointer events»—,
+ * o sea 33 de las 34 pantallas miradas con todo lo plegado cerrado, en verde y
+ * pagando 551 s por el privilegio.
+ */
+if (ciegas.length) {
+  console.error(
+    `\n${ciegas.length} de ${vistas} pantalla(s) se miraron A CIEGAS: tenian secciones plegadas y no se\n` +
+      'abrio ni una, asi que lo que esconden no se leyo y este arnes no puede afirmar nada de ello.\n',
+  );
+  for (const c of ciegas) console.error(`  ${c.ruta.padEnd(46)} ${c.rebeldes} plegado(s) que no se abrieron`);
+  console.error(
+    '\n`innerText` no ve lo que esta oculto: una seccion cerrada es el escondite perfecto para una\n' +
+      'cifra del simulado, y con el escondite cerrado la afirmacion de este arnes se cumple sola.',
   );
   process.exit(2);
 }

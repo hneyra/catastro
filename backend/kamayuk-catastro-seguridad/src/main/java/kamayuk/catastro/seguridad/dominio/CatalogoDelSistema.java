@@ -15,10 +15,16 @@ import java.util.List;
  *
  * <p>Cual es su parte no se elige a ojo: es <b>el conjunto de {@code acceso} que sus propios
  * endpoints declaran</b> con {@code @RequiereAcceso}. Y eso no se deja a la buena memoria — {@code
- * CatalogoDelSistemaTest} recorre {@code src/main}, junta los valores de la anotacion y exige que
- * sean exactamente estos. Una opcion de mas seria un permiso que nadie puede usar; una de menos,
- * una pantalla a la que no se le puede dar permiso, que es el defecto que RF-122 existe para
- * impedir.
+ * CatalogoDelSistemaTest} lee <b>el bytecode</b> de todos los modulos, junta los valores de la
+ * anotacion y exige que sean exactamente estos. Una opcion de mas seria un permiso que nadie puede
+ * usar; una de menos, una pantalla a la que no se le puede dar permiso, que es el defecto que
+ * RF-122 existe para impedir.
+ *
+ * <p><b>El bytecode y no el fuente</b>, desde #43: hasta entonces la guarda buscaba el texto de la
+ * anotacion con una expresion regular, o sea que solo veia el {@code acceso} escrito como literal
+ * de cadena. {@code sectores} y {@code calles} se escriben como constante —{@code
+ * SectorController.ACCESO}— y por eso faltaron aqui durante todo el corte sin que nada lo dijera,
+ * con sus ocho endpoints en 403 para todo el mundo.
  *
  * <p>El nombre y el modulo estan transcritos de {@code
  * rentas/docs/10-negocio/catalogo-de-opciones.md}, que sigue siendo la fuente del manual. Se copian
@@ -60,6 +66,18 @@ public final class CatalogoDelSistema {
                             "Catastro",
                             "ficha_contribuyente_reporte",
                             "Reporte de ficha del contribuyente"),
+                    // #43 — las dos que faltaban desde el corte, y su ausencia no se veia.
+                    //
+                    // `ViaController` y `SectorController` las exigen desde siempre con
+                    // `@RequiereAcceso`, pero escrito como CONSTANTE; la guarda leia el fuente con
+                    // una expresion regular que solo veia literales, asi que sus ocho endpoints
+                    // —el catalogo vial y el de sectores enteros— contestaban 403 a todo el mundo,
+                    // administrador incluido, y la guarda que existe para impedirlo pasaba en
+                    // verde. El nombre y el bloque estan transcritos del catalogo del manual, como
+                    // los demas: alli son `calles` = «Mantenimiento de vias y calles» y `sectores`
+                    // = «Sectores, manzanas y lotes», los dos del bloque Registro del cap. 2.
+                    new Opcion("CATASTRO", "Catastro", "calles", "Mantenimiento de vias y calles"),
+                    new Opcion("CATASTRO", "Catastro", "sectores", "Sectores, manzanas y lotes"),
                     new Opcion("CATASTRO", "Catastro", "aranceles", "Aranceles de terreno"),
                     new Opcion(
                             "CATASTRO",

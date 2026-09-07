@@ -12,9 +12,11 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import kamayuk.catastro.auditoria.Origen;
 import kamayuk.catastro.auditoria.OrigenContext;
+import kamayuk.catastro.compartido.MarcoGeografico;
 import kamayuk.catastro.compartido.TenantContext;
 import kamayuk.catastro.dominio.Medida;
 import kamayuk.catastro.dominio.MunicipalidadId;
@@ -26,6 +28,8 @@ import kamayuk.catastro.nucleo.dominio.DerivacionDeFrentes;
 import kamayuk.catastro.nucleo.dominio.EstadoDeLaLongitud;
 import kamayuk.catastro.nucleo.dominio.FrenteDelPredio;
 import kamayuk.catastro.nucleo.dominio.FrentePropuesto;
+import kamayuk.catastro.nucleo.dominio.MarcoDeLoLevantado;
+import kamayuk.catastro.nucleo.dominio.MargenDelMarco;
 import kamayuk.catastro.plataforma.tenant.TenantTransactionManager;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -198,6 +202,56 @@ class DerivacionDeFrentesJdbcTest {
         assertThat(conMargenMinusculo)
                 .as("solo queda la via apoyada sobre el borde, cuyo rectangulo si toca el del lote")
                 .hasSize(1);
+    }
+
+    @Test
+    @DisplayName("el marco del padron sale de la geometria sembrada, y la constante vale ahi")
+    void elMarcoDelPadronSaleDeLaGeometriaSembrada() {
+        // AC-2 de #29: el supuesto de `MargenDelMarco` se comprueba contra ALGO REAL —el marco de
+        // los datos sembrados, leido por la misma consulta que corre en produccion— y no contra un
+        // 26,0 escrito en un test al lado de otro 26,0.
+        TenantContext.fijar(new MunicipalidadId(municipalidad));
+
+        MarcoDeLoLevantado levantado = enUnaTransaccion.execute(estado -> frentes.marcoDelPadron());
+
+        assertThat(levantado.lotes())
+                .as("sin lotes levantados esto no mide nada: el marco saldria nulo y pasaria igual")
+                .isPositive();
+        assertThat(levantado.hayMarco()).isTrue();
+        MarcoGeografico marco =
+                Objects.requireNonNull(levantado.marco(), "acaba de decir que lo hay");
+        assertThat(MargenDelMarco.cubre(marco))
+                .as(
+                        "este proyecto siembra Sullana, a 4,9 grados sur: dentro de la banda en que"
+                                + " un grado de longitud mide al menos 100 000 m")
+                .isTrue();
+        assertThat(MargenDelMarco.avisoSiNoCubre(marco)).isNull();
+    }
+
+    @Test
+    @DisplayName("y un padron fuera de la banda LO DICE, en vez de proponer de menos en silencio")
+    void unPadronFueraDeLaBandaLoDice() throws SQLException {
+        // El contraste, contra la misma consulta y la misma base. Mover el lote al paralelo 40
+        // —el norte de Mexico, que es el ejemplo del javadoc— saca el marco del padron de la banda
+        // donde `METROS_POR_GRADO` vale; alli el marco ensanchado se queda corto y el corte
+        // descarta vias que si bordean el lote, sin un solo error.
+        TenantContext.fijar(new MunicipalidadId(municipalidad));
+        ejecutar(
+                "UPDATE predio SET geometria = ST_GeogFromText('SRID=4326;MULTIPOLYGON((("
+                        + "-106.20 40.00, -106.10 40.00, -106.10 40.10, -106.20 40.10,"
+                        + " -106.20 40.00)))') WHERE id = "
+                        + predioId);
+
+        MarcoDeLoLevantado levantado = enUnaTransaccion.execute(estado -> frentes.marcoDelPadron());
+
+        MarcoGeografico marco =
+                Objects.requireNonNull(levantado.marco(), "el lote movido tiene su rectangulo");
+        assertThat(MargenDelMarco.cubre(marco)).isFalse();
+        assertThat(MargenDelMarco.avisoSiNoCubre(marco))
+                .as("nombra la latitud que se salio, el limite declarado y lo que va a pasar")
+                .isNotNull()
+                .contains("40.1")
+                .contains("descarta vias");
     }
 
     @Test

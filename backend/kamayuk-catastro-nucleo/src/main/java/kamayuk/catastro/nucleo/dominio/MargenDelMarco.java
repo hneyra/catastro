@@ -1,7 +1,9 @@
 package kamayuk.catastro.nucleo.dominio;
 
 import java.math.BigDecimal;
+import kamayuk.catastro.compartido.MarcoGeografico;
 import kamayuk.catastro.dominio.Medida;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Cuantos GRADOS hay que ensanchar el marco para que quepan unos METROS (#7, ADR-0034).
@@ -32,11 +34,12 @@ import kamayuk.catastro.dominio.Medida;
  * latitud siempre mide mas. El margen que sale es por tanto <b>igual o mayor</b> que el que hace
  * falta, en las dos direcciones. Peru entero cae entre 0° y 18,4° de latitud sur.
  *
- * <p><b>Donde deja de valer, dicho antes de que alguien lo descubra:</b> por encima de 26,0° de
- * latitud —el norte de Mexico, el sur de Chile— el margen se queda corto y vuelve la fuga. Si algun
- * dia este producto se instala ahi, esta constante hay que recalcularla; lo que <b>no</b> puede
- * pasar es que se descubra por una cifra de arbitrio que no cuadra, y por eso esta escrito aqui y
- * lo comprueba una prueba.
+ * <p><b>Donde deja de valer, y quien lo dice ahora (#29):</b> por encima de {@link #LATITUD_MAXIMA}
+ * —el norte de Mexico, el sur de Chile— el margen se queda corto y vuelve la fuga. Hasta #29 eso
+ * era una frase de este javadoc que no sujetaba nada; hoy lo pregunta {@link
+ * #avisoSiNoCubre(MarcoGeografico)} y lo pregunta la derivacion, una vez por corrida, sobre el
+ * marco del padron de verdad. Lo que <b>no</b> puede pasar es que se descubra por una cifra de
+ * arbitrio que no cuadra.
  *
  * <p>Ensanchar de mas no produce ningun frente equivocado: lo que decide sigue siendo el {@code
  * ST_DWithin} metrico de detras. Lo unico que cuesta un margen generoso es leer alguna via mas por
@@ -67,6 +70,13 @@ public final class MargenDelMarco {
      * {@code acos(0,897)} redondeado a ojo— y la prueba lo puso rojo: a 26,2° un grado de longitud
      * mide 99 883 m, o sea MENOS de 100 000, y el margen se queda corto justo donde el javadoc
      * decia que aun valia. El limite real es 26,0° (100 054 m).
+     *
+     * <p><b>Y desde #29 sujeta algo</b>, que es lo que le faltaba: {@code MargenDelMarcoTest} lo
+     * pinza por los dos lados contra la geodesia —al limite declarado el margen cubre la tolerancia
+     * y una decima mas alla deja de cubrirla—, asi que subirlo o bajarlo sale rojo; y {@link
+     * #avisoSiNoCubre(MarcoGeografico)} lo consulta sobre el marco del padron al derivar. La prueba
+     * que habia antes afirmaba que esta constante valia 26,0 comparandola con un 26,0 escrito en el
+     * test: comprobaba que alguien habia escrito 26 dos veces.
      */
     public static final BigDecimal LATITUD_MAXIMA = new BigDecimal("26.0");
 
@@ -99,5 +109,49 @@ public final class MargenDelMarco {
         // lanzar. Es la respuesta honesta a D-03a/D-03b y no un rodeo: aqui no hay ninguna
         // politica de redondeo que decidir, y escribir una la habria decidido por descuido.
         return new Medida(tolerancia.magnitud().divide(METROS_POR_GRADO), GRADOS);
+    }
+
+    /**
+     * Si {@link #METROS_POR_GRADO} vale en todo el rectangulo que se le da.
+     *
+     * <p>Decide sobre la latitud mas lejana del ecuador de las dos que el marco tiene: basta que un
+     * borde se salga para que el margen se quede corto en esa franja.
+     */
+    public static boolean cubre(MarcoGeografico marco) {
+        return latitudMasLejana(marco).compareTo(LATITUD_MAXIMA) <= 0;
+    }
+
+    /**
+     * Por que el corte va a proponer de menos en ese marco, o {@code null} si el supuesto vale.
+     *
+     * <p><b>Esto es lo que #29 le anadio a esta clase, y es la mitad que faltaba.</b> El limite
+     * estaba escrito y no lo consultaba nadie, asi que una instalacion fuera de la banda habria
+     * derivado frentes de menos <b>sin ningun sintoma</b>: un frente que no se propone es
+     * indistinguible de un predio que no da a la calle, y sobre el se determina un arbitrio en otro
+     * sistema. Ahora la derivacion lo pregunta una vez por corrida y lo dice.
+     *
+     * <p>Es un aviso y no una excepcion a proposito: lo que sale del corte dentro de la banda sigue
+     * siendo correcto, y negarse a derivar dejaria a esa municipalidad sin ni un frente en vez de
+     * con los que si salen. Lo que no puede es callarse.
+     */
+    public static @Nullable String avisoSiNoCubre(MarcoGeografico marco) {
+        if (cubre(marco)) {
+            return null;
+        }
+        return "El padron llega a la latitud "
+                + latitudMasLejana(marco).toPlainString()
+                + " grados y el margen del marco solo cubre hasta "
+                + LATITUD_MAXIMA.toPlainString()
+                + " (MargenDelMarco): mas alla, un grado de longitud mide menos de "
+                + METROS_POR_GRADO.toPlainString()
+                + " m, el marco ensanchado se queda corto y el corte descarta vias que si bordean"
+                + " el lote ANTES de que el ST_DWithin las vea. Hay que recalcular la constante"
+                + " para esta latitud: un frente que no se propone es indistinguible de un predio"
+                + " que no da a la calle";
+    }
+
+    /** La latitud del marco mas lejana del ecuador, que es la que decide. */
+    private static BigDecimal latitudMasLejana(MarcoGeografico marco) {
+        return marco.sur().abs().max(marco.norte().abs());
     }
 }

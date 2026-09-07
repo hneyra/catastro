@@ -39,6 +39,21 @@ import org.junit.jupiter.api.Test;
  * lo que sale por HTTP, y las hace estructurales en vez de dejarlas colgando de una respuesta
  * concreta.
  *
+ * <h2>Las dos mitades del contraste, y por que hacen falta las dos (#29)</h2>
+ *
+ * <p>Un escaner puede fallar de dos maneras opuestas y ninguna prueba caza las dos. Puede <b>no
+ * encontrar el arbol</b> —un {@code glob} mal escrito, un modulo renombrado, un directorio de
+ * trabajo que no es el que se supone— y entonces «no hay hallazgos» es cierto sobre el conjunto
+ * vacio; eso lo caza {@link #seLeyoUnArbolDeVerdad}. Y puede <b>no reconocer el defecto</b> —una
+ * palabra mal escrita en la lista, un {@code contains} que se volvio {@code equals}— y entonces el
+ * recorrido lee los cuatrocientos archivos y no ve nada; eso lo caza {@link #laPruebaPuedeFallar},
+ * corriendo <b>el mismo recorrido y el mismo escaner</b> sobre una muestra que si lo nombra.
+ *
+ * <p><b>Hasta #29 la segunda no existia.</b> Lo que habia comparaba tres literales contra otro
+ * literal escrito dos lineas mas arriba: no llamaba al recorrido, no leia ningun archivo y no podia
+ * ponerse roja por ningun cambio en el escaner. Medido: con {@code /src/main/} cambiado por un
+ * segmento que no existe, aquella prueba pasaba en VERDE.
+ *
  * <h2>Lo que esta prueba NO puede ver, dicho antes de que alguien lo descubra</h2>
  *
  * <p>Un arbitrio determinado sin nombrar ningun servicio —una columna {@code importe_mensual} en
@@ -72,13 +87,93 @@ class CatastroNoNombraUnArbitrioTest {
     private static final List<String> VOCABULARIO_DEL_CALCULO =
             List.of("factor_de_barrido", "factorDeBarrido", "tarifa_de_arbitrio");
 
+    /**
+     * Donde vive la muestra que este escaner tiene que encontrar.
+     *
+     * <p><b>Fuera de {@code backend/}</b>, y no por gusto: el filtro que hay que ejercer es {@code
+     * /src/main/}, asi que la muestra esta bajo un {@code src/main/} suyo — y cualquier sitio bajo
+     * {@code backend/} la meteria en el recorrido de PRODUCCION de aqui abajo y en el de los cinco
+     * escaneres de {@code comun-verificaciones}, que recorren {@code backend/} buscando exactamente
+     * eso. La muestra pondria roja la guarda que existe para demostrar.
+     */
+    private static final String MUESTRA = "muestras/nombra-un-arbitrio";
+
     @Test
     @DisplayName(
             "ningun archivo de src/main nombra LIMPIEZA_PUBLICA, PARQUES_JARDINES ni SERENAZGO")
     void ningunArchivoNombraUnServicioDeArbitrio() throws IOException {
-        List<String> hallazgos = new ArrayList<>();
+        assertThat(hallazgosEn(archivosDeProduccion()))
+                .as(
+                        "ADR-0024: `catastro` aporta el insumo del arbitrio —los metros lineales de"
+                                + " frente— y NO lo determina. El nombre de un servicio a este lado es"
+                                + " la determinacion empezando a escribirse aqui, y acabaria en dos"
+                                + " sistemas calculando el mismo tributo con dos formulas que pueden"
+                                + " divergir")
+                .isEmpty();
+    }
 
-        for (Path archivo : archivosDeProduccion()) {
+    @Test
+    @DisplayName("y la prueba puede fallar: sobre la muestra, el MISMO recorrido la encuentra")
+    void laPruebaPuedeFallar() throws IOException {
+        // EL CONTRASTE, y corre el escaner de verdad (#29). Lo que se ejerce es la cadena entera
+        // —el recorrido con su filtro de rutas, la lectura del archivo y las seis palabras—, sobre
+        // un archivo de disco y no sobre una cadena escrita aqui. Romper `fuentesBajoMain` pone
+        // esto rojo; antes de #29 no lo ponia.
+        List<Path> muestra = fuentesBajoMain(RaizDelRepositorio.ruta().resolve(MUESTRA));
+
+        assertThat(muestra)
+                .as(
+                        "sin la muestra en «%s» este contraste se cumpliria solo, que es el defecto"
+                                + " que existe para atrapar",
+                        MUESTRA)
+                .hasSize(1);
+
+        List<String> hallazgos = hallazgosEn(muestra);
+
+        assertThat(hallazgos)
+                .as("las tres del enumerado de `rentas` mas las tres del vocabulario del calculo")
+                .hasSize(SERVICIOS_DE_ARBITRIO.size() + VOCABULARIO_DEL_CALCULO.size());
+        assertThat(hallazgos)
+                .as("y cada hallazgo nombra la ruta, que es lo que hace util al rojo de arriba")
+                .allMatch(hallazgo -> hallazgo.startsWith(MUESTRA + "/"));
+        for (String prohibido : SERVICIOS_DE_ARBITRIO) {
+            assertThat(hallazgos)
+                    .as("el escaner tiene que reconocer «%s»", prohibido)
+                    .anyMatch(hallazgo -> hallazgo.contains("«" + prohibido + "»"));
+        }
+        for (String prohibido : VOCABULARIO_DEL_CALCULO) {
+            assertThat(hallazgos)
+                    .as("y tambien «%s», que es como el defecto llega de verdad", prohibido)
+                    .anyMatch(hallazgo -> hallazgo.contains("«" + prohibido + "»"));
+        }
+    }
+
+    @Test
+    @DisplayName("y se leyo un arbol de verdad: hay archivos que revisar")
+    void seLeyoUnArbolDeVerdad() throws IOException {
+        // La otra mitad del contraste: si `archivosDeProduccion()` devolviera una lista vacia
+        // —porque cambio la disposicion de los modulos, o porque el directorio de trabajo del
+        // corredor no es el que se supone—, la primera prueba pasaria en verde sin haber mirado
+        // ni un byte.
+        assertThat(archivosDeProduccion())
+                .as("el recorrido tiene que encontrar el codigo de produccion y las migraciones")
+                .hasSizeGreaterThan(200);
+        assertThat(archivosDeProduccion().stream().map(CatastroNoNombraUnArbitrioTest::relativo))
+                .as("y entre ellos, la migracion del frente y el borde que lo publica")
+                .anyMatch(ruta -> ruta.endsWith("V10__buzon_del_territorio.sql"))
+                .anyMatch(ruta -> ruta.endsWith("FrenteController.java"));
+    }
+
+    /**
+     * EL ESCANER: las rutas que nombran algo prohibido, con que nombran.
+     *
+     * <p>Esta en un metodo y no dentro de la prueba porque el contraste lo ejerce con la muestra:
+     * dos copias del recorrido acabarian discrepando, y la que discrepara seria justo la que dice
+     * que no hay hallazgos.
+     */
+    private static List<String> hallazgosEn(List<Path> archivos) throws IOException {
+        List<String> hallazgos = new ArrayList<>();
+        for (Path archivo : archivos) {
             String contenido = Files.readString(archivo, StandardCharsets.UTF_8);
             for (String prohibido : SERVICIOS_DE_ARBITRIO) {
                 if (contenido.contains(prohibido)) {
@@ -92,52 +187,22 @@ class CatastroNoNombraUnArbitrioTest {
                 }
             }
         }
-
-        assertThat(hallazgos)
-                .as(
-                        "ADR-0024: `catastro` aporta el insumo del arbitrio —los metros lineales de"
-                                + " frente— y NO lo determina. El nombre de un servicio a este lado es"
-                                + " la determinacion empezando a escribirse aqui, y acabaria en dos"
-                                + " sistemas calculando el mismo tributo con dos formulas que pueden"
-                                + " divergir")
-                .isEmpty();
-    }
-
-    @Test
-    @DisplayName("y la prueba puede fallar: sobre un texto que si lo nombra, encuentra los tres")
-    void laPruebaPuedeFallar() {
-        // El contraste. Sin el, un recorrido que no leyera ningun archivo —un `glob` mal escrito,
-        // un modulo renombrado— pasaria en verde diciendo que no hay hallazgos, que es exactamente
-        // la forma en que esta clase dejaria de proteger nada.
-        String comoSeriaElDefecto =
-                "public enum Servicio { LIMPIEZA_PUBLICA, PARQUES_JARDINES, SERENAZGO }";
-
-        assertThat(SERVICIOS_DE_ARBITRIO)
-                .allMatch(comoSeriaElDefecto::contains)
-                .as("los tres nombres son los que hay que buscar")
-                .hasSize(3);
-    }
-
-    @Test
-    @DisplayName("y se leyo un arbol de verdad: hay archivos que revisar")
-    void seLeyoUnArbolDeVerdad() throws IOException {
-        // La otra mitad del contraste, y la que importa: si `archivosDeProduccion()` devolviera
-        // una lista vacia —porque cambio la disposicion de los modulos, o porque el directorio de
-        // trabajo del corredor no es el que se supone—, la primera prueba pasaria en verde sin
-        // haber mirado ni un byte.
-        assertThat(archivosDeProduccion())
-                .as("el recorrido tiene que encontrar el codigo de produccion y las migraciones")
-                .hasSizeGreaterThan(200);
-        assertThat(archivosDeProduccion().stream().map(CatastroNoNombraUnArbitrioTest::relativo))
-                .as("y entre ellos, la migracion del frente y el borde que lo publica")
-                .anyMatch(ruta -> ruta.endsWith("V10__buzon_del_territorio.sql"))
-                .anyMatch(ruta -> ruta.endsWith("FrenteController.java"));
+        return hallazgos;
     }
 
     /** Todo {@code .java} y {@code .sql} de {@code src/main}, en los once modulos. */
     private static List<Path> archivosDeProduccion() throws IOException {
-        Path backend = RaizDelRepositorio.ruta().resolve("backend");
-        try (Stream<Path> arbol = Files.walk(backend)) {
+        return fuentesBajoMain(RaizDelRepositorio.ruta().resolve("backend"));
+    }
+
+    /**
+     * EL RECORRIDO, con su filtro de rutas, sobre la raiz que se le de.
+     *
+     * <p>Recibe la raiz para que el contraste pueda ejercerlo <b>tal cual</b> sobre la muestra: si
+     * el filtro se rompe, las dos pruebas se ponen rojas y no solo la del arbol.
+     */
+    private static List<Path> fuentesBajoMain(Path raiz) throws IOException {
+        try (Stream<Path> arbol = Files.walk(raiz)) {
             return arbol.filter(Files::isRegularFile)
                     .filter(ruta -> ruta.toString().contains("/src/main/"))
                     .filter(ruta -> !ruta.toString().contains("/build/"))

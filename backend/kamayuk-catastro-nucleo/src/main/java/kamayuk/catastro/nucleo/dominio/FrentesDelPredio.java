@@ -31,6 +31,20 @@ public interface FrentesDelPredio {
     boolean existeElPredio(long predioId);
 
     /**
+     * El marco de lo que este padron tiene levantado, para saber si el corte vale aqui (#29).
+     *
+     * <p>Se pregunta <b>una vez por corrida</b> y no una por predio: lo que decide es la banda de
+     * latitud en la que {@link MargenDelMarco#METROS_POR_GRADO} vale, y esa es una propiedad del
+     * padron entero. Fuera de ella el marco ensanchado se queda corto y el corte descarta vias que
+     * si bordean el lote, <b>sin ningun sintoma</b>.
+     *
+     * <p>Devuelve {@link MarcoDeLoLevantado} y no cuatro numeros porque las dos ausencias se
+     * contestan igual y se arreglan distinto: «no hay ni un poligono cargado» —el estado de hoy en
+     * toda instalacion— y «lo levantado no encuadra».
+     */
+    MarcoDeLoLevantado marcoDelPadron();
+
+    /**
      * Los predios que el derivador tiene que recorrer, en orden de identificador.
      *
      * @param desde el ultimo identificador ya recorrido, para poder seguir donde se dejo

@@ -29,12 +29,16 @@ public class LecturaDelTerritorioParaPublicar {
     @Transactional(readOnly = true)
     public Territorio leer() {
         return new Territorio(
-                territorio.manzanas(), territorio.frentesPorPredio(), territorio.hallazgosFirmes());
+                territorio.manzanas(),
+                territorio.frentesPorPredio(),
+                territorio.hallazgosFirmes(),
+                territorio.hallazgosDejadosSinEfecto());
     }
 
     /** Lo que hay que publicar, ya leido. */
     public record Territorio(
             List<TerritorioParaPublicar.ManzanaDelTerritorio> manzanas,
             List<TerritorioParaPublicar.FrentesDeUnPredio> frentesPorPredio,
-            List<TerritorioParaPublicar.HallazgoFirme> hallazgosFirmes) {}
+            List<TerritorioParaPublicar.HallazgoFirme> hallazgosFirmes,
+            List<TerritorioParaPublicar.HallazgoDejadoSinEfecto> hallazgosDejadosSinEfecto) {}
 }

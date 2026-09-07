@@ -11,6 +11,7 @@ import java.util.Optional;
 import kamayuk.catastro.compartido.Pagina;
 import kamayuk.catastro.compartido.Paginacion;
 import kamayuk.catastro.dominio.AreaM2;
+import kamayuk.catastro.dominio.Observacion;
 import kamayuk.catastro.fiscalizacion.dominio.Acta;
 import kamayuk.catastro.fiscalizacion.dominio.Campania;
 import kamayuk.catastro.fiscalizacion.dominio.Candidato;
@@ -65,7 +66,7 @@ public class FiscalizacionRepositoryJdbc extends RepositorioJdbc
         implements FiscalizacionRepository {
 
     private static final String COLUMNAS_CAMPANIA =
-            "id, codigo, nombre, estado, inicio, fin, umbral";
+            "id, codigo, nombre, estado, inicio, fin, umbral, tope";
 
     private static final String COLUMNAS_CANDIDATO =
             "id, campania_id, predio_id, clase, origen, score, insumos::text AS insumos,"
@@ -74,7 +75,8 @@ public class FiscalizacionRepositoryJdbc extends RepositorioJdbc
 
     private static final String COLUMNAS_HALLAZGO =
             "id, candidato_id, clase, predio_id, ficha_id, area_de_la_ficha, area_verificada,"
-                    + " inspector, verificado_en, estado, ST_AsText(geometria) AS geometria_wkt";
+                    + " inspector, verificado_en, estado, motivo_anulacion, anulado_por,"
+                    + " anulado_en";
 
     /**
      * Los hallazgos de UN predio, con su campania y su acta (#17, AC-1 y AC-2).
@@ -110,7 +112,7 @@ public class FiscalizacionRepositoryJdbc extends RepositorioJdbc
     public static final String HALLAZGOS_DEL_PREDIO =
             "SELECT h.id, h.candidato_id, h.clase, h.predio_id, h.ficha_id, h.area_de_la_ficha,"
                     + " h.area_verificada, h.inspector, h.verificado_en, h.estado,"
-                    + " ST_AsText(h.geometria) AS geometria_wkt,"
+                    + " h.motivo_anulacion, h.anulado_por, h.anulado_en,"
                     + " c.campania_id, m.codigo AS campania_codigo,"
                     + " a.id AS acta_id, a.numero AS acta_numero, a.fecha AS acta_fecha,"
                     + " a.inspector AS acta_inspector, a.detalle AS acta_detalle"
@@ -143,39 +145,52 @@ public class FiscalizacionRepositoryJdbc extends RepositorioJdbc
     // ── Campania ───────────────────────────────────────────────────────
 
     @Override
-    public Campania guardar(Campania campania) {
-        return campania.esNueva() ? insertar(campania) : actualizar(campania);
+    public Campania guardar(Campania campania, Observacion observacion) {
+        return campania.esNueva()
+                ? insertar(campania, observacion)
+                : actualizar(campania, observacion);
     }
 
-    private Campania insertar(Campania campania) {
+    private Campania insertar(Campania campania, Observacion observacion) {
         Long id =
                 jdbc().sql(
                                 "INSERT INTO campania (municipalidad_id, codigo, nombre, estado,"
-                                        + " inicio, fin, umbral, observacion, usuario_registro)"
+                                        + " inicio, fin, umbral, tope, observacion,"
+                                        + " usuario_registro)"
                                         + " VALUES ("
                                         + MUNICIPALIDAD_ACTUAL
                                         + ", :codigo, :nombre, :estado, :inicio, :fin, :umbral,"
-                                        + " :observacion, :usuario) RETURNING id")
+                                        + " :tope, :observacion, :usuario) RETURNING id")
                         .param("codigo", campania.codigo())
                         .param("nombre", campania.nombre())
                         .param("estado", campania.estado().name())
                         .param("inicio", campania.inicio())
                         .param("fin", campania.fin())
                         .param("umbral", campania.umbral().valor())
-                        .param("observacion", "alta de campania")
+                        .param("tope", campania.tope())
+                        .param("observacion", observacion.texto())
                         .param("usuario", usuarioDelOrigen())
                         .query(Long.class)
                         .single();
         return conId(campania, id);
     }
 
-    private Campania actualizar(Campania campania) {
+    /**
+     * El nombre, el estado, el cierre —y la observacion del acto (#24, regla 10).
+     *
+     * <p>La columna se reescribe a proposito: la fila dice por que esta como esta AHORA, y el
+     * historico de como llego lo lleva la bitacora, que es donde no se pisa nada. Cerrar una
+     * campania es una modificacion y la regla 10 no distingue entre alta y modificacion.
+     */
+    private Campania actualizar(Campania campania, Observacion observacion) {
         jdbc().sql(
-                        "UPDATE campania SET nombre = :nombre, estado = :estado, fin = :fin"
+                        "UPDATE campania SET nombre = :nombre, estado = :estado, fin = :fin,"
+                                + " observacion = :observacion"
                                 + " WHERE id = :id")
                 .param("nombre", campania.nombre())
                 .param("estado", campania.estado().name())
                 .param("fin", campania.fin())
+                .param("observacion", observacion.texto())
                 .param("id", campania.id())
                 .update();
         return campania;
@@ -189,7 +204,8 @@ public class FiscalizacionRepositoryJdbc extends RepositorioJdbc
                 campania.estado(),
                 campania.inicio(),
                 campania.fin(),
-                campania.umbral());
+                campania.umbral(),
+                campania.tope());
     }
 
     @Override
@@ -211,11 +227,13 @@ public class FiscalizacionRepositoryJdbc extends RepositorioJdbc
     // ── Candidato ──────────────────────────────────────────────────────
 
     @Override
-    public Candidato guardar(Candidato candidato) {
-        return candidato.esNuevo() ? insertar(candidato) : actualizar(candidato);
+    public Candidato guardar(Candidato candidato, Observacion observacion) {
+        return candidato.esNuevo()
+                ? insertar(candidato, observacion)
+                : actualizar(candidato, observacion);
     }
 
-    private Candidato insertar(Candidato candidato) {
+    private Candidato insertar(Candidato candidato, Observacion observacion) {
         Long id =
                 jdbc().sql(
                                 "INSERT INTO candidato (municipalidad_id, campania_id, predio_id,"
@@ -236,7 +254,7 @@ public class FiscalizacionRepositoryJdbc extends RepositorioJdbc
                         .param("insumos", candidato.insumos())
                         .param("wkt", conSrid(candidato.geometria()))
                         .param("estado", candidato.estado().name())
-                        .param("observacion", "deteccion")
+                        .param("observacion", observacion.texto())
                         .param("usuario", usuarioDelOrigen())
                         .query(Long.class)
                         .single();
@@ -250,18 +268,19 @@ public class FiscalizacionRepositoryJdbc extends RepositorioJdbc
      * una compuerta no lo cambia. Si alguna vez hiciera falta corregirlo, seria otro candidato con
      * otro insumo — y contarlo como el mismo borraria uno de los dos de la tasa de descarte.
      */
-    private Candidato actualizar(Candidato candidato) {
+    private Candidato actualizar(Candidato candidato, Observacion observacion) {
         Candidato.Descarte descarte = candidato.descarte();
         jdbc().sql(
                         "UPDATE candidato SET estado = :estado, etapa_de_descarte = :etapa,"
                                 + " motivo_de_descarte = :motivo, descartado_por = :quien,"
-                                + " descartado_en = :cuando"
+                                + " descartado_en = :cuando, observacion = :observacion"
                                 + " WHERE id = :id")
                 .param("estado", candidato.estado().name())
                 .param("etapa", descarte == null ? null : descarte.etapa().name())
                 .param("motivo", descarte == null ? null : descarte.motivo())
                 .param("quien", descarte == null ? null : descarte.quien())
                 .param("cuando", descarte == null ? null : Timestamp.from(descarte.cuando()))
+                .param("observacion", observacion.texto())
                 .param("id", candidato.id())
                 .update();
         return candidato;
@@ -348,23 +367,23 @@ public class FiscalizacionRepositoryJdbc extends RepositorioJdbc
     // ── Hallazgo ───────────────────────────────────────────────────────
 
     @Override
-    public Hallazgo guardar(Hallazgo hallazgo) {
-        return hallazgo.esNuevo() ? insertar(hallazgo) : actualizar(hallazgo);
+    public Hallazgo guardar(Hallazgo hallazgo, Observacion observacion) {
+        return hallazgo.esNuevo()
+                ? insertar(hallazgo, observacion)
+                : actualizar(hallazgo, observacion);
     }
 
-    private Hallazgo insertar(Hallazgo hallazgo) {
+    private Hallazgo insertar(Hallazgo hallazgo, Observacion observacion) {
         Long id =
                 jdbc().sql(
                                 "INSERT INTO hallazgo (municipalidad_id, candidato_id, clase,"
                                         + " predio_id, ficha_id, area_de_la_ficha, area_verificada,"
-                                        + " inspector, verificado_en, estado, geometria,"
+                                        + " inspector, verificado_en, estado,"
                                         + " observacion, usuario_registro)"
                                         + " VALUES ("
                                         + MUNICIPALIDAD_ACTUAL
                                         + ", :candidato, :clase, :predio, :ficha, :areaFicha,"
                                         + " :areaVerificada, :inspector, :verificadoEn, :estado,"
-                                        + " CASE WHEN CAST(:wkt AS text) IS NULL THEN NULL"
-                                        + "      ELSE ST_GeogFromText(CAST(:wkt AS text)) END,"
                                         + " :observacion, :usuario) RETURNING id")
                         .param("candidato", hallazgo.candidatoId())
                         .param("clase", hallazgo.clase().name())
@@ -379,8 +398,7 @@ public class FiscalizacionRepositoryJdbc extends RepositorioJdbc
                         .param("inspector", hallazgo.inspector())
                         .param("verificadoEn", hallazgo.verificadoEn())
                         .param("estado", hallazgo.estado().name())
-                        .param("wkt", conSrid(hallazgo.geometria()))
-                        .param("observacion", "verificacion en campo")
+                        .param("observacion", observacion.texto())
                         .param("usuario", usuarioDelOrigen())
                         .query(Long.class)
                         .single();
@@ -388,15 +406,27 @@ public class FiscalizacionRepositoryJdbc extends RepositorioJdbc
     }
 
     /**
-     * Solo el estado.
+     * Solo el estado y el acto de anulacion.
      *
      * <p>Lo que el inspector verifico no se reescribe: dejar sin efecto un hallazgo es un acto
      * sobre el, no una correccion de lo que dijo. Corregir las dos areas aqui dejaria su acta —que
      * es inmutable— diciendo una cosa y la base otra.
+     *
+     * <p>La observacion se reescribe (#24, regla 10): anular es una modificacion, y la fila tiene
+     * que decir por que esta como esta ahora. El antes y el despues los guarda la bitacora.
      */
-    private Hallazgo actualizar(Hallazgo hallazgo) {
-        jdbc().sql("UPDATE hallazgo SET estado = :estado WHERE id = :id")
+    private Hallazgo actualizar(Hallazgo hallazgo, Observacion observacion) {
+        Hallazgo.Anulacion anulacion = hallazgo.anulacion();
+        jdbc().sql(
+                        "UPDATE hallazgo SET estado = :estado, motivo_anulacion = :motivo,"
+                                + " anulado_por = :quien, anulado_en = :cuando,"
+                                + " observacion = :observacion"
+                                + " WHERE id = :id")
                 .param("estado", hallazgo.estado().name())
+                .param("motivo", anulacion == null ? null : anulacion.motivo())
+                .param("quien", anulacion == null ? null : anulacion.quien())
+                .param("cuando", anulacion == null ? null : Timestamp.from(anulacion.cuando()))
+                .param("observacion", observacion.texto())
                 .param("id", hallazgo.id())
                 .update();
         return hallazgo;
@@ -414,7 +444,7 @@ public class FiscalizacionRepositoryJdbc extends RepositorioJdbc
                 hallazgo.inspector(),
                 hallazgo.verificadoEn(),
                 hallazgo.estado(),
-                hallazgo.geometria());
+                hallazgo.anulacion());
     }
 
     @Override
@@ -442,7 +472,7 @@ public class FiscalizacionRepositoryJdbc extends RepositorioJdbc
         return paginar(
                 "SELECT h.id, h.candidato_id, h.clase, h.predio_id, h.ficha_id,"
                         + " h.area_de_la_ficha, h.area_verificada, h.inspector, h.verificado_en,"
-                        + " h.estado, ST_AsText(h.geometria) AS geometria_wkt"
+                        + " h.estado, h.motivo_anulacion, h.anulado_por, h.anulado_en"
                         + desde,
                 "SELECT count(*)" + desde,
                 Map.of("campania", campaniaId),
@@ -490,7 +520,7 @@ public class FiscalizacionRepositoryJdbc extends RepositorioJdbc
     // ── Evidencia y acta: solo entran, nunca cambian ───────────────────
 
     @Override
-    public Evidencia guardar(Evidencia evidencia) {
+    public Evidencia guardar(Evidencia evidencia, Observacion observacion) {
         if (!evidencia.esNueva()) {
             throw new IllegalArgumentException(
                     "Una evidencia no se modifica: se hasheo en el dispositivo, y corregirla en el"
@@ -514,7 +544,7 @@ public class FiscalizacionRepositoryJdbc extends RepositorioJdbc
                         .param("capturado", Timestamp.from(evidencia.capturadoEn()))
                         .param("recibido", Timestamp.from(evidencia.recibidoEn()))
                         .param("dispositivo", evidencia.dispositivo())
-                        .param("observacion", "evidencia del hallazgo")
+                        .param("observacion", observacion.texto())
                         .param("usuario", usuarioDelOrigen())
                         .query(Long.class)
                         .single();
@@ -541,13 +571,41 @@ public class FiscalizacionRepositoryJdbc extends RepositorioJdbc
                 .list();
     }
 
+    /**
+     * El acta se inserta y nunca se modifica.
+     *
+     * <h2>Y lo que ocurre cuando esta equivocada, dicho como es (#23 AC-3)</h2>
+     *
+     * <p>El mensaje de abajo decia «se corrige dejando sin efecto su hallazgo y levantando otra», y
+     * <b>ese remedio no se puede recorrer</b>. El issue lo atribuia a una sola puerta —{@code
+     * hallazgo_candidato_uq} sin {@code WHERE estado = 'FIRME'}, o sea que tras anular el hallazgo
+     * hace falta un candidato nuevo—, y midiendolo hay <b>dos, y la segunda es de dominio</b>:
+     * {@code EstadoDelCandidato.esTerminal()} incluye {@code VERIFICADO_EN_CAMPO} y {@code
+     * Candidato.verificadoEnCampo()} solo admite venir de {@code ADMITIDO_EN_GABINETE}. De modo que
+     * hacer parcial el indice <b>no basta</b>: haria falta ademas devolver el candidato a la cola.
+     *
+     * <p>Y devolverlo contradice un motivo ya escrito, que es de ADR-0035 punto 5 y esta en {@code
+     * EstadoDelCandidato}: «si la brigada vuelve y encuentra otra cosa, eso es otro candidato con
+     * otro insumo — y contarlo como el mismo borraria uno de los dos descartes de la tasa». La tasa
+     * de descarte por etapa es el unico indicador honesto de si el umbral sirve, y reutilizar un
+     * candidato para un segundo hallazgo la falsea.
+     *
+     * <p><b>Asi que lo que se corrige es la frase, y no el motor.</b> Lo que de verdad ocurre: el
+     * acta equivocada <b>se queda</b> —es inmutable, y {@code V9} le revoca el {@code UPDATE}—, su
+     * hallazgo <b>se deja sin efecto</b> con su motivo, quien y cuando (#23), y con eso ese
+     * hallazgo deja de habilitar nada y su retractacion viaja al consumidor. Levantar OTRA acta
+     * sobre el mismo predio exige otro hallazgo, y otro hallazgo exige otro candidato: o sea, otra
+     * deteccion. No es gratis y por eso se dice, en vez de prometer un atajo que el motor rechaza.
+     */
     @Override
-    public Acta guardar(Acta acta) {
+    public Acta guardar(Acta acta, Observacion observacion) {
         if (!acta.esNueva()) {
             throw new IllegalArgumentException(
                     "Un acta no se modifica: el administrado se lleva el papel, y editarla dejaria"
-                            + " al papel y al sistema diciendo cosas distintas. Se corrige dejando"
-                            + " sin efecto su hallazgo y levantando otra");
+                            + " al papel y al sistema diciendo cosas distintas. Lo que se hace es"
+                            + " dejar sin efecto su hallazgo —el acta se queda donde esta— y, si"
+                            + " hace falta otra, detectar de nuevo: un candidato verificado no"
+                            + " vuelve a la cola (ADR-0035 punto 5)");
         }
         Long id =
                 jdbc().sql(
@@ -562,7 +620,7 @@ public class FiscalizacionRepositoryJdbc extends RepositorioJdbc
                         .param("fecha", acta.fecha())
                         .param("inspector", acta.inspector())
                         .param("detalle", acta.detalle())
-                        .param("observacion", "acta del hallazgo")
+                        .param("observacion", observacion.texto())
                         .param("usuario", usuarioDelOrigen())
                         .query(Long.class)
                         .single();
@@ -593,7 +651,8 @@ public class FiscalizacionRepositoryJdbc extends RepositorioJdbc
                 EstadoDeCampania.valueOf(fila.getString("estado")),
                 fila.getObject("inicio", java.time.LocalDate.class),
                 fila.getObject("fin", java.time.LocalDate.class),
-                new Score(fila.getBigDecimal("umbral")));
+                new Score(fila.getBigDecimal("umbral")),
+                fila.getInt("tope"));
     }
 
     private static Candidato mapearCandidato(ResultSet fila, int numero) throws SQLException {
@@ -632,7 +691,23 @@ public class FiscalizacionRepositoryJdbc extends RepositorioJdbc
                 fila.getString("inspector"),
                 fila.getObject("verificado_en", java.time.LocalDate.class),
                 EstadoDelHallazgo.valueOf(fila.getString("estado")),
-                fila.getString("geometria_wkt"));
+                anulacionDe(fila));
+    }
+
+    /**
+     * El acto de anulacion, o nulo si el hallazgo sigue firme.
+     *
+     * <p>Se decide por el motivo y no por el estado: {@code hallazgo_anulacion_check} de {@code
+     * V12} ata las dos cosas, asi que preguntar por la columna que la fila tiene o no tiene es
+     * preguntar por lo mismo, y no obliga a este mapeador a repetir la regla.
+     */
+    private static Hallazgo.@Nullable Anulacion anulacionDe(ResultSet fila) throws SQLException {
+        String motivo = fila.getString("motivo_anulacion");
+        if (motivo == null) {
+            return null;
+        }
+        return new Hallazgo.Anulacion(
+                motivo, fila.getString("anulado_por"), instanteDe(fila, "anulado_en"));
     }
 
     private static Evidencia mapearEvidencia(ResultSet fila, int numero) throws SQLException {
@@ -669,9 +744,34 @@ public class FiscalizacionRepositoryJdbc extends RepositorioJdbc
         return fila.wasNull() ? null : valor;
     }
 
-    private static Instant instanteDe(ResultSet fila, String columna) throws SQLException {
+    /**
+     * Un instante que la fila tiene que traer, y que si no trae se DICE (#24, AC-4).
+     *
+     * <p>Devolvia {@link Instant#EPOCH} cuando la columna venia nula, y un {@code capturado_en} de
+     * 1970-01-01 en una evidencia es una fecha <b>plausible y falsa</b>: la evidencia existe para
+     * ser auditable, y una fecha inventada es peor que ninguna porque nadie la va a mirar dos
+     * veces. Hoy los {@code CHECK} de {@code V9} hacen este camino inalcanzable —las cinco columnas
+     * de instante son {@code NOT NULL}—, asi que lanzar aqui no cambia ninguna respuesta; lo que
+     * cambia es el dia que una migracion afloje una de ellas.
+     *
+     * <p><b>Visible para la prueba, y hay que decir por que.</b> Ninguna consulta de esta clase
+     * puede traer ese nulo mientras los {@code CHECK} esten puestos, asi que la unica forma de
+     * ejercer la decision es entregarle una fila que SI lo traiga. {@code InstanteDeLaFilaTest} lo
+     * hace con un {@code ResultSet} de PostgreSQL de verdad —{@code SELECT NULL::timestamptz}— y no
+     * con un doble: lo que se mide es como se comporta este metodo ante la fila, no ante una
+     * imitacion suya.
+     */
+    static Instant instanteDe(ResultSet fila, String columna) throws SQLException {
         Timestamp momento = fila.getTimestamp(columna);
-        return momento == null ? Instant.EPOCH : momento.toInstant();
+        if (momento == null) {
+            throw new IllegalStateException(
+                    "La columna '"
+                            + columna
+                            + "' vino nula y esta fila necesita su instante: devolver 1970-01-01"
+                            + " seria una fecha plausible y falsa en un registro que existe para"
+                            + " ser auditable (#24)");
+        }
+        return momento.toInstant();
     }
 
     /**

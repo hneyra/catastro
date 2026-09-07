@@ -79,13 +79,26 @@ public class PublicacionDelTerritorio {
             }
         }
 
+        // La retractacion va DESPUES del hallazgo firme, y el orden importa: son dos hechos del
+        // mismo hallazgo y el receptor los aplica en el orden en que salen del buzon. Publicar
+        // primero la retractacion dejaria al consumidor retirando algo que todavia no tiene.
+        int retractacionesNuevas = 0;
+        for (TerritorioParaPublicar.HallazgoDejadoSinEfecto retractado :
+                territorio.hallazgosDejadosSinEfecto()) {
+            if (esNuevo(componedor.delHallazgoDejadoSinEfecto(retractado))) {
+                retractacionesNuevas++;
+            }
+        }
+
         return new Informe(
                 territorio.manzanas().size(),
                 manzanasNuevas,
                 territorio.frentesPorPredio().size(),
                 frentesNuevos,
                 territorio.hallazgosFirmes().size(),
-                hallazgosNuevos);
+                hallazgosNuevos,
+                territorio.hallazgosDejadosSinEfecto().size(),
+                retractacionesNuevas);
     }
 
     private boolean esNuevo(HechoDeCatastro hecho) {
@@ -104,5 +117,7 @@ public class PublicacionDelTerritorio {
             int prediosConFrentes,
             int frentesNuevos,
             int hallazgosFirmes,
-            int hallazgosNuevos) {}
+            int hallazgosNuevos,
+            int hallazgosDejadosSinEfecto,
+            int retractacionesNuevas) {}
 }

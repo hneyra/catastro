@@ -50,7 +50,7 @@ public class VerificarEnGabinete {
     @Transactional
     public Candidato admitir(long candidatoId, Observacion observacion) {
         Candidato anterior = leer(candidatoId);
-        Candidato admitido = repositorio.guardar(anterior.admitidoEnGabinete());
+        Candidato admitido = repositorio.guardar(anterior.admitidoEnGabinete(), observacion);
         asentar(anterior, admitido, observacion);
         return admitido;
     }
@@ -73,7 +73,8 @@ public class VerificarEnGabinete {
                                 EtapaDeVerificacion.GABINETE,
                                 motivo,
                                 usuarioDelActo(),
-                                reloj.instant()));
+                                reloj.instant()),
+                        observacion);
         asentar(anterior, descartado, observacion);
         return descartado;
     }

@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Optional;
 import kamayuk.catastro.compartido.Pagina;
 import kamayuk.catastro.compartido.Paginacion;
+import kamayuk.catastro.dominio.Observacion;
 import kamayuk.catastro.fiscalizacion.dominio.Acta;
 import kamayuk.catastro.fiscalizacion.dominio.Campania;
 import kamayuk.catastro.fiscalizacion.dominio.Candidato;
@@ -41,7 +42,7 @@ final class FiscalizacionEnMemoria implements FiscalizacionRepository {
     private long siguienteId = 1;
 
     @Override
-    public Campania guardar(Campania campania) {
+    public Campania guardar(Campania campania, Observacion observacion) {
         long id = campania.esNueva() ? siguienteId++ : campania.id();
         Campania guardada =
                 new Campania(
@@ -51,7 +52,8 @@ final class FiscalizacionEnMemoria implements FiscalizacionRepository {
                         campania.estado(),
                         campania.inicio(),
                         campania.fin(),
-                        campania.umbral());
+                        campania.umbral(),
+                        campania.tope());
         campanias.put(id, guardada);
         return guardada;
     }
@@ -67,7 +69,7 @@ final class FiscalizacionEnMemoria implements FiscalizacionRepository {
     }
 
     @Override
-    public Candidato guardar(Candidato candidato) {
+    public Candidato guardar(Candidato candidato, Observacion observacion) {
         long id = candidato.esNuevo() ? siguienteId++ : candidato.id();
         Candidato guardado =
                 new Candidato(
@@ -121,7 +123,7 @@ final class FiscalizacionEnMemoria implements FiscalizacionRepository {
     }
 
     @Override
-    public Hallazgo guardar(Hallazgo hallazgo) {
+    public Hallazgo guardar(Hallazgo hallazgo, Observacion observacion) {
         long id = hallazgo.esNuevo() ? siguienteId++ : hallazgo.id();
         Hallazgo guardado =
                 new Hallazgo(
@@ -135,7 +137,7 @@ final class FiscalizacionEnMemoria implements FiscalizacionRepository {
                         hallazgo.inspector(),
                         hallazgo.verificadoEn(),
                         hallazgo.estado(),
-                        hallazgo.geometria());
+                        hallazgo.anulacion());
         hallazgos.put(id, guardado);
         return guardado;
     }
@@ -184,7 +186,7 @@ final class FiscalizacionEnMemoria implements FiscalizacionRepository {
     }
 
     @Override
-    public Evidencia guardar(Evidencia evidencia) {
+    public Evidencia guardar(Evidencia evidencia, Observacion observacion) {
         boolean repetida =
                 evidencias.values().stream()
                         .anyMatch(otra -> otra.huella().equals(evidencia.huella()));
@@ -213,7 +215,7 @@ final class FiscalizacionEnMemoria implements FiscalizacionRepository {
     }
 
     @Override
-    public Acta guardar(Acta acta) {
+    public Acta guardar(Acta acta, Observacion observacion) {
         boolean repetida =
                 actas.values().stream()
                         .anyMatch(

@@ -59,9 +59,9 @@ public record HechoDeCatastro(
                             + " con predio "
                             + predioId
                             + ". Un cierre de corrida y una manzana no hablan de ningun predio; la"
-                            + " proyeccion, la valuacion y el frente si; y un hallazgo firme admite"
-                            + " las dos cosas, porque un OMISO_CATASTRAL es —por definicion— lo que"
-                            + " no tiene predio (ADR-0035)");
+                            + " proyeccion, la valuacion y el frente si; y un hallazgo —firme o"
+                            + " dejado sin efecto— admite las dos cosas, porque un OMISO_CATASTRAL"
+                            + " es —por definicion— lo que no tiene predio (ADR-0035)");
         }
     }
 
@@ -81,7 +81,7 @@ public record HechoDeCatastro(
         return switch (tipo) {
             case PREDIO_PROYECTADO, VALUACION_PUBLICADA, FRENTE_PUBLICADO -> predioId != null;
             case CORRIDA_CERRADA, MANZANA_PUBLICADA -> predioId == null;
-            case HALLAZGO_FIRME -> true;
+            case HALLAZGO_FIRME, HALLAZGO_DEJADO_SIN_EFECTO -> true;
         };
     }
 }

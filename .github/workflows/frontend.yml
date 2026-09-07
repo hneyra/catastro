@@ -77,6 +77,33 @@
 # repositorio, y por eso `backend/**` entra en los caminos que disparan el flujo
 # —una ruta que se renombra alli tiene que ponerse roja aqui—.
 #
+# <h2>Por que los recorridos no duermen un plazo fijo</h2>
+#
+# Porque medirlo dijo que era casi todo lo que el job hacia. Instrumentados los
+# cuatro que recorren pantallas —`mirar`, `impedimentos`, `sin-red` y `errores`—
+# antes de tocar nada: **240,5 s de esperas fijas sobre 252,9 s, el 95 %**, y las
+# 222 navegaciones que se proponia ahorrar reutilizando cargas de pagina suman
+# **2,7 s: el 1,1 %**. Asi que lo que se arregla es la espera, no la navegacion.
+#
+# `verificaciones/reposo.mjs` cambia «duerme N» por «espera HASTA N a que la
+# pantalla deje de cambiar», con el plazo de antes como TOPE —el peor caso es el
+# de antes, y ningun runner lento empeora—. La condicion **no es la afirmacion**:
+# es que el texto de `body` no cambie y que no quede ninguna peticion en vuelo,
+# nunca que salga el titulo o la cifra que despues se comprueba.
+#
+# `networkidle` no vale aqui y esta medido: el proxy de datos **sustituye**
+# `fetch` y contesta desde la propia pagina con 120-320 ms de latencia simulada,
+# asi que Chromium declara la red en reposo mientras las lecturas siguen en
+# curso, y las hojas maestro-detalle encadenan una lectura tras otra.
+#
+# Y lo que impide que esto pierda una afirmacion son **los contadores que cada
+# arnes publica**: 51 pantallas, 48 controles impedidos, 965 controles a 1 440 px,
+# 397 secciones plegadas, 60 renders. Leer antes de tiempo los baja —medido:
+# quitandole a `impedimentos` la espera entera corre en 1,1 s y dice **360
+# controles en vez de 965, en verde**—, y por eso se comparan en cada revision.
+# La otra mitad la cubre una guarda: una espera que vuelve antes de poder haber
+# observado un solo intervalo de quietud saca el arnes con **2**, no con 0.
+#
 # <h2>Por que el job de navegador se cronometra a si mismo</h2>
 #
 # Porque `timeout-minutes` no es un presupuesto sino una guillotina: solo se
@@ -181,10 +208,22 @@ jobs:
     runs-on: ubuntu-latest
     # Este numero NO es decorativo y no se sube para ganar meses: es el
     # presupuesto que el primer y el ultimo paso del job miden contra el reloj.
-    # Baja de 15 a 10 porque el job paso de 785 s a ~240 s al arreglar el
+    # Bajo de 15 a 10 porque el job paso de 785 s a ~240 s al arreglar el
     # recorrido de `sin-red` (#66), y un tope tres veces mayor que la duracion
     # real no avisa de nada: la alarma solo sonaria despues de una regresion del
     # 200 %.
+    #
+    # Con #86 el job baja de 356 s a 218 s —36 % de este tope— y **el 10 se
+    # queda**, con su aritmetica y no por inercia. Lo que decide si una alarma
+    # sirve no es cuantas veces cabe la duracion actual sino **cuantas pantallas
+    # faltan para que suene**, y esa pendiente es lo que #86 cambio: medida en
+    # esta misma corrida, una pantalla nueva cuesta 1,5 s en los tres recorridos
+    # (25+19+31 s / 51) y una superficie de error 5,0 s (50 s / 10), contra los
+    # 6,6 s por pantalla de antes. Asi que los 142 s que quedan hasta el aviso
+    # —el 60 % son 360 s— son ~95 pantallas o ~28 superficies de error, cuando
+    # en la corrida anterior eran **4 s: media pantalla**. Bajarlo ahora se
+    # gastaria en la alarma justo el margen que este trabajo existe para dar a
+    # los cinco issues de pantalla en cola.
     timeout-minutes: 10
     defaults:
       run:

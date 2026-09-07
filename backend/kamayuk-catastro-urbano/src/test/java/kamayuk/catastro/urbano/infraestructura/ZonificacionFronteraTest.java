@@ -88,6 +88,19 @@ class ZonificacionFronteraTest {
             "MULTIPOLYGON(((-80.52 -5.28,-80.519 -5.28,-80.519 -5.279,-80.52 -5.279,"
                     + "-80.52 -5.28)))";
 
+    /**
+     * A caballo de la arista {@code -80.60}, que es la que comparten las dos zonas.
+     *
+     * <p>Simetrico a proposito: su {@code ST_PointOnSurface} cae <b>justo encima</b> de la
+     * frontera. Es el unico estado en que dos zonas pueden cubrir el mismo punto sin violar ninguna
+     * de las dos restricciones del esquema —{@code zonificacion_planes_no_se_pisan} de {@code V7} y
+     * {@code zonas_del_plan_no_se_pisan} de {@code V11}—, porque ser VECINAS es legitimo y es como
+     * se dibuja un plan.
+     */
+    private static final String LOTE_SOBRE_LA_ARISTA =
+            "MULTIPOLYGON(((-80.605 -5.28,-80.595 -5.28,-80.595 -5.279,-80.605 -5.279,"
+                    + "-80.605 -5.28)))";
+
     /** Fuera de las dos zonas: el predio tiene poligono y ningun plan lo cubre. */
     private static final String LOTE_FUERA =
             "MULTIPOLYGON(((-79.10 -5.28,-79.099 -5.28,-79.099 -5.279,-79.10 -5.279,"
@@ -111,6 +124,7 @@ class ZonificacionFronteraTest {
     private static long predioAlOeste;
     private static long predioAlEste;
     private static long predioFuera;
+    private static long predioSobreLaArista;
     private static long predioSinGeometria;
     private static long predioDeLaVecina;
     private static MockMvc mvc;
@@ -250,6 +264,42 @@ class ZonificacionFronteraTest {
     }
 
     @Test
+    @DisplayName("#22 — el lote a caballo de la arista es un HALLAZGO (409), no una zona elegida")
+    void elLoteSobreLaAristaEsUnHallazgo() throws Exception {
+        MvcResult respuesta =
+                mvc.perform(get(RUTA).param("predioId", Long.toString(predioSobreLaArista)))
+                        .andReturn();
+
+        assertThat(respuesta.getResponse().getStatus())
+                .as(
+                        "no es 200 con una de las dos: con «LIMIT 1» y sin «ORDER BY» la que salia"
+                                + " la elegia el plan de ejecucion, y de esa respuesta cuelga si una"
+                                + " licencia se concede o se niega")
+                .isEqualTo(409);
+        assertThat(respuesta.getResponse().getContentAsString())
+                .as("y nombra LAS DOS, que es lo unico con lo que se corrige el plan")
+                .contains("RDM")
+                .contains("CZ");
+    }
+
+    @Test
+    @DisplayName("#22 (AC-3) — y no es un 404: ese suelo SI esta cubierto, por dos zonas")
+    void elLoteSobreLaAristaNoEsUn404() throws Exception {
+        // La mitad que mide lo que ST_Contains hacia. Medido contra PostGIS 3.4.2: el punto
+        // representativo de este lote es POINT(-80.6 -5.2795), o sea exactamente la arista, y
+        // `ST_Contains` es FALSO en la frontera —en las dos zonas—. Con el, este predio recibia
+        // «Ningun plan de zonificacion vigente cubre el predio» sobre un suelo que dos planes
+        // cubren, y quien lo leyera iria a aprobar una zonificacion que ya existe.
+        MvcResult respuesta =
+                mvc.perform(get(RUTA).param("predioId", Long.toString(predioSobreLaArista)))
+                        .andReturn();
+
+        assertThat(respuesta.getResponse().getStatus()).isNotEqualTo(404);
+        assertThat(respuesta.getResponse().getContentAsString())
+                .doesNotContain("Ningun plan de zonificacion vigente");
+    }
+
+    @Test
     @DisplayName(
             "ADR-0034 regla 2: la consulta usa el indice del marco y no un recorrido del padron")
     void elMarcoLlegaAlIndice() throws Exception {
@@ -343,6 +393,7 @@ class ZonificacionFronteraTest {
             long alEste = predio(app, muni, viaId, sufijo + "2", LOTE_AL_ESTE);
             long fuera = predio(app, muni, viaId, sufijo + "3", LOTE_FUERA);
             long sinPlano = predio(app, muni, viaId, sufijo + "4", null);
+            long sobreLaArista = predio(app, muni, viaId, sufijo + "5", LOTE_SOBRE_LA_ARISTA);
             app.commit();
 
             if ("A".equals(sufijo)) {
@@ -350,6 +401,7 @@ class ZonificacionFronteraTest {
                 predioAlEste = alEste;
                 predioFuera = fuera;
                 predioSinGeometria = sinPlano;
+                predioSobreLaArista = sobreLaArista;
             } else {
                 predioDeLaVecina = alOeste;
             }

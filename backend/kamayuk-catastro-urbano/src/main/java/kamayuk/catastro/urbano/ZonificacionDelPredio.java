@@ -1,6 +1,7 @@
 package kamayuk.catastro.urbano;
 
 import java.time.LocalDate;
+import java.util.List;
 
 /**
  * A que zona cae un predio, a una fecha (#4).
@@ -26,6 +27,7 @@ public interface ZonificacionDelPredio {
      * @throws PredioInexistente si ese predio no esta en el padron de esta municipalidad
      * @throws PredioSinGeometria si el predio existe y no tiene poligono
      * @throws SinZonaVigente si el predio tiene poligono y ningun plan vigente a esa fecha lo cubre
+     * @throws ZonaAmbigua si mas de una zona vigente lo cubre, que es un hallazgo y no una zona
      */
     ZonaVigente zonaDe(long predioId, LocalDate aLaFecha);
 
@@ -54,6 +56,36 @@ public interface ZonificacionDelPredio {
                             + predioId
                             + " no tiene poligono cargado, asi que no se puede decir a que zona"
                             + " cae. Se carga con el plano catastral (ADR-0021)");
+        }
+    }
+
+    /**
+     * Mas de una zona vigente cubre el punto interior del lote, y eso <b>se informa</b> (#22).
+     *
+     * <p>No se elige una. La consulta cerraba con {@code LIMIT 1} y sin {@code ORDER BY}, asi que
+     * la zona que salia la decidia el plan de ejecucion y podia cambiar entre corridas sobre los
+     * mismos datos — y de esa respuesta cuelga si una licencia se concede o se niega. El javadoc de
+     * la propia consulta ya prometia lo contrario: «cuando el lote cruza dos zonas lo que hay es un
+     * hallazgo que se informa, no una respuesta que el sistema se inventa».
+     *
+     * <p>Los dos codigos van <b>dentro del mensaje</b> porque son lo unico con lo que se corrige:
+     * quien lo reciba tiene que saber que dos filas del plan se pisan. Desde {@code V11} el motor
+     * lo impide al cargar, asi que esto solo puede venir de datos anteriores a esa migracion o de
+     * dos zonas de PLANES distintos que el otro camino admite.
+     */
+    final class ZonaAmbigua extends RuntimeException {
+        @java.io.Serial private static final long serialVersionUID = 1L;
+
+        public ZonaAmbigua(long predioId, LocalDate aLaFecha, List<String> codigos) {
+            super(
+                    "El predio "
+                            + predioId
+                            + " cae en mas de una zona vigente al "
+                            + aLaFecha
+                            + " ("
+                            + String.join(", ", codigos)
+                            + "), asi que «la zona de este predio» no tiene una respuesta. Es un"
+                            + " hallazgo del plan de zonificacion y se corrige en el, no aqui");
         }
     }
 

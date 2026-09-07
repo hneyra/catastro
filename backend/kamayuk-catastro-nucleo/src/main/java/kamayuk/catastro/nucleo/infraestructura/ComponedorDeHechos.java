@@ -310,6 +310,47 @@ public class ComponedorDeHechos {
                 huella);
     }
 
+    /**
+     * La retractacion de un hallazgo ya publicado (#23 AC-4).
+     *
+     * <p>Derivada de la IDENTIDAD, como el hallazgo firme y por el mismo motivo: retractar lo
+     * firmado es otro acto firmado, y que la misma identidad vuelva con otro motivo es alguien
+     * cambiando la retractacion que hubo — y el buzon lo para.
+     *
+     * <p>La huella entra igual que en los demas, aunque la identidad no salga de ella: es lo que
+     * permite al buzon distinguir «este hecho ya lo mande» de «alguien esta reescribiendo un hecho
+     * firmado».
+     */
+    public HechoDeCatastro delHallazgoDejadoSinEfecto(
+            TerritorioParaPublicar.HallazgoDejadoSinEfecto retractado) {
+        String huella =
+                HuellaDelHecho.deLosCampos(
+                        java.util.Arrays.asList(
+                                String.valueOf(retractado.hallazgoId()),
+                                retractado.predioId() == null
+                                        ? null
+                                        : String.valueOf(retractado.predioId()),
+                                retractado.clase(),
+                                retractado.motivo(),
+                                retractado.anuladoPor(),
+                                retractado.anuladoEn().toString()));
+        return new HechoDeCatastro(
+                IdentidadDelEvento.deUnHallazgoDejadoSinEfecto(
+                        municipalidad(), retractado.hallazgoId()),
+                TipoDeEventoDeCatastro.HALLAZGO_DEJADO_SIN_EFECTO,
+                retractado.predioId(),
+                null,
+                escribir(
+                        new ContratoDeEventos.HallazgoDejadoSinEfecto(
+                                retractado.hallazgoId(),
+                                retractado.predioId(),
+                                retractado.clase(),
+                                retractado.motivo(),
+                                retractado.anuladoPor(),
+                                retractado.anuladoEn().toString())),
+                huella);
+    }
+
     private static @Nullable String importe(@Nullable Dinero dinero) {
         return dinero == null ? null : dinero.valor().toPlainString();
     }

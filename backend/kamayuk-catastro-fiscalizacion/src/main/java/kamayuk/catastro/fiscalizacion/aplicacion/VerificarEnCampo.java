@@ -14,7 +14,6 @@ import kamayuk.catastro.fiscalizacion.dominio.EtapaDeVerificacion;
 import kamayuk.catastro.fiscalizacion.dominio.FiscalizacionRepository;
 import kamayuk.catastro.fiscalizacion.dominio.Hallazgo;
 import kamayuk.catastro.nucleo.LectorDeFichas;
-import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -73,27 +72,23 @@ public class VerificarEnCampo {
      * acto, no dos (regla 10).
      *
      * @param areaVerificada lo que la brigada midio
-     * @param geometria el poligono levantado en campo, en WKT; nulo si no se levanto ninguno
      * @throws Candidato.TransicionQueNoExiste si el candidato no paso antes por gabinete
      */
     @Transactional
     public Hallazgo confirmar(
-            long candidatoId,
-            AreaM2 areaVerificada,
-            String inspector,
-            @Nullable String geometria,
-            Observacion observacion) {
+            long candidatoId, AreaM2 areaVerificada, String inspector, Observacion observacion) {
 
         Candidato anterior = leer(candidatoId);
-        Candidato verificado = repositorio.guardar(anterior.verificadoEnCampo());
+        Candidato verificado = repositorio.guardar(anterior.verificadoEnCampo(), observacion);
         LocalDate hoy = LocalDate.now(reloj);
 
         Hallazgo hallazgo =
                 repositorio.guardar(
                         anterior.clase() == ClaseDeHallazgo.SUBVALUADOR
-                                ? deSubvaluador(anterior, areaVerificada, inspector, geometria, hoy)
+                                ? deSubvaluador(anterior, areaVerificada, inspector, hoy)
                                 : Hallazgo.deOmisoCatastral(
-                                        idDe(anterior), areaVerificada, inspector, hoy, geometria));
+                                        idDe(anterior), areaVerificada, inspector, hoy),
+                        observacion);
 
         asentarCandidato(anterior, verificado, observacion, hoy);
         auditoria.registrar(
@@ -123,7 +118,8 @@ public class VerificarEnCampo {
                                 EtapaDeVerificacion.CAMPO,
                                 motivo,
                                 kamayuk.catastro.auditoria.OrigenContext.actual().usuario(),
-                                reloj.instant()));
+                                reloj.instant()),
+                        observacion);
         asentarCandidato(anterior, descartado, observacion, LocalDate.now(reloj));
         return descartado;
     }
@@ -137,11 +133,7 @@ public class VerificarEnCampo {
      * /catastro/vias}.
      */
     private Hallazgo deSubvaluador(
-            Candidato candidato,
-            AreaM2 areaVerificada,
-            String inspector,
-            @Nullable String geometria,
-            LocalDate hoy) {
+            Candidato candidato, AreaM2 areaVerificada, String inspector, LocalDate hoy) {
 
         long predioId =
                 Objects.requireNonNull(
@@ -154,14 +146,7 @@ public class VerificarEnCampo {
                         .orElseThrow(() -> new PredioSinFichaQueContrastar(predioId, hoy));
 
         return Hallazgo.deSubvaluador(
-                idDe(candidato),
-                predioId,
-                fichaId,
-                areaDeLaFicha,
-                areaVerificada,
-                inspector,
-                hoy,
-                geometria);
+                idDe(candidato), predioId, fichaId, areaDeLaFicha, areaVerificada, inspector, hoy);
     }
 
     private Candidato leer(long candidatoId) {

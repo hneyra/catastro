@@ -19,7 +19,6 @@ import kamayuk.catastro.fiscalizacion.dominio.ClaseDeHallazgo;
 import kamayuk.catastro.fiscalizacion.dominio.ContrasteDeAreas;
 import kamayuk.catastro.fiscalizacion.dominio.EstadoDelCandidato;
 import kamayuk.catastro.fiscalizacion.dominio.Score;
-import kamayuk.catastro.fiscalizacion.dominio.Tolerancia;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,7 +34,9 @@ class DeteccionDeSubvaluadoresTest {
             Clock.fixed(Instant.parse("2026-09-05T12:00:00Z"), ZoneOffset.UTC);
     private static final Observacion OBSERVACION =
             Observacion.de("corrida de deteccion de la campania de prueba");
-    private static final Tolerancia DIEZ_POR_CIENTO = Tolerancia.de("0.10");
+
+    /** El tope que la campania de esta prueba declara. Ya no lo pone el borde (#25). */
+    private static final int TOPE = 500;
 
     private FiscalizacionEnMemoria repositorio;
     private List<RegistroDeAuditoria> bitacora;
@@ -51,7 +52,9 @@ class DeteccionDeSubvaluadoresTest {
                                 "CAM-2026",
                                 "Barrido de ortofoto 2026",
                                 java.time.LocalDate.now(RELOJ),
-                                Score.de("0.20")));
+                                Score.de("0.20"),
+                                TOPE),
+                        OBSERVACION);
         campaniaId = campania.id();
     }
 
@@ -59,7 +62,7 @@ class DeteccionDeSubvaluadoresTest {
     private static final AreasDelPadron SIN_CARTOGRAFIA =
             new AreasDelPadron() {
                 @Override
-                public List<ContrasteDeAreas> contrastar(Tolerancia tolerancia, int tope) {
+                public CruceDelPadron contrastar(Score umbral, int tope) {
                     throw new AreasDelPadron.SinCartografia();
                 }
 
@@ -70,18 +73,49 @@ class DeteccionDeSubvaluadoresTest {
                 }
             };
 
-    private static AreasDelPadron con(ContrasteDeAreas... contrastes) {
-        return new AreasDelPadron() {
-            @Override
-            public List<ContrasteDeAreas> contrastar(Tolerancia tolerancia, int tope) {
-                return List.of(contrastes);
-            }
+    /**
+     * Un padron que <b>aplica el umbral que le pidan</b>, y anota con que se lo pidieron.
+     *
+     * <p>Desde #25 el umbral se aplica en UN solo sitio —el {@code WHERE} del cruce— y el caso de
+     * uso no vuelve a filtrar. De modo que un doble que devolviera todo lo que le den mediria un
+     * filtro que ya no existe, y las pruebas de esta clase dirian que el umbral acota cuando quien
+     * acota es la base. Aqui el doble imita lo que el SQL hace —{@code >=}, que es {@link
+     * Score#alcanza}— y guarda lo que recibio, que es lo que esta capa SI puede afirmar: que el
+     * detector pide con las dos cifras de la campania y no con otras.
+     */
+    private static final class PadronQueAnotaLoQuePidieron implements AreasDelPadron {
 
-            @Override
-            public boolean estaEnElPadron(long predioId) {
-                return true;
-            }
-        };
+        private final List<ContrasteDeAreas> todos;
+        private Score umbralPedido;
+        private int topePedido;
+
+        PadronQueAnotaLoQuePidieron(ContrasteDeAreas... contrastes) {
+            this.todos = List.of(contrastes);
+        }
+
+        @Override
+        public CruceDelPadron contrastar(Score umbral, int tope) {
+            this.umbralPedido = umbral;
+            this.topePedido = tope;
+            List<ContrasteDeAreas> alcanzan =
+                    todos.stream()
+                            .filter(uno -> uno.diferenciaRelativa().alcanza(umbral))
+                            .limit(tope)
+                            .toList();
+            return new CruceDelPadron(
+                    alcanzan,
+                    new Cobertura(
+                            todos.size(), 0, 0, todos.size(), alcanzan.size(), alcanzan.size()));
+        }
+
+        @Override
+        public boolean estaEnElPadron(long predioId) {
+            return true;
+        }
+    }
+
+    private static PadronQueAnotaLoQuePidieron con(ContrasteDeAreas... contrastes) {
+        return new PadronQueAnotaLoQuePidieron(contrastes);
     }
 
     private static ContrasteDeAreas contraste(
@@ -106,7 +140,7 @@ class DeteccionDeSubvaluadoresTest {
     void sinPoligonosDiceQueNoPuede() {
         DetectarSubvaluadores detector = detectorCon(SIN_CARTOGRAFIA);
 
-        assertThatThrownBy(() -> detector.detectar(campaniaId, DIEZ_POR_CIENTO, 500, OBSERVACION))
+        assertThatThrownBy(() -> detector.detectar(campaniaId, OBSERVACION))
                 .as(
                         "una lista vacia se leeria como «no hay subvaluadores», que es"
                                 + " indistinguible de «no pude mirar» y que nadie va a revisar: la"
@@ -124,8 +158,7 @@ class DeteccionDeSubvaluadoresTest {
         DetectarSubvaluadores detector =
                 detectorCon(con(contraste(7L, 11L, "120.00", "180.00", "0.5000")));
 
-        List<Candidato> detectados =
-                detector.detectar(campaniaId, DIEZ_POR_CIENTO, 500, OBSERVACION);
+        List<Candidato> detectados = detector.detectar(campaniaId, OBSERVACION).candidatos();
 
         assertThat(detectados).hasSize(1);
         Candidato candidato = detectados.get(0);
@@ -149,21 +182,48 @@ class DeteccionDeSubvaluadoresTest {
     }
 
     @Test
-    @DisplayName("el umbral de la campania acota: lo que no lo alcanza no se escribe")
-    void elUmbralAcota() {
-        DetectarSubvaluadores detector =
-                detectorCon(
-                        con(
-                                contraste(7L, 11L, "120.00", "180.00", "0.5000"),
-                                contraste(8L, 12L, "120.00", "134.00", "0.1167")));
+    @DisplayName("pide el cruce con el umbral y el tope DE LA CAMPANIA, y con ningun otro (#25)")
+    void pideConElCriterioDeLaCampania() {
+        PadronQueAnotaLoQuePidieron padron =
+                con(
+                        contraste(7L, 11L, "120.00", "180.00", "0.5000"),
+                        contraste(8L, 12L, "120.00", "134.00", "0.1167"));
+        DetectarSubvaluadores detector = detectorCon(padron);
 
-        List<Candidato> detectados =
-                detector.detectar(campaniaId, DIEZ_POR_CIENTO, 500, OBSERVACION);
+        List<Candidato> detectados = detector.detectar(campaniaId, OBSERVACION).candidatos();
 
+        assertThat(padron.umbralPedido)
+                .as(
+                        "la cifra con la que se filtra es la que la campania guarda. Antes de #25"
+                                + " venia una `tolerancia` en el cuerpo de la peticion, y con"
+                                + " `tolerancia > umbral` esta columna decia un criterio que no fue"
+                                + " el que corrio")
+                .isEqualTo(Score.de("0.20"));
+        assertThat(padron.topePedido)
+                .as("y el tope tambien sale de la campania: antes eran 500 escritos en el borde")
+                .isEqualTo(TOPE);
         assertThat(detectados)
                 .as("el umbral de esta campania es 0,20 y el segundo contraste da 0,1167")
                 .hasSize(1);
         assertThat(detectados.get(0).predioId()).isEqualTo(7L);
+    }
+
+    @Test
+    @DisplayName("y el censo viaja con el resultado: «0 candidatos» dice de cuantos predios sale")
+    void elCensoViajaConElResultado() {
+        DetectarSubvaluadores detector =
+                detectorCon(con(contraste(7L, 11L, "120.00", "180.00", "0.5000")));
+
+        DetectarSubvaluadores.Deteccion deteccion = detector.detectar(campaniaId, OBSERVACION);
+
+        assertThat(deteccion.cobertura().contrastados())
+                .as(
+                        "sin esta cifra, «0 candidatos» y «0 candidatos entre las fichas que miro»"
+                                + " se leen igual, y la segunda cierra una campania afirmando que"
+                                + " el padron esta bien")
+                .isEqualTo(1);
+        assertThat(deteccion.cobertura().superanElUmbral()).isEqualTo(1);
+        assertThat(deteccion.cobertura().truncadosPorElTope()).isZero();
     }
 
     @Test
@@ -175,7 +235,7 @@ class DeteccionDeSubvaluadoresTest {
                                 contraste(7L, 11L, "120.00", "180.00", "0.5000"),
                                 contraste(8L, 12L, "100.00", "160.00", "0.6000")));
 
-        detector.detectar(campaniaId, DIEZ_POR_CIENTO, 500, OBSERVACION);
+        detector.detectar(campaniaId, OBSERVACION);
 
         assertThat(bitacora)
                 .as("es UN acto con una observacion, no N filas identicas salvo la clave")
@@ -183,7 +243,9 @@ class DeteccionDeSubvaluadoresTest {
         assertThat(bitacora.get(0).datosNuevos())
                 .contains("\"contrastados\":2")
                 .contains("\"detectados\":2")
-                .contains("\"tolerancia\":0.10");
+                .as("el criterio que se asienta es el de la campania, y son las DOS cifras (#25)")
+                .contains("\"umbral\":0.20")
+                .contains("\"tope\":500");
         assertThat(bitacora.get(0).observacion()).isEqualTo(OBSERVACION);
     }
 
@@ -199,12 +261,14 @@ class DeteccionDeSubvaluadoresTest {
                         kamayuk.catastro.fiscalizacion.dominio.EstadoDeCampania.CERRADA,
                         abierta.inicio(),
                         abierta.inicio(),
-                        abierta.umbral()));
+                        abierta.umbral(),
+                        abierta.tope()),
+                OBSERVACION);
 
         DetectarSubvaluadores detector =
                 detectorCon(con(contraste(7L, 11L, "120.00", "180.00", "0.5000")));
 
-        assertThatThrownBy(() -> detector.detectar(campaniaId, DIEZ_POR_CIENTO, 500, OBSERVACION))
+        assertThatThrownBy(() -> detector.detectar(campaniaId, OBSERVACION))
                 .isInstanceOf(DetectarSubvaluadores.CampaniaCerradaParaDetectar.class)
                 .hasMessageContaining("tasa de descarte que alguien ya pudo citar");
     }

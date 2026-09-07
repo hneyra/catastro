@@ -1,7 +1,5 @@
 package kamayuk.catastro.fiscalizacion.dominio;
 
-import java.util.List;
-
 /**
  * El contraste entre lo que la ficha dice y lo que el poligono mide (AC 8 de #6, ADR-0021).
  *
@@ -33,17 +31,71 @@ import java.util.List;
 public interface AreasDelPadron {
 
     /**
-     * Los predios cuya area inscrita difiere de la del poligono por encima de la tolerancia.
+     * Los predios cuya area inscrita <b>alcanza</b> el umbral de diferencia, y el censo de lo que
+     * se miro (#25).
      *
      * <p>El area del poligono se calcula <b>solo para comparar</b> y no se escribe en ninguna
      * parte: derivarla cambiaria el autovaluo de todo el padron sin que nadie lo decidiera, y un
      * area es indistinguible de otra al leerla (ADR-0021).
      *
-     * @param tolerancia cuanto se admite que difieran sin sospechar; ver {@link Tolerancia}
-     * @param tope cuantos como mucho; una campania no se lanza sobre el padron entero de una vez
+     * <p><b>El umbral es el de la campania y no hay ningun segundo filtro</b> (#25 AC-1). Hasta #25
+     * el {@code WHERE} usaba una {@code tolerancia} que venia en el cuerpo de la peticion y el caso
+     * de uso volvia a filtrar por el umbral guardado: con {@code tolerancia > umbral} el segundo no
+     * quitaba nada y la fila de la campania decia un criterio que no fue el que corrio. Ahora la
+     * cifra es una, y la comparacion es la que {@link Score#alcanza} define —{@code &gt;=}, o sea
+     * que alcanzar el umbral basta—: con {@code &gt;} estricto, el predio que difiere
+     * <b>exactamente</b> lo que la campania declaro sospechoso se caeria del cruce sin que nada lo
+     * dijera.
+     *
+     * @param umbral la diferencia relativa que hace sospechar; la declara la campania
+     * @param tope cuantos como mucho; lo declara la campania, y queda en su fila
      * @throws SinCartografia si la municipalidad no tiene ni un predio con geometria
      */
-    List<ContrasteDeAreas> contrastar(Tolerancia tolerancia, int tope);
+    CruceDelPadron contrastar(Score umbral, int tope);
+
+    /**
+     * Lo que devuelve el cruce: los contrastes <b>y de que universo salen</b> (#25 AC-3).
+     *
+     * <p>Sin el censo, «0 candidatos» y «0 candidatos entre las fichas que miro» se leen igual, y
+     * la segunda es la que cierra una campania diciendo que el padron esta bien. Es el criterio de
+     * {@link SinCartografia} un escalon mas abajo: alli no se puede mirar nada, y aqui se mira una
+     * parte.
+     */
+    record CruceDelPadron(java.util.List<ContrasteDeAreas> contrastes, Cobertura cobertura) {
+
+        public CruceDelPadron {
+            contrastes = java.util.List.copyOf(contrastes);
+            java.util.Objects.requireNonNull(cobertura, "El cruce dice de que universo sale");
+        }
+    }
+
+    /**
+     * De cuantos predios salio el cruce, y cuantos se quedaron fuera y por que.
+     *
+     * <p>Las cifras se cuentan <b>en la base</b> y no sobre la lista devuelta: la lista viene
+     * truncada por el tope, asi que contarla diria cuantos cupieron y no cuantos hay.
+     *
+     * @param prediosActivos los predios ACTIVOS de la municipalidad
+     * @param sinGeometria cuantos de ellos no tienen poligono, asi que no hay con que contrastar
+     * @param sinFichaVigente cuantos tienen poligono y ninguna ficha vigente con area mayor que
+     *     cero — de cualquiera de las cuatro clases
+     * @param contrastados cuantos se llegaron a comparar
+     * @param superanElUmbral cuantos de los comparados alcanzan el umbral, ANTES del tope
+     * @param devueltos cuantos caben en el tope de la campania
+     */
+    record Cobertura(
+            long prediosActivos,
+            long sinGeometria,
+            long sinFichaVigente,
+            long contrastados,
+            long superanElUmbral,
+            long devueltos) {
+
+        /** Los que alcanzaban el umbral y no cupieron: el tope los dejo fuera. */
+        public long truncadosPorElTope() {
+            return superanElUmbral - devueltos;
+        }
+    }
 
     /**
      * Si el predio esta en el padron de esta municipalidad (#17, AC-3).

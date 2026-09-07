@@ -87,7 +87,8 @@ public class RegistrarEvidencia {
                                     ruta,
                                     capturadoEn,
                                     reloj.instant(),
-                                    dispositivo));
+                                    dispositivo),
+                            observacion);
         } catch (DuplicateKeyException repetida) {
             throw new HuellaRepetida(huella);
         }

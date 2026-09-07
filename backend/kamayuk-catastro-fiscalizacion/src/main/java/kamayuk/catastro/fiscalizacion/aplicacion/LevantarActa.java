@@ -79,7 +79,8 @@ public class LevantarActa {
             acta =
                     repositorio.guardar(
                             Acta.nueva(
-                                    numero, hallazgoId, LocalDate.now(reloj), inspector, detalle));
+                                    numero, hallazgoId, LocalDate.now(reloj), inspector, detalle),
+                            observacion);
         } catch (DuplicateKeyException repetida) {
             throw new ActaRepetida(numero, hallazgoId);
         }

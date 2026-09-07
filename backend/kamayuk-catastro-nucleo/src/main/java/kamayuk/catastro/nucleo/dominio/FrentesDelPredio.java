@@ -47,10 +47,37 @@ public interface FrentesDelPredio {
     /**
      * Los predios que el derivador tiene que recorrer, en orden de identificador.
      *
-     * @param desde el ultimo identificador ya recorrido, para poder seguir donde se dejo
-     * @param tope cuantos como mucho
+     * <p><b>Solo los ACTIVOS</b> (#26, AC-3): un predio dado de baja ya no esta en el padron y no
+     * hay nada que explicar sobre el. Los que <b>no tienen poligono si se recorren</b>, y no es un
+     * descuido: ese predio tiene algo que explicar y lo explica su fila de {@link
+     * DerivacionDeFrentes} —filtrandolo, «no hay cartografia» se convertiria en «nunca se ha
+     * derivado»—. El motivo entero, con su medida, en el adaptador JDBC.
+     *
+     * @param desde el ultimo identificador ya recorrido, para poder seguir donde se dejo. Se
+     *     <b>respeta</b>: un adaptador que lo ignore deja el recorrido sin poder avanzar, y {@code
+     *     DerivacionDeLosFrentes} lo dice en vez de quedarse en un bucle
+     * @param tamanoDelLote cuantos como mucho. Es el tamano de la pagina, no un techo de la corrida
      */
-    List<Long> prediosPorDerivar(long desde, int tope);
+    List<Long> prediosPorDerivar(long desde, int tamanoDelLote);
+
+    /**
+     * Cuantos predios va a recorrer el derivador: el denominador del informe (#26, AC-2).
+     *
+     * <p>Cuenta <b>exactamente el mismo conjunto</b> que pagina {@link #prediosPorDerivar}, y el
+     * adaptador lo escribe con el mismo fragmento de SQL a proposito: con dos predicados escritos
+     * por separado, el denominador podria decir una cosa y el recorrido otra, y entonces «se agoto
+     * el padron» dejaria de significar nada.
+     */
+    int cuantosPrediosPorDerivar();
+
+    /**
+     * Un frente por su identificador, o vacio si no esta en el padron de esta municipalidad.
+     *
+     * <p>Existe porque confirmar necesita saber <b>que habia antes</b> (#26, AC-5): {@link
+     * #confirmar} devuelve el frente YA confirmado, asi que despues del acto la longitud anterior
+     * no esta en ninguna parte —la tabla la pisa y la bitacora no la nombraba—.
+     */
+    Optional<FrenteDelPredio> unFrente(long frenteId);
 
     /**
      * Corta el lote contra el eje de calzada de las vias que lo bordean, y propone un tramo por
@@ -88,12 +115,44 @@ public interface FrentesDelPredio {
     /**
      * Confirma la longitud de un frente: el acto que la vuelve oficial (regla 10, ADR-0021).
      *
+     * <p><b>Solo alcanza a un frente PROPUESTA</b> (#26, AC-4), y lo decide el {@code WHERE} del
+     * {@code UPDATE} y no un {@code if} del llamador: dos confirmaciones simultaneas leerian las
+     * dos «esta propuesta» y las dos escribirian. Rectificar una longitud ya confirmada es OTRO
+     * acto —con su motivo y con la anterior recuperable— y hoy no existe.
+     *
      * @param longitud la que se afirma, que <b>no</b> tiene por que ser la propuesta: lo normal es
      *     que alguien haya ido con la cinta
      * @throws FrenteInexistente si ese frente no esta en el padron de esta municipalidad
+     * @throws LongitudYaConfirmada si su longitud ya la firmo alguien
      */
     FrenteDelPredio confirmar(
             long frenteId, Medida longitud, Observacion observacion, Instant cuando);
+
+    /**
+     * Ese frente ya tiene su longitud confirmada, y una segunda confirmacion la pisaria (#26).
+     *
+     * <p>De esta cifra cuelga un cobro, y un metro es indistinguible de otro al leerlo: sustituir
+     * en silencio la que alguien firmo cambia la base de los arbitrios de ese predio sin que nadie
+     * lo decida y sin dejar rastro del valor anterior. Lleva dentro <b>lo que hay</b> —cuanto y
+     * quien— para que quien reciba el rechazo no tenga que ir a buscarlo.
+     */
+    final class LongitudYaConfirmada extends RuntimeException {
+
+        @java.io.Serial private static final long serialVersionUID = 1L;
+
+        public LongitudYaConfirmada(long frenteId, Medida longitud, String confirmadoPor) {
+            super(
+                    "El frente "
+                            + frenteId
+                            + " ya tiene su longitud CONFIRMADA en "
+                            + longitud
+                            + ", y la firmo "
+                            + confirmadoPor
+                            + ": confirmarla otra vez la pisaria sin dejar rastro de la anterior."
+                            + " Rectificar una longitud confirmada es otro acto —con su motivo—, y"
+                            + " hoy no existe");
+        }
+    }
 
     /** No hay tal frente en esta municipalidad. */
     final class FrenteInexistente extends RuntimeException {

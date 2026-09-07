@@ -217,6 +217,35 @@ class FrenteControllerTest {
         assertThat(respuesta.getResponse().getStatus()).isEqualTo(404);
     }
 
+    @Test
+    @DisplayName("#26 — confirmar una longitud YA confirmada contesta 409, y dice cuanto hay")
+    void confirmarLoYaConfirmadoEs409() throws Exception {
+        confirmacion.lanza(
+                new FrentesDelPredio.LongitudYaConfirmada(
+                        9L, Medida.enMetrosLineales("18.50"), "tecnico.catastro"));
+
+        MvcResult respuesta =
+                mvc.perform(
+                                post(RUTA + "/9/confirmacion")
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content(
+                                                "{\"longitud\":\"99.00\",\"observacion\":\"Otra"
+                                                        + " vez\"}"))
+                        .andReturn();
+
+        assertThat(respuesta.getResponse().getStatus())
+                .as(
+                        "409 y no 422: no hay ningun campo de la peticion que corregir, y no 200,"
+                                + " que es lo que contestaba mientras el UPDATE alcanzaba a"
+                                + " cualquier frente — pisando en silencio la cifra de la que"
+                                + " cuelga un cobro")
+                .isEqualTo(409);
+        assertThat(respuesta.getResponse().getContentAsString())
+                .as("y dice lo que hay, para que quien lo reciba no tenga que ir a buscarlo")
+                .contains("18.50")
+                .contains("tecnico.catastro");
+    }
+
     private static FrenteDelPredio unFrente(
             EstadoDeLaLongitud estado, String quien, Instant cuando) {
         return new FrenteDelPredio(

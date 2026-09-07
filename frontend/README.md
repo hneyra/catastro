@@ -41,6 +41,13 @@ yarn sin-red    # compila CON EL PROXY APAGADO, corta la red y comprueba que
                 # QUÉ ruta no pudieron leer—
 yarn impedimentos # ningún control apagado sin decir por qué
 yarn paleta     # la paleta de comandos se opera sólo con el teclado
+yarn ejercicios # el desplegable de ejercicios sale del RELOJ, y se mide
+                # MOVIÉNDOLO: fija el reloj del navegador en dos años que no son
+                # éste y comprueba qué años ofrece, cuál enseña elegido y —lo que
+                # de verdad manda— cuál VIAJA en `?ejercicio=` a los tres cuadros.
+                # Sin mover el reloj no mide nada, y sale con 2 si detecta que no
+                # se movió: los cuatro literales que #48 quitó coincidían hoy con
+                # el reloj letra por letra
 yarn imagen     # los dos archivos que deciden CÓMO SE SIRVE: levanta `nginx.conf`
                 # sobre la base del `Dockerfile` y pregunta POR HTTP si las tres
                 # cabeceras de seguridad llegan en cada ruta —`add_header` no se
@@ -49,7 +56,7 @@ yarn imagen     # los dos archivos que deciden CÓMO SE SIRVE: levanta `nginx.co
                 # construcción
 ```
 
-`mirar`, `impedimentos`, `paleta` y `errores` necesitan una vista previa levantada; si no está en el 5190, se le dice con
+`mirar`, `impedimentos`, `paleta`, `errores` y `ejercicios` necesitan una vista previa levantada; si no está en el 5190, se le dice con
 `CATASTRO_BASE=http://localhost:5210 yarn mirar`. `sin-red` **levanta la suya**, y hace falta:
 la bandera del proxy la resuelve Vite al compilar, así que correrlo contra otra vista previa
 mediría el paquete equivocado. `imagen` necesita **Docker**, y sin Docker **sale con 2, no se
@@ -77,13 +84,14 @@ src/
     Shell.tsx     barra global · panel · pestañas · barra de título · paleta
     modulos.ts    el registro de los seis módulos y sus dieciséis hojas
     ruta.ts       `#/<modulo>/<destino>/<sujeto>?<filtros>`
+    ejercicios.ts qué años ofrece la barra global, derivados del reloj (#48)
   ds/             El sistema de diseño del artboard
     tokens/       colores, tipografía y medidas, con sus valores literales
     fuentes/      Source Sans 3, auto-hospedada
   modulos/<k>/    Un módulo por carpeta
     catastro/AltaDeFicha.tsx   el asistente de seis pasos: la ÚNICA escritura
-verificaciones/   Los diez arneses, sus vistas y las muestras que violan cada regla
-                  Nueve miran `src/`; `imagen.mjs` mira los dos archivos que deciden
+verificaciones/   Los once arneses, sus vistas y las muestras que violan cada regla
+                  Diez miran `src/`; `imagen.mjs` mira los dos archivos que deciden
                   cómo se sirve: `nginx.conf` y `Dockerfile`
 ```
 
@@ -118,6 +126,18 @@ un defecto de esta interfaz no puede filtrar entre municipalidades: no tiene por
 **Los importes son texto.** `Dinero`, `Alicuota`, `Porcentaje` y `AreaM2` viajan como cadena
 JSON con decimal plano. Se declaran `string` y se pintan como texto; pasarlos por `Number` para
 volver a formatearlos es como se pierde un decimal, y lo prohíbe ESLint.
+
+**Hay UN reloj, y está en `App.tsx`.** Los años del desplegable de la barra global eran cuatro
+literales congelados, y el 1 de enero de 2027 la interfaz se habría quedado sin poder elegir el
+año en curso —sin error, sin aviso, enseñando los cuadros del año anterior—. Se derivan del
+reloj (#48). La sexta regla de la casa dice «sin reloj» para las **reglas tributarias**, porque
+recalcular 2027 en 2037 debe dar el mismo céntimo; esto no calcula nada y no es una de ellas.
+El reloj se lee **una vez al montar** y las dos derivaciones —qué años se ofrecen y cuál viene
+elegido— salen del mismo instante; las funciones que las hacen (`shell/ejercicios.ts`) reciben
+la fecha y son puras, que es lo que permite que `yarn ejercicios` **mueva el reloj**. Y la lista
+sigue siendo una **suposición**: nadie le ha preguntado al backend qué ejercicios tienen conjunto
+sellado —esa lectura no existe y es **#51**—, así que elegir uno sin sellar da 404 con
+`parametroQueFalta`, que al menos se ve.
 
 ## Lo que esta interfaz NO hace, y lo dice en pantalla
 

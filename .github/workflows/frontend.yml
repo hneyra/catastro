@@ -29,6 +29,12 @@
 #      verde ante cualquier guarda que solo preguntara si sale un aviso: el
 #      primero ensenaba datos plausibles, el segundo un boton que parecia
 #      funcionar y el tercero un mensaje que parecia completo.
+#   8. `ejercicios` — el desplegable de la barra global sale del RELOJ, y se mide
+#      MOVIENDOLO. Es la unica forma de medirlo: los cuatro literales que #48
+#      quita coinciden hoy con el reloj letra por letra, asi que una guarda que
+#      pregunte «ofrece el ano en curso» pasa en verde con el defecto puesto
+#      —medido: verde—, y se pondria roja sola el 1 de enero, que es avisar
+#      cuando ya ha ocurrido.
 #
 # <h2>Por que `imagen` va en `verificar` y no en `navegador`</h2>
 #
@@ -196,6 +202,13 @@ jobs:
       # distinguen de las 26 que si pasan por `Fallo`.
       - name: Un 403, un 500 y un 422 producen pantallas distintas
         run: CATASTRO_BASE=http://localhost:5210 node verificaciones/errores.mjs
+
+      # Mueve el reloj del navegador a dos anos que no son este y mira que
+      # ofrece el desplegable y —sobre todo— que ano VIAJA en `?ejercicio=`. Sin
+      # mover el reloj no mide nada: los cuatro literales que #48 quita coinciden
+      # hoy con el, y el arnes sale con 2 si detecta que no se movio.
+      - name: El desplegable de ejercicios sale del reloj
+        run: CATASTRO_BASE=http://localhost:5210 node verificaciones/ejercicios.mjs
 
       # Compila su PROPIA vista previa con la bandera apagada y la sirve en otro
       # puerto: el proxy se apaga al compilar —Vite resuelve `import.meta.env`

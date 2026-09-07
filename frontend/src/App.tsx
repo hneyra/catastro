@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Shell } from './shell/Shell';
 import type { Pestania } from './shell/Shell';
+import { ejercicioEnCurso, ejerciciosOfrecidos } from './shell/ejercicios';
 import { DESTINO_INICIAL, destinoDe } from './shell/modulos';
 import { RUTA_VACIA, escribirRuta, leerRuta } from './shell/ruta';
 import type { Ruta } from './shell/ruta';
@@ -42,7 +43,18 @@ export default function App() {
     const inicial = resolver(leerRuta(window.location.hash));
     return [{ modulo: inicial.modulo, hoja: inicial.destino }];
   });
-  const [ejercicio, setEjercicio] = useState('2026');
+  /* El reloj entra AQUI, y es el unico de todo `src/`.
+     Una vez al montar y en un inicializador perezoso, no en medio de un render:
+     asi las dos derivaciones —que anos se ofrecen y cual viene elegido— salen
+     del MISMO instante. Con dos lecturas, a las 23:59:59 del 31 de diciembre la
+     lista podria ser la de un ano y el valor elegido el de otro, y un `<select>`
+     cuyo valor no case con ninguna opcion no ensena nada elegido ni avisa.
+     El porque de que se admita un reloj aqui —y por que no contradice la sexta
+     regla de la casa— esta escrito en `shell/ejercicios.ts`, junto con lo que
+     esta lista sigue suponiendo hasta que exista #51. */
+  const [hoy] = useState(() => new Date());
+  const ejercicios = useMemo(() => ejerciciosOfrecidos(hoy), [hoy]);
+  const [ejercicio, setEjercicio] = useState(() => ejercicioEnCurso(hoy));
 
   /* La barra del navegador es la fuente: se escucha `hashchange` y no se guarda
      una copia de la ruta en dos sitios. Con dos copias, ir «atras» deja la
@@ -168,6 +180,7 @@ export default function App() {
       ruta={ruta}
       entidad={ENTIDAD}
       ejercicio={ejercicio}
+      ejercicios={ejercicios}
       onEjercicio={setEjercicio}
       pestanas={pestanas}
       onIr={ir}

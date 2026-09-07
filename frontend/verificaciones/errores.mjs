@@ -56,6 +56,7 @@ import { leerModulo } from './registro.mjs';
 
 const { ErrorDeApi, RAIZ } = await leerModulo('src/api/cliente.ts', '.registro-errores-cliente');
 const { tituloDeError, motivoCorto } = await leerModulo('src/ds/componentes.tsx', '.registro-errores-ds');
+const { EJERCICIO } = await leerModulo('src/simulado/datos.ts', '.registro-errores-simulado');
 
 const BASE = process.env.CATASTRO_BASE ?? 'http://localhost:5190';
 
@@ -65,7 +66,27 @@ const BASE = process.env.CATASTRO_BASE ?? 'http://localhost:5190';
  * Es el de verdad: lo emite `LectorDeParametros.EjercicioSinSellar`, que es la
  * condicion permanente de este sistema y por tanto el rechazo que mas se ve.
  */
-const MENSAJE = 'El ejercicio 2026 no tiene un conjunto de parametros sellado';
+const MENSAJE = `El ejercicio ${EJERCICIO} no tiene un conjunto de parametros sellado`;
+
+/**
+ * El dia en que se mira, y sale del **unico ano que el proxy sella**.
+ *
+ * No es cosmetica y no estaba: desde #48 la barra global pide el ANO EN CURSO, asi que
+ * con el reloj de la maquina este arnes empezaria a pedir un ejercicio que el proxy no
+ * tiene, y **el 404 del cuadro taparia los seis rechazos que la superficie de aranceles
+ * existe para distinguir**. Medido poniendo el proxy a sellar otro ano: **21 problemas
+ * sobre 36 renders** —los 6 titulos mas sus 15 pares byte a byte, que es `C(6,2)`—, y
+ * sus mensajes mandan a mirar al sitio equivocado.
+ *
+ * Sin esto, el 1 de enero de 2027 el flujo bloqueante se pondria rojo **sin que nadie
+ * hubiera cambiado una linea**. Este arnes mide como se ven los rechazos, no el
+ * calendario: fijar su dia lo hace determinista sin darle un reloj al proxy, que
+ * declara por escrito que no lo tiene.
+ *
+ * Se deriva de `EJERCICIO` y no se escribe: dos sitios con el mismo ano volverian a
+ * separarse, que es de lo que trata #48.
+ */
+const EL_DIA = new Date(`${EJERCICIO}-06-15T12:00:00`);
 
 /**
  * Los seis desenlaces que esta interfaz tiene que saber separar.
@@ -270,6 +291,8 @@ for (const superficie of elegidas) {
     );
 
     const pagina = await contexto.newPage();
+    // Antes de navegar: la lista de ejercicios se deriva al montar la aplicacion.
+    await pagina.clock.setFixedTime(EL_DIA);
     await pagina.goto(`${BASE}/${superficie.hash}`, { waitUntil: 'domcontentloaded' });
     await pagina.waitForTimeout(1100);
     if (superficie.preparar) await superficie.preparar(pagina);

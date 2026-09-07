@@ -194,7 +194,11 @@ await contexto.addInitScript((raiz) => {
   const envolver = (delegar) => async (entrada, opciones) => {
     const href = typeof entrada === 'string' ? entrada : entrada instanceof URL ? entrada.href : entrada.url;
     const url = new URL(href, location.origin);
-    const metodo = (opciones?.method ?? (typeof entrada === 'object' && entrada.method) ?? 'GET').toUpperCase();
+    /* El metodo, sin `??` sobre un booleano: `false ?? 'GET'` vale `false` —el
+       operador solo cae con null o undefined— y `false.toUpperCase()` revienta.
+       Con `solicitar()` no pasa, porque siempre manda `method`; con cualquier
+       otro `fetch` de la pagina, si. */
+    const metodo = String(opciones?.method ?? (entrada instanceof Request ? entrada.method : 'GET')).toUpperCase();
     const inyectada = window.__inyeccion;
     const respuesta =
       inyectada && inyectada.metodo === metodo && url.pathname === raiz + inyectada.camino
@@ -692,7 +696,22 @@ if (fallos.length) {
   for (const f of fallos) console.error('  - ' + f + '\n');
 }
 
-if (cuerposMedidos === 0 || marcasComprobadas === 0 || cifrasComparadas === 0 || rechazosMedidos === 0) {
+/**
+ * Con un solo caso pedido no se exige el recorrido entero —seria imposible de
+ * cumplir—, pero si que ese caso EXISTA: un nombre que se quedo viejo dejaria el
+ * arnes recorriendo el conjunto vacio y saliendo con 0.
+ */
+if (soloActo) {
+  const conocido =
+    RECORRIDO.some((c) => c.k === soloActo) || RECHAZOS.some((c) => c.k === soloActo);
+  if (!conocido) {
+    console.error(
+      `\n«${soloActo}» no es ninguno de los casos de este arnes. Los hay: ` +
+        `${[...RECORRIDO, ...RECHAZOS].map((c) => c.k).join(', ')}.`,
+    );
+    process.exit(2);
+  }
+} else if (cuerposMedidos === 0 || marcasComprobadas === 0 || cifrasComparadas === 0 || rechazosMedidos === 0) {
   console.error(
     `\nY ademas: ${cuerposMedidos} cuerpo(s) capturados, ${marcasComprobadas} marca(s) comprobadas, ` +
       `${cifrasComparadas} cifra(s) comparadas y ${rechazosMedidos} rechazo(s) leidos.\n\n` +

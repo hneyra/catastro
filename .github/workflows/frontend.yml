@@ -29,7 +29,13 @@
 #      verde ante cualquier guarda que solo preguntara si sale un aviso: el
 #      primero ensenaba datos plausibles, el segundo un boton que parecia
 #      funcionar y el tercero un mensaje que parecia completo.
-#   8. `ejercicios` — el desplegable de la barra global sale del RELOJ, y se mide
+#   8. `transiciones` — cada fila de la cola de fiscalizacion ofrece EXACTAMENTE
+#      lo que su estado admite, y ni uno mas. El dominio ya impide el atajo, asi
+#      que ofrecerlo no rompe nada —el backend contesta 409— y por eso ningun
+#      otro arnes lo ve: `mirar` la ve llena, `impedimentos` ve botones
+#      habilitados, y `errores` mide rechazos que aqui no llegan a producirse.
+#      Ejecuta ademas un acto, porque comparar una cola en reposo se cumple sola.
+#   9. `ejercicios` — el desplegable de la barra global sale del RELOJ, y se mide
 #      MOVIENDOLO. Es la unica forma de medirlo: los cuatro literales que #48
 #      quita coinciden hoy con el reloj letra por letra, asi que una guarda que
 #      pregunte «ofrece el ano en curso» pasa en verde con el defecto puesto
@@ -248,6 +254,16 @@ jobs:
       # solo con `?historico=true`, que ninguna pantalla ensena.
       - name: La ficha dibuja lo que la respuesta trae, y dice lo que no existe
         run: CATASTRO_BASE=http://localhost:5210 node verificaciones/ficha.mjs
+
+      # Fila a fila: lo que la pantalla OFRECE contra lo que el estado de esa fila
+      # admite. El dominio ya impide el atajo —`Candidato.verificadoEnCampo()`
+      # exige venir de gabinete—, asi que ofrecerlo no rompe nada: contesta 409.
+      # Por eso no lo ve ningun otro arnes, y por eso hace falta este: una
+      # pantalla que ofrece un camino que no existe manda a concluir que el
+      # sistema esta roto. Y ejecuta un acto, porque con la cola congelada «lo
+      # ofrecido cuadra con el estado» se cumple sola para siempre.
+      - name: Cada fila ofrece lo que su estado admite, y el ciclo avanza
+        run: CATASTRO_BASE=http://localhost:5210 node verificaciones/transiciones.mjs
 
       # Compila su PROPIA vista previa con la bandera apagada y la sirve en otro
       # puerto: el proxy se apaga al compilar —Vite resuelve `import.meta.env`

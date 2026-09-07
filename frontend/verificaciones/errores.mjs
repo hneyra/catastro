@@ -57,6 +57,10 @@ import { leerModulo } from './registro.mjs';
 const { ErrorDeApi, RAIZ } = await leerModulo('src/api/cliente.ts', '.registro-errores-cliente');
 const { tituloDeError, motivoCorto } = await leerModulo('src/ds/componentes.tsx', '.registro-errores-ds');
 const { EJERCICIO } = await leerModulo('src/simulado/datos.ts', '.registro-errores-simulado');
+/* Los rotulos de los campos de fiscalizacion salen de `src/datos/`, que es donde
+   se escriben: con una copia aqui, renombrar un campo dejaria este arnes
+   rellenando un formulario que ya no existe y midiendo el error equivocado. */
+const { ACTOS, CAMPOS } = await leerModulo('src/datos/fiscalizacion.ts', '.registro-errores-fiscalizacion');
 
 const BASE = process.env.CATASTRO_BASE ?? 'http://localhost:5190';
 
@@ -208,6 +212,62 @@ const SUPERFICIES = [
     region: (pagina) => pagina.getByRole('region', { name: 'Lotes con poligono' }),
     detalle: 'una-linea',
   },
+  /**
+   * Las dos ESCRITURAS de #71, que no pasan por `<Lectura>` y no pueden.
+   *
+   * Una lectura fallida la dibuja `Fallo` porque `<Lectura>` la envuelve; una
+   * escritura no tiene envoltorio —no hay `useRecurso` detras de un `POST`—, asi
+   * que cada formulario decide por su cuenta que hace con el rechazo. Es
+   * exactamente la clase de superficie donde #49 encontro sus tres defectos, y
+   * en un modulo donde **los 409 son muchos y cada uno significa otra cosa**:
+   * campania ya abierta, ya cerrada, transicion que no existe, hallazgo ya sin
+   * efecto, huella repetida, acta repetida, sin las dos compuertas, predio sin
+   * ficha que contrastar. Si el mensaje del servidor no llega entero, los ocho
+   * se leen igual.
+   *
+   * Se eligen una de cada clase: la que **crea** —y por tanto es la unica del
+   * modulo que no cuelga de ningun sujeto— y la que **retira**, que ademas se
+   * confirma aparte y es la que mas cara sale de entender mal.
+   */
+  {
+    k: 'campania-al-abrirla',
+    que: 'El alta de una campania cuando `POST /fiscalizacion/campanias` la rechaza',
+    hash: '#/fiscalizacion/campanias?acto=abrirCampania',
+    /* Exacto: la lectura del embudo cuelga de la misma raiz —
+       `/fiscalizacion/campanias/{id}/tasa-de-descarte`— y romperla mediria otra
+       cosa, la `Lectura` que ya pasa por `Fallo`. */
+    rompe: { camino: '/fiscalizacion/campanias', exacto: true },
+    preparar: async (pagina) => {
+      const panel = elPanel(pagina, ACTOS.abrirCampania);
+      await panel.getByLabel(CAMPOS.codigo.rotulo).fill('CAM-2026-002');
+      await panel.getByLabel(CAMPOS.nombre.rotulo).fill('Barrido del cercado');
+      await panel.getByLabel(CAMPOS.umbral.rotulo).fill('0.20');
+      await panel.getByLabel(CAMPOS.tope.rotulo).fill('500');
+      await panel.getByLabel(CAMPOS.observacion.rotulo).fill('Se abre la campania del segundo semestre');
+      await panel.getByRole('button', { name: ACTOS.abrirCampania }).click();
+      await pagina.waitForTimeout(900);
+    },
+    region: (pagina) => elPanel(pagina, ACTOS.abrirCampania),
+    detalle: 'completo',
+  },
+  {
+    k: 'hallazgo-al-dejarlo-sin-efecto',
+    que: 'La anulacion de un hallazgo cuando `POST .../anulacion` la rechaza',
+    hash: '#/fiscalizacion/hallazgos/1?acto=dejarSinEfecto&hallazgo=1',
+    rompe: { camino: '/fiscalizacion/hallazgos/1/anulacion', exacto: true },
+    preparar: async (pagina) => {
+      const panel = elPanel(pagina, ACTOS.dejarSinEfecto);
+      await panel.getByLabel(CAMPOS.motivo.rotulo).fill('El techo resulto estar en el predio vecino');
+      await panel.getByLabel(CAMPOS.observacion.rotulo).fill('Se retira tras la segunda visita de campo');
+      /* Dos pulsaciones, que es lo que un acto irreversible exige: la primera
+         abre la confirmacion y la segunda la firma. */
+      await panel.getByRole('button', { name: ACTOS.dejarSinEfecto }).click();
+      await panel.getByRole('button', { name: 'Si, confirmar' }).click();
+      await pagina.waitForTimeout(900);
+    },
+    region: (pagina) => elPanel(pagina, ACTOS.dejarSinEfecto),
+    detalle: 'completo',
+  },
   {
     k: 'documento-de-la-ficha',
     que: 'La descarga de la ficha del contribuyente',
@@ -224,6 +284,20 @@ const SUPERFICIES = [
     detalle: 'completo',
   },
 ];
+
+/**
+ * El panel de un acto, por el titulo de su `Seccion`.
+ *
+ * Los formularios de fiscalizacion son secciones con su `h2`, y el rotulo del
+ * boton primario es el MISMO que el de la fila que lo abrio: sin acotar por la
+ * seccion, un `getByRole('button')` encontraria los dos y pulsaria el que no es.
+ */
+function elPanel(pagina, titulo) {
+  return pagina
+    .locator('section')
+    .filter({ has: pagina.getByRole('heading', { name: titulo }) })
+    .first();
+}
 
 const soloSuperficie = process.argv[2] ?? null;
 const elegidas = SUPERFICIES.filter((s) => !soloSuperficie || s.k === soloSuperficie);

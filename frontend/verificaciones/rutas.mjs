@@ -253,6 +253,50 @@ async function camposDelAltaEnElBackend(archivos) {
 }
 
 /**
+ * Los componentes de un `record` de cuerpo de peticion, por su nombre.
+ *
+ * Aparte de `camposDelAltaEnElBackend` porque busca en TODO el backend y no en
+ * un archivo conocido: los siete cuerpos de fiscalizacion viven dentro de
+ * `FiscalizacionCatastralController`, y el dia que se muden a su propio archivo
+ * esta lectura no tiene que enterarse. Se exige **exactamente un** archivo con
+ * ese `record`: con dos no se sabe cual es la fuente, y elegir uno seria
+ * comparar contra el que no toca.
+ *
+ * Devuelve el motivo en vez de lanzarlo, y por lo mismo que
+ * `enumeradoDelBackend`: los desenlaces que no son «lo lei» tienen que
+ * distinguirse, porque los tres dejan la comparacion sin sujeto y una
+ * comparacion sin sujeto pasa en verde.
+ */
+async function componentesDelRecord(archivos, nombre) {
+  if (!/^[A-Za-z_$][\w$]*$/.test(nombre)) {
+    return { componentes: null, problema: `«${nombre}» no es un nombre de clase de Java` };
+  }
+  const encontrados = [];
+  for (const camino of archivos) {
+    const fuente = soloElCodigo(await readFile(camino, 'utf8'));
+    const bloque = fuente.match(new RegExp(`record\\s+${nombre}\\(([\\s\\S]*?)\\)\\s*\\{`));
+    if (bloque) encontrados.push({ camino, cuerpo: bloque[1] });
+  }
+  if (encontrados.length === 0) {
+    return { componentes: null, problema: `«backend/» no declara ningun «record ${nombre}»` };
+  }
+  if (encontrados.length > 1) {
+    return {
+      componentes: null,
+      problema: `«backend/» declara ${encontrados.length} veces «record ${nombre}» y no se sabe cual es la fuente`,
+    };
+  }
+  const componentes = encontrados[0].cuerpo
+    .split(',')
+    .map((trozo) => trozo.trim().split(/\s+/).pop())
+    .filter((n) => /^[a-z][A-Za-z0-9]*$/.test(n ?? ''));
+  if (componentes.length === 0) {
+    return { componentes: null, problema: `«record ${nombre}» se leyo y no tiene ni un componente` };
+  }
+  return { componentes, problema: null };
+}
+
+/**
  * El fuente Java sin comentarios y con el contenido de las cadenas vaciado.
  *
  * Las dos cosas hacen falta antes de leer un enumerado, y por el mismo motivo:
@@ -768,6 +812,7 @@ if (camposComprobados === 0) {
  * deriva con un `filter`.
  */
 const listasDeLaApi = [];
+const cuerposDeEscritura = [];
 const pareosPorArchivo = new Map();
 for (const archivo of (await readdir(new URL('src/api/', RAIZ_DEL_FRONTEND).pathname))
   .filter((f) => f.endsWith('.ts'))
@@ -780,6 +825,9 @@ for (const archivo of (await readdir(new URL('src/api/', RAIZ_DEL_FRONTEND).path
     derivadas: modulo.LISTAS_DERIVADAS_DE_UN_ENUM ?? {},
     noDerivadas: modulo.LISTAS_QUE_NO_SALEN_DE_UN_ENUM ?? {},
   });
+  for (const [nombre, campos] of Object.entries(modulo.CUERPOS_DE_ESCRITURA ?? {})) {
+    cuerposDeEscritura.push({ archivo, nombre, campos });
+  }
   for (const [nombre, valor] of Object.entries(modulo)) {
     if (Array.isArray(valor)) listasDeLaApi.push({ archivo, nombre, valores: valor });
   }
@@ -893,6 +941,69 @@ for (const [archivo, { derivadas, noDerivadas }] of pareosPorArchivo) {
   }
 }
 
+/**
+ * 9. Cada cuerpo de escritura de `src/api/`, contra el `record` que lo recibe.
+ *
+ * <h2>Que existe para impedir, y por que el punto 4 no bastaba</h2>
+ *
+ * El punto 4 mide UN cuerpo —`PeticionDeAlta`— porque hasta #71 era la unica
+ * escritura de esta interfaz. Con las nueve operaciones de fiscalizacion son
+ * **ocho** cuerpos, y los siete nuevos tienen exactamente el mismo modo de
+ * fallo: el `@RequestBody` es una **lista blanca**, asi que un campo que el
+ * `record` no declare **se descarta aunque llegue en el JSON** y el servidor
+ * contesta que la operacion se hizo. No revienta al compilar —el tipo y la
+ * lista cuadran entre si por `LOS_CUERPOS_DE_ESCRITURA_CUADRAN`, y no hay con
+ * que compararlos—, no hay error de consola y no hay tipo que se queje: el dato
+ * simplemente no acaba en ningun sitio.
+ *
+ * <h2>Los dos sentidos, y por que uno es AVISO y el otro rojo</h2>
+ *
+ *   · **Un campo que esta aqui y no en el `record`** es el defecto: se descarta
+ *     en silencio. Rojo.
+ *   · **Un campo que el `record` declara y esta interfaz no manda** puede estar
+ *     decidido —el `dispositivo` de una evidencia es opcional, y el artboard no
+ *     dibuja ningun paso que recoja tal cosa—. No es un fallo y **tampoco se
+ *     calla**: se nombra, como ya se hace con `economico` y `bienesComunes`.
+ */
+let cuerposComprobados = 0;
+let camposDeCuerpoComprobados = 0;
+const cuerposSinMandar = [];
+if (cuerposDeEscritura.length === 0) {
+  fallos.push(
+    'Ningun modulo de «src/api/» exporta «CUERPOS_DE_ESCRITURA», asi que no se comparo ni un cuerpo de\n' +
+      '      escritura con su `record`: esta parte se estaria cumpliendo sola. Falla en vez de saltarsela,\n' +
+      '      porque el cuerpo de una peticion es una lista blanca y lo que no esta se descarta EN SILENCIO.',
+  );
+}
+for (const { archivo, nombre, campos } of cuerposDeEscritura) {
+  const { componentes, problema } = await componentesDelRecord(archivos, nombre);
+  if (componentes === null) {
+    fallos.push(
+      `«${nombre}» (${archivo}) declara los campos de su cuerpo y el «record» del backend no se pudo leer:\n` +
+        `      ${problema}.\n` +
+        '      Sin el no se compara ni un campo, y un campo que sobre se descartaria en silencio con la\n' +
+        '      operacion hecha igual. Falla diciendo que no midio.',
+    );
+    continue;
+  }
+  cuerposComprobados++;
+  const delBackendCuerpo = new Set(componentes);
+  for (const campo of campos) {
+    camposDeCuerpoComprobados++;
+    if (delBackendCuerpo.has(campo)) continue;
+    fallos.push(
+      `«${campo}» no es un componente de «record ${nombre}» (${archivo}).\n` +
+        `      El «record» admite: ${componentes.join(', ')}.\n` +
+        '      El cuerpo es una lista blanca: lo que no esta se descarta aunque llegue en el JSON, y el\n' +
+        '      servidor contesta que la operacion se hizo. El dato no acaba en ningun sitio y nada lo dice.',
+    );
+  }
+  for (const componente of componentes) {
+    if (campos.includes(componente)) continue;
+    cuerposSinMandar.push(`${nombre}.${componente}`);
+  }
+}
+
 /* Y los campos que el cuerpo del alta admite y esta interfaz NO manda. No es un
    fallo —el artboard no dibuja ningun paso que los recoja— y tampoco se calla:
    es la mitad del contrato que esta pantalla deja sin llenar. */
@@ -916,8 +1027,21 @@ console.log(
     `${CODIGOS_DE_ERROR.length} codigos de error contra ${codigosDelBackend === null ? '?' : codigosDelBackend.length} ` +
     `(+${Object.keys(CODIGOS_QUE_ANADE_EL_CLIENTE).length} que el cliente anade y declara) · ` +
     `${listasAtadas} de ${listasDeLaApi.length} listas de «src/api/» atadas a su enumerado ` +
-    `(${valoresComprobados} valores en los dos sentidos, +${listasDeclaradas} declaradas como no derivadas)`,
+    `(${valoresComprobados} valores en los dos sentidos, +${listasDeclaradas} declaradas como no derivadas) · ` +
+    `${cuerposComprobados} cuerpos de escritura contra su «record» (${camposDeCuerpoComprobados} campos)`,
 );
+
+if (cuerposSinMandar.length) {
+  console.log(
+    `\nAVISO — ${cuerposSinMandar.length} componente(s) que un «record» de escritura admite y que esta interfaz no manda:\n`,
+  );
+  for (const c of cuerposSinMandar) console.log(`  · ${c}`);
+  console.log(
+    '\n  No es un fallo si esta decidido, y por eso se nombran en vez de callarlos: el cuerpo es una\n' +
+      '  lista blanca en los dos sentidos, y la mitad del contrato que esta interfaz no llena tiene que\n' +
+      '  verse.',
+  );
+}
 
 if (huerfanos.length) {
   console.log(
@@ -957,6 +1081,7 @@ console.log(
   '\ntoda ruta declarada existe en el backend, todo acceso tambien, ningun orden ofrecido da 422,\n' +
     'los ocho tramos del codigo cubren la composicion del backend, todo campo del alta esta en su `record`,\n' +
     'todo componente de «FichaResource» esta declarado o esta nombrado como hueco, todo codigo de\n' +
-    '«CodigoDeError» lo conoce el cliente, y toda lista de «src/api/» dice de que enumerado sale —o por\n' +
-    'que no sale de ninguno— y cuadra con el en los dos sentidos',
+    '«CodigoDeError» lo conoce el cliente, toda lista de «src/api/» dice de que enumerado sale —o por\n' +
+    'que no sale de ninguno— y cuadra con el en los dos sentidos, y todo campo de un cuerpo de\n' +
+    'escritura existe en el `record` que lo recibe',
 );

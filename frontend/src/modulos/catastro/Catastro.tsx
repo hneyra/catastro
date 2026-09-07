@@ -3,6 +3,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import type { PantallaProps } from '../../App';
 import { AltaDeFicha } from './AltaDeFicha';
 import * as api from '../../api/catastro';
+import * as fiscalizacion from '../../api/fiscalizacion';
 import type { ErrorDeApi, RespuestaPaginada } from '../../api/cliente';
 import { useRebote, useRecurso } from '../../api/useRecurso';
 import type { Recurso } from '../../api/useRecurso';
@@ -30,6 +31,13 @@ import type { Tono } from '../../ds/componentes';
 import { Icono } from '../../ds/Icono';
 import { ICO } from '../../ds/iconos';
 import { ALTA, PASOS } from '../../datos/alta';
+import {
+  COLUMNAS as COLUMNAS_DE_FISCALIZACION,
+  MOTIVOS as MOTIVOS_DE_FISCALIZACION,
+  PIES as PIES_DE_FISCALIZACION,
+  TITULOS as TITULOS_DE_FISCALIZACION,
+  VACIOS as VACIOS_DE_FISCALIZACION,
+} from '../../datos/fiscalizacion';
 import {
   CHIPS_DE_PREDIOS,
   COLAS,
@@ -1148,6 +1156,9 @@ export function Predios({ ruta, onSujeto, onFiltros, onIr }: PantallaProps) {
                      servidor caido, esta pantalla siga diciendo QUE no pudo leer. */
                   ...api.TIPOS_DE_FICHA.map((t) => api.RUTA_DE_LA_FICHA[t].ruta),
                   api.RUTAS.frentes,
+                  /* Y la unica de este detalle que no es de `catastro`: los
+                     hallazgos que fiscalizacion le encontro a este predio (#17). */
+                  fiscalizacion.RUTAS.hallazgosDelPredio,
                 ]
           }
           /* Las CUATRO, porque el alta va a una u otra segun la clase de ficha
@@ -1214,6 +1225,16 @@ function DetalleDelPredio({
     (senal) => api.frentes(predio.predioId, senal),
     ['frentes-del-predio', predio.predioId],
     vista === 'frentes',
+  );
+
+  /* Los hallazgos de fiscalizacion, por el PREDIO (#17, y #71 AC-4). Es la unica
+     lectura de este detalle que no es del modulo `catastro`, y por eso la hoja
+     declara tambien su acceso: quien tenga `actualizacion_catastro` y no
+     `fiscalizacion_catastral` vera aqui un 403, dibujado como el rechazo que es. */
+  const hallazgos = useRecurso(
+    (senal) => fiscalizacion.hallazgosDelPredio(predio.predioId, senal),
+    ['hallazgos-del-predio', predio.predioId],
+    vista === 'hallazgos',
   );
 
   /* Los bloques de detalle salen del MISMO dato que la cabecera, asi que se
@@ -1402,6 +1423,74 @@ function DetalleDelPredio({
                 )}
               </Lectura>
             </Seccion>
+          ) : null}
+
+          {vista === 'hallazgos' ? (
+            <>
+              <Seccion titulo={TITULOS_DE_FISCALIZACION.hallazgosDelPredio} nota={`Predio ${predio.predioId}`}>
+                <Lectura recurso={hallazgos} espera="">
+                  {(r) => (
+                    <Tabla
+                      columnas={[
+                        {
+                          label: COLUMNAS_DE_FISCALIZACION.campania,
+                          pinta: (h: fiscalizacion.HallazgoDelPredio) => `${h.campaniaCodigo}`,
+                        },
+                        {
+                          label: COLUMNAS_DE_FISCALIZACION.clase,
+                          pinta: (h: fiscalizacion.HallazgoDelPredio) => <Insignia>{h.clase}</Insignia>,
+                        },
+                        {
+                          label: COLUMNAS_DE_FISCALIZACION.areaDeLaFicha,
+                          numerica: true,
+                          pinta: (h: fiscalizacion.HallazgoDelPredio) => guion(h.areaDeLaFicha),
+                        },
+                        {
+                          label: COLUMNAS_DE_FISCALIZACION.areaVerificada,
+                          numerica: true,
+                          pinta: (h: fiscalizacion.HallazgoDelPredio) => h.areaVerificada,
+                        },
+                        {
+                          label: COLUMNAS_DE_FISCALIZACION.exceso,
+                          numerica: true,
+                          pinta: (h: fiscalizacion.HallazgoDelPredio) => guion(h.excesoVerificado),
+                        },
+                        {
+                          label: COLUMNAS_DE_FISCALIZACION.inspector,
+                          pinta: (h: fiscalizacion.HallazgoDelPredio) => h.inspector,
+                        },
+                        {
+                          label: COLUMNAS_DE_FISCALIZACION.verificado,
+                          pinta: (h: fiscalizacion.HallazgoDelPredio) => h.verificadoEn,
+                        },
+                        {
+                          label: COLUMNAS_DE_FISCALIZACION.estado,
+                          pinta: (h: fiscalizacion.HallazgoDelPredio) => (
+                            <Insignia tono={h.estado === 'FIRME' ? 'ok' : 'bad'}>{h.estado}</Insignia>
+                          ),
+                        },
+                        /* El acta, que es lo unico que este `record` anade y lo
+                           unico que esta interfaz puede LEER de un acta: no hay
+                           ningun `GET` de actas ni por campania ni por hallazgo. */
+                        {
+                          label: COLUMNAS_DE_FISCALIZACION.acta,
+                          pinta: (h: fiscalizacion.HallazgoDelPredio) =>
+                            h.acta === null ? 'Sin acta' : `${h.acta.numero} · ${h.acta.fecha}`,
+                        },
+                      ]}
+                      filas={r.hallazgos}
+                      llave={(h) => h.id}
+                      vacio={VACIOS_DE_FISCALIZACION.hallazgosDelPredio}
+                      pie={PIES_DE_FISCALIZACION.hallazgosDelPredio}
+                    />
+                  )}
+                </Lectura>
+              </Seccion>
+              <Aviso tono="info" titulo="Esta lectura no puede traer un omiso catastral">
+                {MOTIVOS_DE_FISCALIZACION.sinOmisos}{' '}
+                {MOTIVOS_DE_FISCALIZACION.laListaVaciaNoEsUnCuatrocientosCuatro}
+              </Aviso>
+            </>
           ) : null}
         </div>
       </div>

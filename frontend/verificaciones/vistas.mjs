@@ -66,6 +66,64 @@ export const VISTAS = [
   { modulo: 'catastro', hoja: 'valores', filtros: { cuadro: 'depreciacion' }, nombre: 'matriz de depreciacion' },
   { modulo: 'urbano', hoja: 'zonificacion', sujeto: '1', nombre: 'zona de un predio con poligono' },
   { modulo: 'riesgo', hoja: 'itse', sujeto: '1', nombre: 'certificados de un predio' },
+  /* Los hallazgos que fiscalizacion le encontro a un predio (#71, AC-4). El
+     sujeto es 3 porque es el unico predio del padron de demostracion con un
+     hallazgo firme y su acta: con otro se dibujaria el estado vacio, que tambien
+     hay que ver pero no ensena ni la tabla ni el acta. */
+  { modulo: 'catastro', hoja: 'predios', sujeto: '3', filtros: { ver: 'hallazgos' }, nombre: 'hallazgos del predio' },
+
+  /* Fiscalizacion (#71): las nueve operaciones que #71 anade viven en ESTADOS de
+     estas cuatro hojas —el formulario de un acto se abre desde la ruta, como el
+     asistente de alta—, asi que con el destino a secas no se dibuja ni uno. Sin
+     estas nueve entradas los tres arneses informarian en verde sobre el ciclo
+     entero, que es justo lo que este issue existe para poder recorrer. */
+  { modulo: 'fiscalizacion', hoja: 'campanias', sujeto: '1', nombre: 'embudo de la campania' },
+  {
+    modulo: 'fiscalizacion',
+    hoja: 'campanias',
+    filtros: { acto: 'abrirCampania' },
+    nombre: 'abrir una campania',
+  },
+  {
+    modulo: 'fiscalizacion',
+    hoja: 'campanias',
+    sujeto: '1',
+    filtros: { acto: 'cerrarCampania' },
+    nombre: 'cerrar la campania',
+  },
+  { modulo: 'fiscalizacion', hoja: 'candidatos', sujeto: '1', nombre: 'cola de candidatos' },
+  {
+    modulo: 'fiscalizacion',
+    hoja: 'candidatos',
+    sujeto: '1',
+    filtros: { acto: 'admitirEnGabinete', candidato: '1' },
+    nombre: 'compuerta de gabinete',
+  },
+  /* El candidato 2 y no el 1: la segunda compuerta solo se le puede ofrecer a
+     uno que ya paso por gabinete, y el 1 esta DETECTADO. Abrir el acto sobre el
+     que no lo admite dibujaria un formulario que la propia cola no ofrece. */
+  {
+    modulo: 'fiscalizacion',
+    hoja: 'candidatos',
+    sujeto: '1',
+    filtros: { acto: 'verificarEnCampo', candidato: '2' },
+    nombre: 'verificacion en campo',
+  },
+  { modulo: 'fiscalizacion', hoja: 'hallazgos', sujeto: '1', nombre: 'hallazgos de la campania' },
+  {
+    modulo: 'fiscalizacion',
+    hoja: 'hallazgos',
+    sujeto: '1',
+    filtros: { acto: 'dejarSinEfecto', hallazgo: '1' },
+    nombre: 'dejar un hallazgo sin efecto',
+  },
+  {
+    modulo: 'fiscalizacion',
+    hoja: 'actas',
+    sujeto: '1',
+    filtros: { acto: 'levantarActa' },
+    nombre: 'levantar el acta',
+  },
 ];
 
 /** `#/catastro/predios/1?ver=ficha` */

@@ -740,6 +740,14 @@ export const LO_QUE_EL_SERVIDOR_DESCARTA: Readonly<
       'dejaria la auditoria con un ALTA donde hubo dos cosas: para retirarlo esta la baja logica, que ' +
       'ademas exige otro privilegio.',
   },
+  [`POST ${RUTAS.vias}`]: {
+    campos: ['activa'],
+    motivo:
+      'Una via nace activa: `Via.nueva(...)` la construye asi y el `activa` del cuerpo no se lee. Es la ' +
+      'misma decision que en el sector —dar de alta algo ya retirado seria un alta y una baja en un solo ' +
+      'acto— y aqui el controlador NO la escribe, asi que se declara desde este lado para que la casilla ' +
+      'no aparezca el dia que alguien la eche de menos.',
+  },
   [`PUT ${RUTAS.sector}`]: {
     campos: ['codigo'],
     motivo:

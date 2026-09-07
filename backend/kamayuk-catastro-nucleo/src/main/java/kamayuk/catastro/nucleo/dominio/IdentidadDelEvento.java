@@ -156,6 +156,30 @@ public final class IdentidadDelEvento {
                 TipoDeEventoDeCatastro.HALLAZGO_FIRME + s() + municipalidadId + s() + hallazgoId);
     }
 
+    /**
+     * La de la retractacion de un hallazgo: derivada de la IDENTIDAD (#23 AC-4).
+     *
+     * <p>Por el mismo motivo que la del hallazgo firme, y hay que decirlo entero: retractar lo que
+     * una persona firmo es <b>otro acto que otra persona firma</b>. Que la misma identidad vuelva
+     * con otro motivo o con otro nombre no es una retractacion nueva —es alguien reescribiendo la
+     * que hubo— y el buzon lo <b>para</b> con {@code HechoSelladoReescrito} en vez de mandarlo.
+     * Derivada del contenido serian dos hechos distintos, el receptor aplicaria el segundo encima
+     * del primero sin decir nada, y la unica traza de que alguien cambio el motivo de una anulacion
+     * se perderia.
+     *
+     * <p><b>No colisiona con {@link #deUnHallazgoFirme} del mismo hallazgo</b>: el tipo entra en el
+     * nombre del que sale el resumen, asi que son dos identidades distintas — y tienen que serlo,
+     * porque son dos hechos y el receptor recibe los dos, en ese orden.
+     */
+    public static UUID deUnHallazgoDejadoSinEfecto(long municipalidadId, long hallazgoId) {
+        return derivar(
+                TipoDeEventoDeCatastro.HALLAZGO_DEJADO_SIN_EFECTO
+                        + s()
+                        + municipalidadId
+                        + s()
+                        + hallazgoId);
+    }
+
     private static String s() {
         return String.valueOf(SEPARADOR);
     }

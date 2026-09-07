@@ -21,7 +21,6 @@ import kamayuk.catastro.esquema.DatosDePrueba;
 import kamayuk.catastro.fiscalizacion.dominio.AreasDelPadron;
 import kamayuk.catastro.fiscalizacion.dominio.ContrasteDeAreas;
 import kamayuk.catastro.fiscalizacion.dominio.Score;
-import kamayuk.catastro.fiscalizacion.dominio.Tolerancia;
 import kamayuk.catastro.plataforma.tenant.TenantTransactionManager;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -66,8 +65,14 @@ class ContrasteDeAreasJdbcTest {
     private static final Clock RELOJ =
             Clock.fixed(Instant.parse("2026-09-05T12:00:00Z"), ZoneOffset.UTC);
 
-    /** Un uno por ciento. Lo bastante fino para que un lote que difiere el 50 % salte. */
-    private static final Tolerancia UNO_POR_CIENTO = Tolerancia.de("0.01");
+    /**
+     * Un uno por ciento. Lo bastante fino para que un lote que difiere el 50 % salte.
+     *
+     * <p>Es un {@link Score} y ya no una {@code Tolerancia} (#25): el umbral con el que la campania
+     * detecta es UNA cifra, y era tenerla escrita dos veces —una en la peticion y otra en la fila—
+     * lo que permitia que la fila dijera un criterio que no fue el que corrio.
+     */
+    private static final Score UNO_POR_CIENTO = Score.de("0.01");
 
     private static BaseDeDatosDePrueba base;
     private static long sinPlanos;
@@ -111,6 +116,19 @@ class ContrasteDeAreasJdbcTest {
         // instalaciones: `V61` trajo la columna y nada la llena todavia.
         ejecutar(conPlanos, "UPDATE predio SET geometria = NULL");
         ejecutar(sinPlanos, "UPDATE predio SET geometria = NULL");
+
+        // Y devuelve el padron a su estado de partida, que desde #25 hace falta: estas pruebas
+        // cierran vigencias y anaden un segundo predio, y las tablas se comparten entre casos.
+        // Se hace por UPDATE y no borrando porque `kamayuk_app` no tiene DELETE sobre ninguna de
+        // las dos —regla 4—, que es el privilegio bien puesto: aqui no se borra un predio.
+        for (long municipalidad : new long[] {conPlanos, sinPlanos}) {
+            ejecutar(municipalidad, "UPDATE predio SET estado = 'DADO_DE_BAJA' WHERE lote = '02'");
+            ejecutar(
+                    municipalidad,
+                    "UPDATE ficha_catastral SET vigencia_hasta = NULL"
+                            + " WHERE tipo = 'UNICA' AND vigencia_hasta IS NOT NULL");
+            ejecutar(municipalidad, "UPDATE ficha_catastral SET area_terreno = 120.00");
+        }
     }
 
     @Test
@@ -137,7 +155,9 @@ class ContrasteDeAreasJdbcTest {
         TenantContext.fijar(new MunicipalidadId(conPlanos));
 
         List<ContrasteDeAreas> hallados =
-                enUnaTransaccion.execute(estado -> areas.contrastar(UNO_POR_CIENTO, 500));
+                enUnaTransaccion
+                        .execute(estado -> areas.contrastar(UNO_POR_CIENTO, 500))
+                        .contrastes();
 
         assertThat(hallados)
                 .as(
@@ -158,7 +178,9 @@ class ContrasteDeAreasJdbcTest {
         TenantContext.fijar(new MunicipalidadId(conPlanos));
 
         List<ContrasteDeAreas> hallados =
-                enUnaTransaccion.execute(estado -> areas.contrastar(UNO_POR_CIENTO, 500));
+                enUnaTransaccion
+                        .execute(estado -> areas.contrastar(UNO_POR_CIENTO, 500))
+                        .contrastes();
 
         assertThat(hallados).hasSize(1);
         ContrasteDeAreas contraste = hallados.get(0);
@@ -187,14 +209,16 @@ class ContrasteDeAreasJdbcTest {
     }
 
     @Test
-    @DisplayName("la tolerancia acota: el mismo predio deja de saltar si se admite mas diferencia")
-    void laToleranciaAcota() throws SQLException {
+    @DisplayName("el umbral acota: el mismo predio deja de saltar si se pide mas diferencia")
+    void elUmbralAcota() throws SQLException {
         java.math.BigDecimal medida = plantarPoligonoEn(conPlanos);
         areaDeLaFicha(conPlanos, medida.multiply(new java.math.BigDecimal("2")));
         TenantContext.fijar(new MunicipalidadId(conPlanos));
 
         List<ContrasteDeAreas> conMuchaTolerancia =
-                enUnaTransaccion.execute(estado -> areas.contrastar(Tolerancia.de("0.60"), 500));
+                enUnaTransaccion
+                        .execute(estado -> areas.contrastar(Score.de("0.60"), 500))
+                        .contrastes();
 
         assertThat(conMuchaTolerancia)
                 .as("difieren el 50 %, y con el 60 % admitido eso deja de ser una sospecha")
@@ -217,7 +241,192 @@ class ContrasteDeAreasJdbcTest {
                 .isInstanceOf(AreasDelPadron.SinCartografia.class);
     }
 
+    @Test
+    @DisplayName(
+            "una ficha de OTRA clase tambien se contrasta: antes desaparecia en silencio (#25)")
+    void unaFichaDeOtraClaseSeContrasta() throws SQLException {
+        // El predio pierde su ficha UNICA —se le pone fin de vigencia— y se queda con las otras
+        // tres, que es el caso de una quinta, una galeria o un predio rustico: hasta #25 el cruce
+        // llevaba `AND f.tipo = 'UNICA'` y este predio NO SE MIRABA. La salida era «0 candidatos»,
+        // que se lee como «no hay subvaluadores».
+        java.math.BigDecimal medida = plantarPoligonoEn(conPlanos);
+        java.math.BigDecimal elDoble = medida.multiply(new java.math.BigDecimal("2"));
+        areaDeTodasLasFichasVigentes(conPlanos, elDoble);
+        cerrarLaFichaUnica(conPlanos);
+        TenantContext.fijar(new MunicipalidadId(conPlanos));
+
+        AreasDelPadron.CruceDelPadron cruce =
+                enUnaTransaccion.execute(estado -> areas.contrastar(UNO_POR_CIENTO, 500));
+
+        assertThat(cruce.contrastes())
+                .as(
+                        "las cuatro clases declaran `area_terreno NOT NULL` y las cuatro dicen el"
+                                + " area del terreno del lote: dejar fuera tres era una cobertura"
+                                + " parcial que no se anunciaba")
+                .hasSize(1);
+        assertThat(cruce.contrastes().get(0).diferenciaRelativa()).isEqualTo(Score.de("0.5000"));
+        assertThat(cruce.cobertura().contrastados()).isEqualTo(1);
+        assertThat(cruce.cobertura().sinFichaVigente())
+                .as("y este predio ya no cuenta como «sin ficha vigente»")
+                .isZero();
+    }
+
+    @Test
+    @DisplayName("un predio con VARIAS fichas vigentes da UN contraste, y no uno por clase")
+    void variasFichasVigentesDanUnSoloContraste() throws SQLException {
+        // `ficha_vigente_uq` es por (predio, tipo), asi que un predio puede tener las cuatro
+        // vigentes a la vez — y el predio de la fixture LAS TIENE, sembradas por `DatosDePrueba`.
+        // Contrastarlas todas daria cuatro candidatos del mismo predio con la misma diferencia,
+        // que es exactamente por lo que el cruce se habia quedado en una sola clase.
+        java.math.BigDecimal medida = plantarPoligonoEn(conPlanos);
+        java.math.BigDecimal elDoble = medida.multiply(new java.math.BigDecimal("2"));
+        areaDeTodasLasFichasVigentes(conPlanos, elDoble);
+        assertThat(cuantasFichasVigentes(conPlanos)).isGreaterThan(1);
+        TenantContext.fijar(new MunicipalidadId(conPlanos));
+
+        AreasDelPadron.CruceDelPadron cruce =
+                enUnaTransaccion.execute(estado -> areas.contrastar(UNO_POR_CIENTO, 500));
+
+        assertThat(cruce.contrastes()).hasSize(1);
+        assertThat(claseDeLaFicha(conPlanos, cruce.contrastes().get(0).fichaId()))
+                .as("y la que se toma es la UNICA, por la precedencia escrita en el cruce")
+                .isEqualTo("UNICA");
+    }
+
+    @Test
+    @DisplayName("el umbral se ALCANZA: el predio que difiere exactamente lo declarado entra")
+    void elUmbralSeAlcanzaYNoSeSupera() throws SQLException {
+        // La comparacion del cruce es `>=`, que es lo que `Score.alcanza` define. Con `>` estricto
+        // —que es lo que el `WHERE` tenia— el predio que difiere EXACTAMENTE lo que la campania
+        // declaro sospechoso se caia, y nada lo decia.
+        java.math.BigDecimal medida = plantarPoligonoEn(conPlanos);
+        areaDeLaFicha(conPlanos, medida.multiply(new java.math.BigDecimal("2")));
+        TenantContext.fijar(new MunicipalidadId(conPlanos));
+
+        AreasDelPadron.CruceDelPadron enElBorde =
+                enUnaTransaccion.execute(estado -> areas.contrastar(Score.de("0.5000"), 500));
+        AreasDelPadron.CruceDelPadron unPasoPorEncima =
+                enUnaTransaccion.execute(estado -> areas.contrastar(Score.de("0.5001"), 500));
+
+        assertThat(enElBorde.contrastes())
+                .as("la diferencia es 0,5000 y el umbral es 0,5000: lo alcanza")
+                .hasSize(1);
+        assertThat(unPasoPorEncima.contrastes())
+                .as(
+                        "y un diezmilesimo por encima ya no, que es lo que hace que el borde signifique")
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("el censo dice de cuantos predios sale el cruce, y cuantos quedaron fuera")
+    void elCensoDiceDeDondeSaleElCero() throws SQLException {
+        plantarPoligonoEn(conPlanos);
+        TenantContext.fijar(new MunicipalidadId(conPlanos));
+
+        AreasDelPadron.CruceDelPadron cruce =
+                enUnaTransaccion.execute(estado -> areas.contrastar(UNO_POR_CIENTO, 500));
+
+        assertThat(cruce.cobertura().prediosActivos()).isPositive();
+        assertThat(cruce.cobertura().sinGeometria())
+                .as(
+                        "la fixture deja UN predio con poligono y el resto sin el: sin esta cifra,"
+                                + " el cero de arriba se leeria como «no hay subvaluadores» cuando"
+                                + " lo cierto es «mire uno de N»")
+                .isEqualTo(cruce.cobertura().prediosActivos() - 1);
+        assertThat(cruce.cobertura().contrastados()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("y el tope recorta, pero el censo dice cuantos se quedaron fuera por el")
+    void elTopeRecortaYElCensoLoDice() throws SQLException {
+        java.math.BigDecimal medida = plantarPoligonoEn(conPlanos);
+        areaDeLaFicha(conPlanos, medida.multiply(new java.math.BigDecimal("2")));
+        segundoPredioConPoligonoYFicha(conPlanos);
+        TenantContext.fijar(new MunicipalidadId(conPlanos));
+
+        AreasDelPadron.CruceDelPadron conTopeDeUno =
+                enUnaTransaccion.execute(estado -> areas.contrastar(UNO_POR_CIENTO, 1));
+
+        assertThat(conTopeDeUno.contrastes()).hasSize(1);
+        assertThat(conTopeDeUno.cobertura().superanElUmbral())
+                .as(
+                        "se cuenta ANTES del LIMIT con `count(*) OVER ()`: contarlo sobre la lista"
+                                + " devuelta diria cuantos cupieron, que es la cifra que el tope ya"
+                                + " recorto")
+                .isEqualTo(2);
+        assertThat(conTopeDeUno.cobertura().truncadosPorElTope()).isEqualTo(1);
+    }
+
     // ── Fixtures ───────────────────────────────────────────────────────
+
+    /** Le pone a TODAS las fichas vigentes del predio la misma area, sea cual sea su clase. */
+    private void areaDeTodasLasFichasVigentes(long municipalidadId, java.math.BigDecimal area)
+            throws SQLException {
+        ejecutar(
+                municipalidadId,
+                "UPDATE ficha_catastral SET area_terreno = "
+                        + area.toPlainString()
+                        + " WHERE vigencia_hasta IS NULL");
+    }
+
+    /** Le pone fin de vigencia a la ficha UNICA: el predio se queda con las otras clases. */
+    private void cerrarLaFichaUnica(long municipalidadId) throws SQLException {
+        ejecutar(
+                municipalidadId,
+                "UPDATE ficha_catastral SET vigencia_hasta = DATE '2026-01-01'"
+                        + " WHERE tipo = 'UNICA' AND vigencia_hasta IS NULL");
+    }
+
+    private long cuantasFichasVigentes(long municipalidadId) throws SQLException {
+        return unaCifraDe(
+                        municipalidadId,
+                        "SELECT count(*) FROM ficha_catastral WHERE vigencia_hasta IS NULL")
+                .longValue();
+    }
+
+    private String claseDeLaFicha(long municipalidadId, long fichaId) throws SQLException {
+        try (Connection app = base.conexion(BaseDeDatosDePrueba.APP)) {
+            ContextoDeTenant.fijar(app, municipalidadId);
+            try (Statement sentencia = app.createStatement();
+                    ResultSet fila =
+                            sentencia.executeQuery(
+                                    "SELECT tipo FROM ficha_catastral WHERE id = " + fichaId)) {
+                if (!fila.next()) {
+                    throw new IllegalStateException("No hay ficha " + fichaId);
+                }
+                return fila.getString(1);
+            }
+        }
+    }
+
+    /**
+     * Un segundo predio con poligono y con una ficha que discrepa, para poder medir el tope.
+     *
+     * <p>La fixture siembra UN solo predio por municipalidad, asi que este hay que crearlo: sin
+     * dos, «el tope recorta» no se puede distinguir de «solo habia uno».
+     */
+    private void segundoPredioConPoligonoYFicha(long municipalidadId) throws SQLException {
+        ejecutar(
+                municipalidadId,
+                "INSERT INTO predio (municipalidad_id, codigo_ref_catastral, tipo, via_id,"
+                        + " direccion, sector_id, manzana_id, lote, geometria)"
+                        + " SELECT municipalidad_id, codigo_ref_catastral || '9', tipo, via_id,"
+                        + "        direccion || ' bis', sector_id, manzana_id, '02',"
+                        + "        ST_Multi(ST_Transform(ST_SetSRID(ST_MakeBox2D("
+                        + "            ST_Point(535000, 9459000), ST_Point(535200, 9459200)),"
+                        + "          32717), 4326))::geography"
+                        + "   FROM predio WHERE geometria IS NOT NULL ORDER BY id LIMIT 1");
+        ejecutar(
+                municipalidadId,
+                "INSERT INTO ficha_catastral (municipalidad_id, predio_id, tipo, version,"
+                        + " area_terreno, uso, vigencia_desde, origen, documento_origen,"
+                        + " observacion, usuario_registro)"
+                        + " SELECT p.municipalidad_id, p.id, 'UNICA', 1,"
+                        + "        2 * ROUND(ST_Area(p.geometria)::numeric, 2), 'CASA_HABITACION',"
+                        + "        DATE '2026-01-01', 'DECLARACION_JURADA', 'DJ-002',"
+                        + "        'ficha del segundo predio', 'prueba'"
+                        + "   FROM predio p WHERE p.lote = '02'");
+    }
 
     /**
      * Le planta al predio de esa municipalidad un poligono, y devuelve el area que PostGIS le mide.

@@ -16,7 +16,6 @@ import kamayuk.catastro.fiscalizacion.dominio.ContrasteDeAreas;
 import kamayuk.catastro.fiscalizacion.dominio.FiscalizacionRepository;
 import kamayuk.catastro.fiscalizacion.dominio.OrigenDelCandidato;
 import kamayuk.catastro.fiscalizacion.dominio.Score;
-import kamayuk.catastro.fiscalizacion.dominio.Tolerancia;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -70,15 +69,16 @@ public class DetectarSubvaluadores {
     }
 
     /**
-     * Corre la deteccion sobre la campania y deja sus candidatos.
+     * Corre la deteccion sobre la campania y deja sus candidatos, con el censo de lo que se miro.
      *
-     * @param toleranciaEnPorciento cuanto se admite que difieran sin sospechar
-     * @param tope cuantos predios como mucho
+     * <p><b>El criterio no entra por aqui: sale de la campania</b> (#25). Ni tolerancia ni tope:
+     * los dos los declaro quien la abrio y los dos estan en su fila, que es lo que hace comparable
+     * su tasa de descarte con la de otra corrida.
+     *
      * @throws AreasDelPadron.SinCartografia si la municipalidad no tiene un solo poligono
      */
     @Transactional
-    public List<Candidato> detectar(
-            long campaniaId, Tolerancia tolerancia, int tope, Observacion observacion) {
+    public Deteccion detectar(long campaniaId, Observacion observacion) {
 
         Campania campania =
                 repositorio
@@ -89,14 +89,18 @@ public class DetectarSubvaluadores {
         }
 
         // Deja pasar SinCartografia a proposito: ver el javadoc de la clase.
-        List<ContrasteDeAreas> contrastes = areas.contrastar(tolerancia, tope);
+        //
+        // El umbral se aplica en UN solo sitio —el `WHERE` del cruce— y no se vuelve a aplicar
+        // aqui (#25 AC-1). Volver a filtrar en Java era lo que permitia que las dos cifras
+        // divergieran: con `tolerancia > umbral` el filtro de la base era el estricto y este no
+        // quitaba nada, de modo que la fila de la campania decia un criterio que no fue el que
+        // corrio. La comparacion que el cruce implementa es la de `Score.alcanza` (>=), y
+        // `ContrasteDeAreasJdbcTest` la fija por los dos lados del borde.
+        AreasDelPadron.CruceDelPadron cruce = areas.contrastar(campania.umbral(), campania.tope());
 
         List<Candidato> detectados = new ArrayList<>();
-        for (ContrasteDeAreas contraste : contrastes) {
+        for (ContrasteDeAreas contraste : cruce.contrastes()) {
             Score score = contraste.diferenciaRelativa();
-            if (!score.alcanza(campania.umbral())) {
-                continue;
-            }
             Candidato guardado =
                     repositorio.guardar(
                             Candidato.detectado(
@@ -106,7 +110,8 @@ public class DetectarSubvaluadores {
                                     OrigenDelCandidato.CRUCE_DE_AREAS,
                                     score,
                                     insumosDe(contraste),
-                                    contraste.geometria()));
+                                    contraste.geometria()),
+                            observacion);
             detectados.add(guardado);
         }
 
@@ -124,15 +129,37 @@ public class DetectarSubvaluadores {
                                 "{\"campania\":"
                                         + campaniaId
                                         + ",\"contrastados\":"
-                                        + contrastes.size()
+                                        + cruce.cobertura().contrastados()
                                         + ",\"detectados\":"
                                         + detectados.size()
-                                        + ",\"tolerancia\":"
-                                        + tolerancia
                                         + ",\"umbral\":"
                                         + campania.umbral()
+                                        + ",\"tope\":"
+                                        + campania.tope()
+                                        + ",\"sinGeometria\":"
+                                        + cruce.cobertura().sinGeometria()
+                                        + ",\"sinFichaVigente\":"
+                                        + cruce.cobertura().sinFichaVigente()
+                                        + ",\"truncadosPorElTope\":"
+                                        + cruce.cobertura().truncadosPorElTope()
                                         + "}"));
-        return List.copyOf(detectados);
+        return new Deteccion(List.copyOf(detectados), cruce.cobertura());
+    }
+
+    /**
+     * Lo que la corrida produjo <b>y de que universo salio</b> (#25 AC-3).
+     *
+     * <p>Una lista pelada deja «0 candidatos» indistinguible de «0 candidatos entre las fichas que
+     * miro», y la segunda cierra una campania afirmando que el padron esta bien. El censo viaja
+     * pegado al resultado por lo mismo que {@link AreasDelPadron.SinCartografia} lanza en vez de
+     * devolver vacio: un cero sin su denominador no es una respuesta.
+     */
+    public record Deteccion(List<Candidato> candidatos, AreasDelPadron.Cobertura cobertura) {
+
+        public Deteccion {
+            candidatos = List.copyOf(candidatos);
+            java.util.Objects.requireNonNull(cobertura, "La deteccion dice de donde salio");
+        }
     }
 
     /**

@@ -16,6 +16,11 @@ import org.jspecify.annotations.Nullable;
  * <p><b>Ni un importe.</b> Dos superficies y su resta. Lo que se cobre lo decide {@code rentas}
  * (ADR-0024).
  *
+ * <p><b>Y desde #23 sale el acto de la anulacion</b> —su motivo, quien y cuando—, nulos mientras el
+ * hallazgo siga firme. Sin ellos, un {@code estado} que dice {@code DEJADO_SIN_EFECTO} no contesta
+ * la unica pregunta que hace falta para atenderlo: por que dejo de valer, y quien lo decidio. La
+ * geometria <b>no sale</b>, y desde #23 tampoco existe: ver {@code Hallazgo}.
+ *
  * <p><b>Las tres areas van tipadas como {@link AreaM2}</b> y no compuestas a mano: quien las
  * escribe es el serializador de {@code ConfiguracionDeJson}, y escribe la cifra sola. Componerlas
  * aqui seria una segunda convencion para lo mismo, y con dos el sistema acaba publicando el area
@@ -36,7 +41,10 @@ public record HallazgoResource(
         @Nullable AreaM2 excesoVerificado,
         String inspector,
         LocalDate verificadoEn,
-        String estado) {
+        String estado,
+        @Nullable String motivoAnulacion,
+        @Nullable String anuladoPor,
+        @Nullable String anuladoEn) {
 
     public static HallazgoResource de(Hallazgo hallazgo) {
         return new HallazgoResource(
@@ -50,6 +58,9 @@ public record HallazgoResource(
                 hallazgo.excesoVerificado().orElse(null),
                 hallazgo.inspector(),
                 hallazgo.verificadoEn(),
-                hallazgo.estado().name());
+                hallazgo.estado().name(),
+                hallazgo.anulacion() == null ? null : hallazgo.anulacion().motivo(),
+                hallazgo.anulacion() == null ? null : hallazgo.anulacion().quien(),
+                hallazgo.anulacion() == null ? null : hallazgo.anulacion().cuando().toString());
     }
 }

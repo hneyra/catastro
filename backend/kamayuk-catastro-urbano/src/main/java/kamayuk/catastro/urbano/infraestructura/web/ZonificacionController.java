@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
  * La zona de un predio: {@code GET
  * /catastro/api/v1/urbano/zonificacion?predioId={id}&aLaFecha={fecha}} (#4).
  *
- * <h2>Las tres respuestas que no son 200, y por que no son la misma</h2>
+ * <h2>Las cuatro respuestas que no son 200, y por que no son la misma</h2>
  *
  * <ul>
  *   <li><b>404</b> — ese predio no esta en el padron de esta municipalidad. Lo arregla dar de alta
@@ -28,6 +28,10 @@ import org.springframework.web.bind.annotation.RestController;
  *       catastral (ADR-0021).
  *   <li><b>404</b> — el predio tiene poligono y ningun plan vigente a esa fecha lo cubre. Lo
  *       arregla aprobar la zonificacion de esa area.
+ *   <li><b>409</b> — mas de una zona vigente lo cubre (#22). Lo arregla corregir el plan de
+ *       zonificacion, y <b>no</b> lo arregla nadie desde esta pantalla. No es 200 con una de las
+ *       dos: esa respuesta la elegiria el plan de ejecucion y podria cambiar entre corridas sobre
+ *       los mismos datos, y de ella cuelga si una licencia se concede o se niega.
  * </ul>
  *
  * <p><b>El 422 del predio sin poligono es el punto de este endpoint</b>, no un borde. Hoy no hay ni
@@ -74,6 +78,13 @@ public class ZonificacionController {
             return ZonaResource.de(zonificacion.zonaDe(predioId, fecha), fecha);
         } catch (ZonificacionDelPredio.PredioInexistente | ZonificacionDelPredio.SinZonaVigente e) {
             throw new ProblemaDeNegocio(CodigoDeError.NO_ENCONTRADO, mensajeDe(e));
+        } catch (ZonificacionDelPredio.ZonaAmbigua e) {
+            // 409 y no 200 con una de las dos: el estado de los datos no admite esta pregunta.
+            // Se reusa CONFLICTO en vez de anadir un codigo: la lista de `CodigoDeError` esta
+            // atada al cliente en `frontend/verificaciones/rutas.mjs` —los once, y en su orden—,
+            // asi que un codigo nuevo convierte un arreglo del backend en un cambio del frontend.
+            // Y el significado cuadra: «el estado actual no admite esta operacion».
+            throw new ProblemaDeNegocio(CodigoDeError.CONFLICTO, mensajeDe(e));
         } catch (ZonificacionDelPredio.PredioSinGeometria e) {
             // 422 y no 200 con la zona nula: ver el javadoc de la clase. Y no 404, porque el
             // predio SI esta: lo que falta es su poligono, y decir «no encontrado» mandaria a

@@ -784,10 +784,11 @@ public final class DatosDePrueba {
      * salia en verde y el aislamiento de las cinco no lo comprobaba nadie — medido: cinco rojos,
      * uno por tabla, con «la municipalidad A debe ver sus propias filas».
      *
-     * <p>El candidato y el hallazgo llevan <b>geometria de verdad</b>, y por el mismo motivo que el
-     * frente de predio: con la geometria nula las cuatro columnas del marco (ADR-0034) salen nulas
-     * y un filtro por marco no devolveria nada, o sea que pasaria en verde sin comprobar el camino
-     * que ADR-0034 obliga a usar. Cada municipalidad cae en un grado distinto de longitud.
+     * <p>El candidato lleva <b>geometria de verdad</b> —el hallazgo ya no la tiene, #23—, y por el
+     * mismo motivo que el frente de predio: con la geometria nula las cuatro columnas del marco
+     * (ADR-0034) salen nulas y un filtro por marco no devolveria nada, o sea que pasaria en verde
+     * sin comprobar el camino que ADR-0034 obliga a usar. Cada municipalidad cae en un grado
+     * distinto de longitud.
      *
      * <p>El candidato se siembra <b>ya verificado en campo</b> porque el hallazgo cuelga de el: es
      * la unica forma de que las dos filas existan a la vez, y de paso deja escrito en la fixture
@@ -800,8 +801,9 @@ public final class DatosDePrueba {
                 insertar(
                         app,
                         "INSERT INTO campania (municipalidad_id, codigo, nombre, inicio, umbral,"
-                                + " observacion, usuario_registro)"
-                                + " VALUES (?, ?, ?, ?, 0.7000, 'campania de prueba', 'prueba')"
+                                + " tope, observacion, usuario_registro)"
+                                + " VALUES (?, ?, ?, ?, 0.7000, 500, 'campania de prueba',"
+                                + " 'prueba')"
                                 + " RETURNING id",
                         muni,
                         "CAM-" + sufijo,
@@ -833,26 +835,22 @@ public final class DatosDePrueba {
         long hallazgoId =
                 insertar(
                         app,
+                        // Sin geometria desde #23: la columna se retiro porque no habia por donde
+                        // llenarla —ningun cargador la escribia y el borde pasaba `null`—. El
+                        // caso del marco de ADR-0034 lo sigue midiendo `candidato`, que SI tiene
+                        // geometria de verdad sembrada unas lineas mas arriba.
                         "INSERT INTO hallazgo (municipalidad_id, candidato_id, clase, predio_id,"
                                 + " ficha_id, area_de_la_ficha, area_verificada, inspector,"
-                                + " verificado_en, geometria, observacion, usuario_registro)"
+                                + " verificado_en, observacion, usuario_registro)"
                                 + " VALUES (?, ?, 'SUBVALUADOR', ?, ?, 120.00, 180.00,"
                                 + "         'inspector.prueba', ?,"
-                                + "         ST_GeogFromText('SRID=4326;MULTIPOLYGON(((' || ? || ' -4.90,'"
-                                + "                          || ? || ' -4.9002,' || ? || ' -4.9002,'"
-                                + "                          || ? || ' -4.90,' || ? || ' -4.90)))'),"
                                 + "         'hallazgo de prueba', 'prueba')"
                                 + " RETURNING id",
                         muni,
                         candidatoId,
                         predioId,
                         fichaId,
-                        VIGENCIA,
-                        desplazamientoDe(sufijo) + " ",
-                        desplazamientoDe(sufijo) + " ",
-                        desplazamientoDe(sufijo) + "01 ",
-                        desplazamientoDe(sufijo) + "01 ",
-                        desplazamientoDe(sufijo) + " ");
+                        VIGENCIA);
 
         // La huella lleva el sufijo dentro: `evidencia_sha256_uq` es POR municipalidad, asi que dos
         // huellas iguales en dos municipalidades no chocarian — y justamente por eso se siembran

@@ -51,11 +51,35 @@ public class UrbanoRepositoryJdbc extends RepositorioJdbc implements UrbanoRepos
      * inquilino—. Con {@code zonificacion_marco_ix}, las cuatro desigualdades y la condicion de la
      * politica salen juntas en el {@code Index Cond}.
      *
-     * <p>El {@code ST_Contains} es lo que <b>decide</b>, y aqui si hace falta de verdad: dos zonas
+     * <p>El {@code ST_Covers} es lo que <b>decide</b>, y aqui si hace falta de verdad: dos zonas
      * vecinas tienen marcos que se cortan —un rectangulo envolvente no es el poligono— y quedarse
      * en el marco devolveria las dos. Es exactamente la salida que ADR-0034 regla 2 admite: «el
      * operador solo detras, como refinado exacto». Escrita sin el marco delante, {@code
      * revisarEspacial} pone el build en rojo, y con razon.
+     *
+     * <h2>{@code ST_Covers} y no {@code ST_Contains}, desde #22, y se midio el borde</h2>
+     *
+     * <p>{@code ST_Contains} es <b>falso en la frontera</b>. Un lote a caballo de la arista que
+     * separa dos zonas tiene su punto representativo <b>justo encima</b> de esa arista, y entonces
+     * no esta contenido en ninguna de las dos: el predio se queda sin zona y la respuesta es un 404
+     * «ningun plan vigente cubre el predio» sobre un suelo que <b>si</b> esta cubierto —por dos—.
+     * Medido contra PostGIS 3.4.2 con un lote de 0,01° a caballo de la arista {@code -80.60}:
+     *
+     * <pre>
+     *   punto representativo   POINT(-80.6 -5.2795)
+     *   ST_Contains(oeste, p)  f      ST_Contains(este, p)  f
+     *   ST_Covers(oeste, p)    t      ST_Covers(este, p)    t
+     * </pre>
+     *
+     * <p>Con {@code ST_Covers} ese punto queda cubierto por las dos, y como el {@code LIMIT 1} ya
+     * no esta, eso deja de ser «una de las dos, la que salga» y pasa a ser {@code ZonaAmbigua} con
+     * los dos codigos dentro: un hallazgo que se informa. <b>El cambio solo es admisible porque el
+     * {@code LIMIT 1} se fue</b> — con el puesto, {@code ST_Covers} habria hecho MAS probable que
+     * la consulta eligiera en silencio, que es justo lo que #22 viene a impedir.
+     *
+     * <p>Y no se pasa a {@code ST_Intersects}, que sigue siendo otra cosa: ese es cierto para toda
+     * zona que el <b>poligono</b> del lote toque, y la regla —la de abajo— sigue siendo el punto
+     * interior del lote y no el lote entero.
      *
      * <h2>Por que {@code LATERAL} y no un {@code JOIN} llano, que fue lo primero que se escribio
      * </h2>
@@ -92,6 +116,23 @@ public class UrbanoRepositoryJdbc extends RepositorioJdbc implements UrbanoRepos
      * el lote cruza dos zonas lo que hay es un hallazgo que se informa —como el area que no cuadra
      * (ADR-0021)—, no una respuesta que el sistema se inventa.
      *
+     * <h2>{@code LIMIT 2}: ni una ni todas (#22)</h2>
+     *
+     * <p>Hasta #22 esto cerraba con {@code LIMIT 1} <b>sin {@code ORDER BY}</b>, o sea que con dos
+     * zonas encima del mismo suelo la fila que salia la elegia el plan de ejecucion y podia cambiar
+     * entre corridas sobre los mismos datos. Ahora se piden <b>dos</b>, que es lo justo para saber
+     * que hay mas de una: quien decide es {@code ConsultaDeZonificacion}, que lanza {@code
+     * ZonaAmbigua} con los dos codigos. Traerlas todas no anadiria nada —la respuesta ya no es una
+     * lista— y pagaria el poligono entero de cada una.
+     *
+     * <p><b>Y el {@code LIMIT} no se puede quitar del todo, que es lo que este issue destapo
+     * midiendo.</b> PostgreSQL <b>aplana</b> un {@code LATERAL} sin barrera (<i>subquery
+     * pull-up</i>), y entonces las cuatro comparaciones del marco vuelven a ser condiciones de
+     * UNION y caen al {@code Join Filter} — o sea que se pierde exactamente lo que #4 midio y
+     * escribio aqui arriba. Un {@code LIMIT} es una barrera de optimizacion; {@code LIMIT 2} la
+     * conserva. Medido en #21 sobre la consulta hermana de {@code grd}, que no puede llevar {@code
+     * LIMIT} y necesita {@code OFFSET 0} para lo mismo.
+     *
      * <h2>La fecha entra como argumento (regla 9)</h2>
      *
      * <p>No existe «la zona»: existe la zona vigente a una fecha. {@code vigencia_hasta} es
@@ -112,10 +153,10 @@ public class UrbanoRepositoryJdbc extends RepositorioJdbc implements UrbanoRepos
                     + "      AND zz.marco_norte >= p.marco_sur"
                     + "      AND zz.vigencia_desde <= :fecha"
                     + "      AND (zz.vigencia_hasta IS NULL OR zz.vigencia_hasta >= :fecha)"
-                    + "      AND ST_Contains("
+                    + "      AND ST_Covers("
                     + "            CAST(zz.geometria AS geometry),"
                     + "            ST_PointOnSurface(CAST(p.geometria AS geometry)))"
-                    + "    LIMIT 1) z"
+                    + "    LIMIT 2) z"
                     + " WHERE p.id = :predio AND p.geometria IS NOT NULL";
 
     public UrbanoRepositoryJdbc(JdbcClient jdbc) {
@@ -133,12 +174,12 @@ public class UrbanoRepositoryJdbc extends RepositorioJdbc implements UrbanoRepos
     }
 
     @Override
-    public Optional<Zona> zonaQueContieneAlPredio(long predioId, LocalDate aLaFecha) {
+    public List<Zona> zonasQueContienenAlPredio(long predioId, LocalDate aLaFecha) {
         return jdbc().sql(ZONA_QUE_CONTIENE)
                 .param("predio", predioId)
                 .param("fecha", aLaFecha)
                 .query(UrbanoRepositoryJdbc::mapearZona)
-                .optional();
+                .list();
     }
 
     @Override

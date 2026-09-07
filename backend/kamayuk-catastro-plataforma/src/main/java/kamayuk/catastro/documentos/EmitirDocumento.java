@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import java.util.Iterator;
 import java.util.Optional;
 import kamayuk.catastro.auditoria.Auditoria;
+import kamayuk.catastro.auditoria.DatosDeAuditoria;
 import kamayuk.catastro.auditoria.Operacion;
 import kamayuk.catastro.auditoria.RegistroDeAuditoria;
 import kamayuk.catastro.dominio.Ejercicio;
@@ -223,16 +224,13 @@ public class EmitirDocumento {
                         .con(null, descripcion(documento)));
     }
 
-    private static String descripcion(DocumentoEmitido documento) {
-        return "{\"tipo\":\""
-                + documento.tipo()
-                + "\",\"numero\":\""
-                + documento.numero()
-                + "\",\"formato\":\""
-                + documento.formato()
-                + "\",\"reimpresiones\":"
-                + documento.reimpresiones()
-                + "}";
+    private static DatosDeAuditoria descripcion(DocumentoEmitido documento) {
+        return DatosDeAuditoria.campos()
+                .mas("tipo", documento.tipo())
+                .mas("numero", documento.numero())
+                .mas("formato", documento.formato())
+                .mas("reimpresiones", documento.reimpresiones())
+                .datos();
     }
 
     /** Los bytes que se entregan y el registro que los respalda. */

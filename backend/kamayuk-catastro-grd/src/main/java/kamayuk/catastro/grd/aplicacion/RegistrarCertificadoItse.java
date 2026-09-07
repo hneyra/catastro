@@ -3,6 +3,7 @@ package kamayuk.catastro.grd.aplicacion;
 import java.time.Clock;
 import java.time.LocalDate;
 import kamayuk.catastro.auditoria.Auditoria;
+import kamayuk.catastro.auditoria.DatosDeAuditoria;
 import kamayuk.catastro.auditoria.Operacion;
 import kamayuk.catastro.auditoria.RegistroDeAuditoria;
 import kamayuk.catastro.dominio.Observacion;
@@ -65,19 +66,14 @@ public class RegistrarCertificadoItse {
     }
 
     /** El estado resultante, en JSON, igual que hacen los demas casos de uso de este sistema. */
-    private static String descripcion(CertificadoItse certificado) {
-        return "{\"numero\":\""
-                + certificado.numero()
-                + "\",\"predioId\":"
-                + certificado.predioId()
-                + ",\"nivelRiesgo\":\""
-                + certificado.nivelRiesgo()
-                + "\",\"modalidad\":\""
-                + certificado.modalidad()
-                + "\",\"vigenciaDesde\":\""
-                + certificado.vigenciaDesde()
-                + "\",\"vigenciaHasta\":\""
-                + certificado.vigenciaHasta()
-                + "\"}";
+    private static DatosDeAuditoria descripcion(CertificadoItse certificado) {
+        return DatosDeAuditoria.campos()
+                .mas("numero", certificado.numero())
+                .mas("predioId", certificado.predioId())
+                .mas("nivelRiesgo", certificado.nivelRiesgo())
+                .mas("modalidad", certificado.modalidad())
+                .mas("vigenciaDesde", certificado.vigenciaDesde())
+                .mas("vigenciaHasta", certificado.vigenciaHasta())
+                .datos();
     }
 }

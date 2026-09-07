@@ -379,8 +379,8 @@ class SectorControllerTest {
         assertThat(ultimoAsiento().operacion()).isEqualTo(Operacion.MODIFICACION);
         assertThat(ultimoAsiento().datosAnteriores())
                 .as("una MODIFICACION sin el estado previo no permite reconstruir nada")
-                .isNotNull()
-                .contains("Sector Centro");
+                .isNotNull();
+        assertThat(String.valueOf(ultimoAsiento().datosAnteriores())).contains("Sector Centro");
     }
 
     @Test
@@ -489,7 +489,7 @@ class SectorControllerTest {
                         "dar de baja no es borrar: su codigo esta en el codigo catastral de sus predios")
                 .isPresent();
         assertThat(ultimoAsiento().operacion()).isEqualTo(Operacion.BAJA);
-        assertThat(ultimoAsiento().datosAnteriores()).isNotNull().contains("\"activo\":true");
+        assertThat(String.valueOf(ultimoAsiento().datosAnteriores())).contains("\"activo\":true");
     }
 
     @Test

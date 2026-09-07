@@ -402,6 +402,29 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
 
+    /**
+     * Las clases que escriben un area a texto a mano, con su motivo. <b>Dos desde #20</b>.
+     *
+     * <h2>Eran cinco, y al medirlo dos de ellas no eximian nada</h2>
+     *
+     * <p>#20 corrio {@code RevisorDeCodigoFuente.revisarAreas} sobre las cinco, sin la exencion, en
+     * el arbol de antes del issue. El resultado: {@code ModeloDeLaFichaDelContribuyente} <b>1</b>
+     * hallazgo, {@code ComponedorDeHechos} <b>1</b>, {@code ActualizarFichaCatastral} <b>1</b>, y
+     * {@code DetectarSubvaluadores} y {@code VerificarEnCampo} <b>0 y 0</b>.
+     *
+     * <p>O sea que las dos que #6 anadio llevaban desde entonces sin eximir nada: el escaner busca
+     * {@code area….toString()} o {@code area….valor().toPlainString()}, y las dos escribian {@code
+     * .valor()} a secas dejando que la concatenacion llamara a {@code BigDecimal.toString()}. El
+     * area SI se componia a mano —por eso se declararon— pero no en la forma que el escaner
+     * reconoce, y una exencion que no exime nada es invisible: sigue ahi, eximiendo a la clase que
+     * venga con ese nombre. Es el mismo defecto que la nota de {@code DiferenciaEntreLiquidaciones}
+     * dos parrafos mas abajo advierte, encontrado ahora en esta misma lista.
+     *
+     * <p>{@code ActualizarFichaCatastral} SI eximia algo, y es lo que #20 quita: componia el area
+     * con {@code .valor().toPlainString()} para que saliera sin la unidad, y ahora la pasa tipada
+     * como {@code AreaM2} a {@code DatosDeAuditoria}, que es donde #607 dice que tiene que
+     * escribirse. Las tres salen de la lista por motivos distintos y el censo pasa de cinco a dos.
+     */
     @Override
     public Set<String> componenElAreaAManoConMotivo() {
         return Set.of(
@@ -411,35 +434,13 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
                 // `licencias`, y aqui declararlos seria una entrada muerta: la lista es la de
                 // este sistema.
                 "ModeloDeLaFichaDelContribuyente",
-                // La descripcion que va a la columna JSON de la auditoria. El motivo no es «no
-                // llega al cliente» —la bitacora la publica verbatim— sino que ahi el area no es
-                // un campo tipado sino una instantanea de texto libre, y se escribe SIN la unidad
-                // para que diga lo mismo que el resto (#607).
-                "ActualizarFichaCatastral",
-                // El componedor de hechos del buzon de salida (C-8). Misma forma que las dos de
-                // arriba y el mismo motivo que la lista declara: el area se compone a mano SOLO
-                // para la huella del hecho, que es un resumen criptografico y no pasa por ningun
-                // serializador. El JSON del evento SI lo escribe `ConfiguracionDeJson`, con el
-                // `AreaM2` tipado. Y escribe la cifra sola: con la unidad dentro, la huella
-                // dejaria de poder compararse contra nada que hable de la misma area.
-                "ComponedorDeHechos",
-                // Los dos JSON escritos a mano de la fiscalizacion catastral (#6), y por el mismo
-                // motivo que `ActualizarFichaCatastral`: ahi el area no es un campo tipado sino una
-                // INSTANTANEA DE TEXTO LIBRE, y se escribe sin la unidad para que diga lo mismo que
-                // el resto.
-                //
-                // `DetectarSubvaluadores` compone los `insumos` del candidato: es el registro de
-                // por
-                // que se sospecho, y tiene que poder explicarse solo dentro de un ano —cuando la
-                // ficha ya este versionada tres veces y el area de entonces no exista en ninguna
-                // parte—. `VerificarEnCampo` compone el «antes/despues» de la bitacora, que es el
-                // mismo caso.
-                //
-                // Lo que SI va tipado es `HallazgoResource`: sus tres areas son `AreaM2` y las
-                // escribe el serializador de `ConfiguracionDeJson`, que es donde #607 dice que
-                // tienen que escribirse.
-                "DetectarSubvaluadores",
-                "VerificarEnCampo");
+                // El componedor de hechos del buzon de salida (C-8): el area se compone a mano
+                // SOLO para la huella del hecho, que es un resumen criptografico y no pasa por
+                // ningun serializador. Cambiarlo moveria la huella de eventos YA PUBLICADOS. El
+                // JSON del evento SI lo escribe `ConfiguracionDeJson`, con el `AreaM2` tipado, y
+                // escribe la cifra sola: con la unidad dentro, la huella dejaria de poder
+                // compararse contra nada que hable de la misma area.
+                "ComponedorDeHechos");
     }
 
     /**

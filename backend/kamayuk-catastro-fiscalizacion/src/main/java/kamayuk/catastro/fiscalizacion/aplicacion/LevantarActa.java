@@ -3,6 +3,7 @@ package kamayuk.catastro.fiscalizacion.aplicacion;
 import java.time.Clock;
 import java.time.LocalDate;
 import kamayuk.catastro.auditoria.Auditoria;
+import kamayuk.catastro.auditoria.DatosDeAuditoria;
 import kamayuk.catastro.auditoria.Operacion;
 import kamayuk.catastro.auditoria.RegistroDeAuditoria;
 import kamayuk.catastro.dominio.Observacion;
@@ -94,13 +95,17 @@ public class LevantarActa {
                                 observacion)
                         .con(
                                 null,
-                                "{\"numero\":\""
-                                        + numero
-                                        + "\",\"hallazgoId\":"
-                                        + hallazgoId
-                                        + ",\"inspector\":\""
-                                        + inspector
-                                        + "\"}"));
+                                // Ni `numero` ni `inspector` se escapan aqui, y esa es la
+                                // correccion de #20: los dos los teclea una persona, y un
+                                // inspector llamado «Juan "El Tuerto" Perez» hacia IMPOSIBLE
+                                // levantar el acta —el `cast(… AS jsonb)` moria con «invalid
+                                // input syntax for type json» y se llevaba la transaccion
+                                // entera—. Escapar lo escribe el serializador.
+                                DatosDeAuditoria.campos()
+                                        .mas("numero", numero)
+                                        .mas("hallazgoId", hallazgoId)
+                                        .mas("inspector", inspector)
+                                        .datos()));
         return acta;
     }
 

@@ -158,11 +158,11 @@ class PublicacionDelPadronJdbcTest {
                 DatosDePrueba.crearMunicipalidad(base, "202203", "Municipalidad C");
         DatosDePrueba.sembrarTenant(base, municipalidadSinLaLlave, parametroId, "PC", false);
         unSegundoPredio();
-        // El SEGUNDO hallazgo firme, y solo en la municipalidad del lote (#28). `sembrarTenant`
-        // deja uno SUBVALUADOR —con predio— en todas; este es el OMISO_CATASTRAL, que no tiene
-        // ninguno. Son la unica pareja del buzon donde `predio_id` viaja nulo en un caso y no en
-        // el otro, y el consumidor necesita ver las dos formas.
-        DatosDePrueba.sembrarOmisoCatastral(base, municipalidadDelLote, "PB");
+        // Los hallazgos que el lote tiene que ensenar y `sembrarTenant` no deja, y SOLO en la
+        // municipalidad del lote (#28): el OMISO_CATASTRAL firme —que con el SUBVALUADOR de la
+        // siembra forma la unica pareja del buzon donde `predio_id` viaja nulo en un caso y no en
+        // el otro— y el SUBVALUADOR DEJADO SIN EFECTO, que es el septimo tipo (`V12`, #61).
+        DatosDePrueba.sembrarLosHallazgosQueElLoteEnsena(base, municipalidadDelLote, "PB");
         sellarElConjunto();
 
         DriverManagerDataSource pool = new DriverManagerDataSource();
@@ -474,9 +474,9 @@ class PublicacionDelPadronJdbcTest {
         assertThat(pendientes)
                 .as(
                         "DOS predios proyectados, sus dos valuaciones, el cierre de la corrida, la"
-                                + " manzana, los frentes del predio sembrado y los DOS hallazgos"
-                                + " firmes")
-                .hasSize(9);
+                                + " manzana, los frentes del predio sembrado, los DOS hallazgos"
+                                + " firmes y el que se dejo sin efecto")
+                .hasSize(10);
 
         List<EventoResource> recursos = new ArrayList<>();
         for (EventoDeCatastro evento : pendientes) {
@@ -550,6 +550,19 @@ class PublicacionDelPadronJdbcTest {
                 .as("y el subvaluador contrasta un predio concreto")
                 .isEqualTo(1);
         assertThat(lote).contains("SUBVALUADOR").contains("OMISO_CATASTRAL");
+
+        // Y LA RETRACTACION, que es el septimo tipo (`V12`, #61). Su ejemplo entra aqui porque la
+        // guarda de arriba se puso roja sola al traer `main` nombrandolo: es el caso de AC-2
+        // ocurrido sobre codigo real. Viaja con los TRES campos del acto, que es lo unico que
+        // separa «lo anularon» de una explicacion.
+        List<EventoDeCatastro> retractados =
+                deTipo(TipoDeEventoDeCatastro.HALLAZGO_DEJADO_SIN_EFECTO);
+        assertThat(retractados).hasSize(1);
+        assertThat(retractados.get(0).cuerpo())
+                .as("un hecho que se retira es OTRO hecho, y dice por que, quien y cuando")
+                .contains("\"motivo\"")
+                .contains("anuladoPor")
+                .contains("anuladoEn");
 
         assertThat(instantesDe(lote))
                 .as(

@@ -80,6 +80,15 @@
     "cuerpo" : "{\"clase\": \"OMISO_CATASTRAL\", \"fichaId\": null, \"predioId\": null, \"inspector\": \"inspector.omisos\", \"hallazgoId\": 4, \"candidatoId\": 4, \"verificadoEn\": \"2026-01-01\", \"areaDeLaFicha\": null, \"areaVerificada\": \"305.00\"}",
     "huella" : "7c48671cabc554594b7d0a6fbc9aa09931f56770c805a211809a2a9d52443d12",
     "emitidoEn" : "2026-03-01T10:00:00Z"
+  }, {
+    "eventoId" : "4e3d0308-a7a0-8f50-859c-50ef296c8416",
+    "secuencia" : 19,
+    "tipo" : "HALLAZGO_DEJADO_SIN_EFECTO",
+    "predioId" : 2,
+    "ejercicio" : null,
+    "cuerpo" : "{\"clase\": \"SUBVALUADOR\", \"motivo\": \"La ortofoto era de otro lote\", \"predioId\": 2, \"anuladoEn\": \"2026-02-01T12:00:00Z\", \"anuladoPor\": \"jefe.catastro\", \"hallazgoId\": 5}",
+    "huella" : "4c7c60dfa71ede4e0e0db5a5b2ae011152ac8de04c273ebb015864380b00e529",
+    "emitidoEn" : "2026-03-01T10:00:00Z"
   } ],
   "pendientesQueQuedan" : 0,
   "aLaFecha" : "2026-03-01T11:00:00Z"

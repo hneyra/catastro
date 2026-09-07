@@ -8,8 +8,10 @@ import { useRebote, useRecurso } from '../../api/useRecurso';
 import type { Recurso } from '../../api/useRecurso';
 import {
   Aviso,
+  Boton,
   Campo,
   Dato,
+  Fallo,
   Insignia,
   Lectura,
   motivoCorto,
@@ -290,7 +292,29 @@ function motivoDelFallo(error: ErrorDeApi): string {
 
 /* ══════════ Panel ══════════════════════════════════════════════════════ */
 
-/** Una de las cuatro tarjetas de cabecera (artboard 470-483). */
+/**
+ * Una de las cuatro tarjetas de cabecera (artboard 470-483).
+ *
+ * <h2>Cada tarjeta ofrece el reintento de SU lectura</h2>
+ *
+ * Y no un boton general arriba, que fue la otra opcion de #49. El motivo esta
+ * medido: el Panel pide **cuatro** rutas y su unico «Reintentar» salia de las
+ * dos `<Lectura>` de mas abajo, asi que con las cuatro en 500 aparecian dos
+ * botones y cada uno re-pedia **una** —`/catastro/sectores` y
+ * `/catastro/fichas`—. El padron y el plano quedaban muertos hasta recargar la
+ * pagina entera, y su tarjeta no ofrecia nada porque su unica superficie es
+ * esta nota. Un boton general los cubriria, pero reintentaria tambien las
+ * lecturas que no fallaron; asi cada boton hace lo que su sitio promete.
+ *
+ * <h2>Y es una region con nombre</h2>
+ *
+ * `<section aria-label>` y no un `<div>`: la tarjeta pasa a ser una region
+ * anunciable —quien navega con lector de pantalla oye de que tarjeta es el
+ * boton— y ademas se vuelve **direccionable**, que es lo que permite a
+ * `verificaciones/errores.mjs` medir el reintento de UNA tarjeta y no «hay un
+ * boton en la pagina», que es la afirmacion que pasaba en verde con el defecto
+ * puesto.
+ */
 function Tarjeta<T>({
   etiqueta,
   recurso,
@@ -304,7 +328,8 @@ function Tarjeta<T>({
 }) {
   const hay = recurso.datos !== null && recurso.error === null;
   return (
-    <div
+    <section
+      aria-label={etiqueta}
       style={{
         background: 'var(--blanco)',
         border: '1px solid var(--linea)',
@@ -343,7 +368,15 @@ function Tarjeta<T>({
       <p style={{ margin: '8px 0 0', fontSize: 12.5, lineHeight: 1.45, color: 'var(--tinta-3)', textWrap: 'pretty' }}>
         {hay ? nota(recurso.datos!) : recurso.error ? motivoDelFallo(recurso.error) : 'Pidiendo al servidor…'}
       </p>
-    </div>
+      {/* Solo donde reintentar puede cambiar algo, que es la misma regla que
+          `Fallo` aplica: un privilegio que falta sale igual las veces que se
+          pulse. `reintentable` lo decide `ErrorDeApi` y no esta pantalla. */}
+      {recurso.error?.reintentable ? (
+        <p style={{ margin: '10px 0 0' }}>
+          <Boton onClick={recurso.reintentar}>Reintentar</Boton>
+        </p>
+      ) : null}
+    </section>
   );
 }
 
@@ -1537,6 +1570,23 @@ function casilla(valores: readonly string[]): Celda {
   return { texto: `${valores.length} filas`, numerica: true };
 }
 
+/**
+ * Que dice la celda de la via cuando el catalogo no la tiene, y **por que no un
+ * identificador crudo**.
+ *
+ * `Via 1` no se distingue del nombre de una via: con el catalogo en 403 la tabla
+ * salia entera con «Via 1 — Sin tramo 388.00» y quien la lee no tiene como saber
+ * que le falta media columna. Son tres estados distintos y se dicen los tres,
+ * porque piden trabajos distintos: el catalogo **no se pudo leer** —hay que
+ * mirar el aviso de arriba—, **se esta pidiendo**, o se leyo y esa via **no
+ * esta** en el, que es una inconsistencia del dato y no un fallo de red.
+ */
+function motivoDeLaViaQueFalta(vias: Recurso<RespuestaPaginada<api.Via>>): string {
+  if (vias.error) return MOTIVOS.viaSinCatalogo;
+  if (vias.datos === null) return '…';
+  return MOTIVOS.viaQueNoEstaEnElCatalogo;
+}
+
 export function Valores({ ejercicio, ruta, onFiltros }: PantallaProps) {
   const cuadro = CUADROS.find((c) => c.k === ruta.filtros.cuadro) ?? CUADROS[0];
   const aranceles = useRecurso((senal) => api.aranceles(ejercicio, senal), ['aranceles', ejercicio]);
@@ -1549,6 +1599,7 @@ export function Valores({ ejercicio, ruta, onFiltros }: PantallaProps) {
     for (const v of vias.datos?.contenido ?? []) mapa.set(v.id, v);
     return mapa;
   }, [vias.datos]);
+  const sinVia = motivoDeLaViaQueFalta(vias);
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', width: '100%' }}>
@@ -1611,30 +1662,38 @@ export function Valores({ ejercicio, ruta, onFiltros }: PantallaProps) {
       {cuadro.k === 'aranceles' ? (
         <Lectura recurso={aranceles} espera="">
           {(filas) => (
-            <TablaFija
-              columnas={[
-                { label: 'Via' },
-                { label: 'Tipo' },
-                { label: 'Tramo' },
-                { label: 'Arancel S/ m²', numerica: true },
-                { label: 'Documento fuente' },
-              ]}
-              filas={filas.map((a) => {
-                const via = viaPorId.get(a.viaId);
-                return {
-                  llave: String(a.id),
-                  celdas: [
-                    { texto: via ? `${via.codigo} — ${via.nombre}` : `Via ${a.viaId}` },
-                    { texto: via ? via.tipo : '—' },
-                    { texto: a.tramo ?? 'Sin tramo' },
-                    { texto: a.valorM2, numerica: true },
-                    { texto: a.documentoFuente },
-                  ],
-                };
-              })}
-              vacio="El conjunto sellado de este ejercicio no trae ningun arancel de terreno."
-              pie={`${cuadro.pie} ${MOTIVOS.arancelSinZona} ${VALORES.noSeSellaAqui}`}
-            />
+            <>
+              {/* El cuadro llego y el CATALOGO no. Es una lectura aparte y con
+                  su propio acceso, asi que su fallo se dice aqui —con las cuatro
+                  distinciones de `ErrorDeApi` intactas— en vez de esconderse en
+                  dos columnas degradadas. Sin esto, la tabla salia entera y sin
+                  un solo aviso (#49). */}
+              {vias.error ? <Fallo error={vias.error} reintentar={vias.reintentar} /> : null}
+              <TablaFija
+                columnas={[
+                  { label: 'Via' },
+                  { label: 'Tipo' },
+                  { label: 'Tramo' },
+                  { label: 'Arancel S/ m²', numerica: true },
+                  { label: 'Documento fuente' },
+                ]}
+                filas={filas.map((a) => {
+                  const via = viaPorId.get(a.viaId);
+                  return {
+                    llave: String(a.id),
+                    celdas: [
+                      { texto: via ? `${via.codigo} — ${via.nombre}` : `${sinVia} · id ${a.viaId}` },
+                      { texto: via ? via.tipo : sinVia },
+                      { texto: a.tramo ?? 'Sin tramo' },
+                      { texto: a.valorM2, numerica: true },
+                      { texto: a.documentoFuente },
+                    ],
+                  };
+                })}
+                vacio="El conjunto sellado de este ejercicio no trae ningun arancel de terreno."
+                pie={`${cuadro.pie} ${MOTIVOS.arancelSinZona} ${VALORES.noSeSellaAqui}`}
+              />
+            </>
           )}
         </Lectura>
       ) : null}

@@ -120,6 +120,18 @@ export const MOTIVOS = {
   /** Por que faltan columnas del artboard en los aranceles. */
   arancelSinZona:
     'El artboard pone una columna «Zona» que el cuadro no publica: «ArancelResource» trae la via, el tramo, el valor y el documento fuente, y nada mas. Se quedan las que existen.',
+  /**
+   * Que se pone en la columna «Via» cuando el catalogo vial no se pudo leer.
+   *
+   * `calles` es un `@RequiereAcceso` distinto de `aranceles`, asi que hay
+   * usuarios con uno y sin el otro: el cuadro llega y el catalogo contesta 403.
+   * Antes se pintaba `Via 1`, que **no se distingue del nombre de una via** —el
+   * cuadro salia entero con «Via 1 — Sin tramo 388.00»—, que es el peor de los
+   * tres desenlaces aplicado a una columna: ni el dato ni el error.
+   */
+  viaSinCatalogo: 'Sin el catalogo vial',
+  /** Y cuando el catalogo SI se leyo y esa via no esta en el. */
+  viaQueNoEstaEnElCatalogo: 'No esta en el catalogo vial',
   /** Por que hay siete partidas y no cinco. */
   sietePartidas:
     'El artboard dibuja cinco columnas y el cuadro publica las partidas que traiga el conjunto sellado, que en el Anexo I.2 son siete. Las columnas salen de la respuesta y no de una lista escrita aqui, para que la tabla no esconda una partida el dia que se publique otra.',

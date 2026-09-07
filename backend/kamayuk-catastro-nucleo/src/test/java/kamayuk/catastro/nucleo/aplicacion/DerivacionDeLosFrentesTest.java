@@ -3,6 +3,7 @@ package kamayuk.catastro.nucleo.aplicacion;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -11,12 +12,14 @@ import java.util.List;
 import java.util.Optional;
 import kamayuk.catastro.auditoria.Auditoria;
 import kamayuk.catastro.auditoria.RegistroDeAuditoria;
+import kamayuk.catastro.compartido.MarcoGeografico;
 import kamayuk.catastro.dominio.Medida;
 import kamayuk.catastro.dominio.Observacion;
 import kamayuk.catastro.nucleo.dominio.DerivacionDeFrentes;
 import kamayuk.catastro.nucleo.dominio.FrenteDelPredio;
 import kamayuk.catastro.nucleo.dominio.FrentePropuesto;
 import kamayuk.catastro.nucleo.dominio.FrentesDelPredio;
+import kamayuk.catastro.nucleo.dominio.MarcoDeLoLevantado;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -107,6 +110,59 @@ class DerivacionDeLosFrentesTest {
     }
 
     @Test
+    @DisplayName("en un padron del Peru el informe no trae ningun aviso de latitud")
+    void enUnPadronDelPeruNoHayAvisoDeLatitud() {
+        frentes.predios(100L);
+        frentes.corta(100L, propuesto(100L, 200L));
+
+        DerivacionDeLosFrentes.Informe informe = derivacion().derivar(OCHO_METROS, 500, PORQUE);
+
+        assertThat(informe.avisoDeLatitud())
+                .as(
+                        "es el contraste, y sin el «lo dice» no significa nada: un aviso que sale"
+                                + " siempre deja de leerse (#437)")
+                .isNull();
+    }
+
+    @Test
+    @DisplayName("y fuera de la banda de la constante el informe LO DICE (#29)")
+    void fueraDeLaBandaElInformeLoDice() {
+        // Hasta #29 el limite de `MargenDelMarco` era una frase de su javadoc que no consultaba
+        // nadie: una instalacion fuera de la banda habria derivado frentes de menos sin ningun
+        // sintoma —el marco descarta la via ANTES de que el ST_DWithin la vea—, y un frente que no
+        // se propone es indistinguible de un predio que no da a la calle.
+        frentes.predios(100L);
+        frentes.corta(100L, propuesto(100L, 200L));
+        frentes.padronEn(marco("-106.20", "28.55", "-106.00", "28.75"), 3);
+
+        DerivacionDeLosFrentes.Informe informe = derivacion().derivar(OCHO_METROS, 500, PORQUE);
+
+        assertThat(informe.frentesPropuestos())
+                .as("y no se niega a derivar: lo que si sale sigue siendo correcto")
+                .isEqualTo(1);
+        assertThat(informe.avisoDeLatitud())
+                .as("el aviso nombra la latitud que se salio y lo que va a pasar por ello")
+                .isNotNull()
+                .contains("28.75")
+                .contains("descarta vias");
+    }
+
+    @Test
+    @DisplayName("sin ni un poligono cargado no hay latitud que mirar, y eso no es un aviso")
+    void sinCartografiaNoHayAvisoDeLatitud() {
+        // El estado de hoy en toda instalacion. Que salga aviso aqui seria gritar en lo correcto:
+        // lo que falta es la carga cartografica, y eso ya lo dice el informe con sus ceros y cada
+        // predio con su motivo en `frente_derivacion`.
+        frentes.predios(100L);
+        frentes.padronEn(null, 0);
+
+        DerivacionDeLosFrentes.Informe informe = derivacion().derivar(OCHO_METROS, 500, PORQUE);
+
+        assertThat(informe.avisoDeLatitud()).isNull();
+        assertThat(informe.frentesPropuestos()).isZero();
+    }
+
+    @Test
     @DisplayName("una corrida con tope cero no es una corrida")
     void unaCorridaConTopeCeroSeRechaza() {
         assertThatThrownBy(() -> derivacion().derivar(OCHO_METROS, 0, PORQUE))
@@ -120,6 +176,14 @@ class DerivacionDeLosFrentesTest {
         assertThatThrownBy(() -> derivacion().derivar(OCHO_METROS, 500, null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("observacion");
+    }
+
+    private static MarcoGeografico marco(String oeste, String sur, String este, String norte) {
+        return new MarcoGeografico(
+                new BigDecimal(oeste),
+                new BigDecimal(sur),
+                new BigDecimal(este),
+                new BigDecimal(norte));
     }
 
     private static FrentePropuesto propuesto(long predioId, long viaId) {
@@ -137,6 +201,14 @@ class DerivacionDeLosFrentesTest {
         private final java.util.Map<Long, List<FrentePropuesto>> cortes = new java.util.HashMap<>();
         private final List<DerivacionDeFrentes> anotadas = new ArrayList<>();
         private boolean todoYaEstaba;
+
+        /** Sullana, que es donde estan los datos de este proyecto: dentro de la banda. */
+        private MarcoDeLoLevantado levantado =
+                new MarcoDeLoLevantado(marco("-80.71", "-4.92", "-80.66", "-4.87"), 2);
+
+        void padronEn(@org.jspecify.annotations.Nullable MarcoGeografico marco, long lotes) {
+            levantado = new MarcoDeLoLevantado(marco, lotes);
+        }
 
         void predios(long... ids) {
             for (long id : ids) {
@@ -165,6 +237,11 @@ class DerivacionDeLosFrentesTest {
         @Override
         public boolean existeElPredio(long predioId) {
             return predios.contains(predioId);
+        }
+
+        @Override
+        public MarcoDeLoLevantado marcoDelPadron() {
+            return levantado;
         }
 
         @Override

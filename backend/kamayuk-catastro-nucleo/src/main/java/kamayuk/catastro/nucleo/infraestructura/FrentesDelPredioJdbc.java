@@ -14,6 +14,7 @@ import kamayuk.catastro.nucleo.dominio.EstadoDeLaLongitud;
 import kamayuk.catastro.nucleo.dominio.FrenteDelPredio;
 import kamayuk.catastro.nucleo.dominio.FrentePropuesto;
 import kamayuk.catastro.nucleo.dominio.FrentesDelPredio;
+import kamayuk.catastro.nucleo.dominio.MarcoDeLoLevantado;
 import kamayuk.catastro.nucleo.dominio.MargenDelMarco;
 import kamayuk.catastro.persistencia.RepositorioJdbc;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -158,6 +159,35 @@ public class FrentesDelPredioJdbc extends RepositorioJdbc implements FrentesDelP
                         .query(Long.class)
                         .single()
                 > 0;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p><b>Un agregado sobre las cuatro columnas de marco, sin un solo operador espacial</b>: son
+     * las que el motor ya deriva y mantiene junto a cada fila (V65, ADR-0034), y las unicas que
+     * llegan al indice bajo RLS. {@code ST_Extent(geometria)} daria lo mismo leyendo la geometria
+     * entera del inquilino y devolviendo un {@code box2d} que habria que volver a analizar como
+     * texto.
+     *
+     * <p>{@code FROM predio} a secas y no el {@code FROM} del plano: la derivacion recorre el
+     * padron entero y no acota por sector ni por manzana, asi que unir las tres tablas seria pagar
+     * dos uniones para contestar lo mismo.
+     *
+     * <p>El mapeo lo hace {@link CatastroRepositoryJdbc}, que ya lo tenia escrito, y no una copia:
+     * dos copias acabarian discrepando en el caso <b>degenerado</b> —todo lo levantado sobre el
+     * mismo meridiano, que PostGIS acepta—, que es justo el que nadie prueba dos veces.
+     */
+    @Override
+    public MarcoDeLoLevantado marcoDelPadron() {
+        return jdbc().sql(
+                        "SELECT min(marco_oeste) AS oeste, min(marco_sur) AS sur,"
+                                + " max(marco_este) AS este, max(marco_norte) AS norte,"
+                                + " count(*) AS lotes"
+                                + " FROM predio WHERE geometria IS NOT NULL")
+                .query(CatastroRepositoryJdbc::mapearMarcoDeLoLevantado)
+                .optional()
+                .orElse(MarcoDeLoLevantado.NINGUNO);
     }
 
     @Override

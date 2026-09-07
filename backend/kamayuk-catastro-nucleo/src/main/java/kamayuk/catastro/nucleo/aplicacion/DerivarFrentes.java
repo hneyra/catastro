@@ -64,6 +64,15 @@ public class DerivarFrentes implements ApplicationRunner {
                     informe.prediosRecorridos(),
                     informe.prediosConFrenteNuevo(),
                     informe.frentesPropuestos());
+            if (informe.avisoDeLatitud() != null) {
+                // #29. No es un detalle de despliegue: fuera de la banda el corte propone de
+                // menos y el unico sintoma seria un predio de esquina con un frente en vez de
+                // dos. Sale como aviso y no como fallo porque lo que si salio es correcto.
+                log.warn(
+                        "El margen del marco no vale en la latitud de esta municipalidad, asi que"
+                                + " esta corrida pudo proponer de menos: {}",
+                        informe.avisoDeLatitud());
+            }
             if (informe.frentesPropuestos() == 0) {
                 log.warn(
                         "Ningun frente propuesto sobre {} predio(s). Lo mas probable hoy es que no"

@@ -117,6 +117,18 @@ tasks.test {
         .optional()
         .withPathSensitivity(PathSensitivity.NONE)
 
+    // LAS MUESTRAS VIVEN FUERA DE `backend/`, y por lo mismo. `CatastroNoNombraUnArbitrioTest`
+    // corre su escaner sobre `muestras/nombra-un-arbitrio/` (#29) —una clase que viola ADR-0024 a
+    // proposito, para que el contraste ejerza el recorrido de verdad y no una cadena escrita en la
+    // prueba—. Ese arbol no esta en ningun conjunto de fuentes de Gradle, asi que sin declararlo
+    // apartar la muestra dejaba esta tarea en **UP-TO-DATE**: medido, `BUILD SUCCESSFUL` en 1 s
+    // sin que la prueba corriera. Es la leccion de #192 punto 2 por tercera vez, y la misma que la
+    // entrada de arriba cerro para el contrato del consumidor.
+    inputs
+        .files(
+            rootProject.layout.projectDirectory.dir("../muestras").asFileTree)
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+
     // Las tres entradas de `rentas` —el contrato OpenAPI, el archivo de formas y el censo de
     // respuestas— NO estan aqui, y no es un olvido: `catastro` no tiene contrato derivado.
     // El generador de `rentas` deriva del prototipo del manual (#312) y aqui no hay prototipo del

@@ -23,6 +23,19 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class CacheDeSnapshotsJdbc extends RepositorioJdbc implements CacheDeSnapshots {
 
+    /**
+     * El desempate con que este sistema elige «el conjunto de un ejercicio». Un solo sitio.
+     *
+     * <p>Lo usan {@code conjuntoCacheadoDe} —el repliegue del calculo cuando {@code normativa} no
+     * contesta— y {@code conjuntosCacheados} —la lista que se ofrece para elegir (#51)—. Escrito
+     * dos veces, las dos consultas podrian divergir y entonces la interfaz ofreceria un ejercicio y
+     * el calculo tomaria otro conjunto, sin que nada lo dijera: dos sitios con la misma verdad, que
+     * es la forma de defecto que C-17 encontro cinco veces. Hay ademas una prueba que exige que las
+     * dos contesten lo mismo, porque una constante compartida garantiza que el TEXTO sea el mismo y
+     * no que las dos consultas lo usen igual.
+     */
+    private static final String EL_CONJUNTO_QUE_RIGE = "version DESC, conjunto_id DESC";
+
     private final Clock reloj;
 
     public CacheDeSnapshotsJdbc(JdbcClient jdbc, Clock reloj) {
@@ -50,9 +63,10 @@ public class CacheDeSnapshotsJdbc extends RepositorioJdbc implements CacheDeSnap
                         """
                         SELECT conjunto_id FROM normativa_conjunto
                          WHERE ejercicio = :ejercicio
-                         ORDER BY version DESC, conjunto_id DESC
+                         ORDER BY %s
                          LIMIT 1
-                        """)
+                        """
+                                .formatted(EL_CONJUNTO_QUE_RIGE))
                 .param("ejercicio", ejercicio.valor())
                 .query(Long.class)
                 .optional();
@@ -73,6 +87,50 @@ public class CacheDeSnapshotsJdbc extends RepositorioJdbc implements CacheDeSnap
                                         new Ejercicio(fila.getInt("ejercicio")),
                                         fila.getInt("version")))
                 .optional();
+    }
+
+    /**
+     * Los ejercicios de la copia local, uno por ejercicio y del mas reciente al mas antiguo (#51).
+     *
+     * <h2>Por que hay dos niveles y no basta un {@code GROUP BY}</h2>
+     *
+     * <p>La tabla tiene una fila por <b>ambito</b> —{@code PRIMARY KEY (municipalidad_id,
+     * conjunto_id, ambito)}— y puede tener varias versiones del mismo ejercicio. El interior agrupa
+     * las mitades de un mismo conjunto y junta sus ambitos; el {@code DISTINCT ON (ejercicio)}
+     * exterior se queda con el conjunto que rige, con el <b>mismo</b> desempate que {@code
+     * conjuntoCacheadoDe}.
+     *
+     * <p><b>No lleva ningun {@code WHERE municipalidad_id}</b>, y es deliberado (regla 2): filtra
+     * la politica RLS de {@code V2} con el valor que {@code SET LOCAL} dejo al abrir la
+     * transaccion. Un {@code WHERE} se olvida en una consulta de las cuarenta; una politica no se
+     * olvida, y sin contexto esta consulta <b>falla</b> en vez de devolver el padron de todas las
+     * municipalidades.
+     *
+     * <p>{@code DISTINCT ON} exige que el {@code ORDER BY} empiece por su misma expresion, de modo
+     * que el descendente del ejercicio —que es lo que un desplegable necesita— no es una
+     * preferencia que se pueda cambiar sin romper la consulta: es parte de como elige la fila.
+     */
+    @Override
+    public List<ConjuntoCacheado> conjuntosCacheados() {
+        return jdbc().sql(
+                        """
+                        SELECT DISTINCT ON (ejercicio)
+                               ejercicio, conjunto_id, version, ambitos
+                          FROM (SELECT ejercicio, conjunto_id, version,
+                                       string_agg(ambito, ',' ORDER BY ambito) AS ambitos
+                                  FROM normativa_conjunto
+                                 GROUP BY ejercicio, conjunto_id, version) AS conjuntos
+                         ORDER BY ejercicio DESC, %s
+                        """
+                                .formatted(EL_CONJUNTO_QUE_RIGE))
+                .query(
+                        (ResultSet fila, int numero) ->
+                                new ConjuntoCacheado(
+                                        new Ejercicio(fila.getInt("ejercicio")),
+                                        fila.getLong("conjunto_id"),
+                                        fila.getInt("version"),
+                                        List.of(fila.getString("ambitos").split(","))))
+                .list();
     }
 
     @Override

@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
+import kamayuk.catastro.auditoria.AuditoriaJdbc;
 import kamayuk.catastro.auditoria.Origen;
 import kamayuk.catastro.auditoria.OrigenContext;
 import kamayuk.catastro.compartido.TenantContext;
@@ -22,6 +23,8 @@ import kamayuk.catastro.dominio.Observacion;
 import kamayuk.catastro.esquema.BaseDeDatosDePrueba;
 import kamayuk.catastro.esquema.ContextoDeTenant;
 import kamayuk.catastro.esquema.DatosDePrueba;
+import kamayuk.catastro.nucleo.aplicacion.ConfirmarElFrente;
+import kamayuk.catastro.nucleo.aplicacion.ProponerLosFrentesDeUnPredio;
 import kamayuk.catastro.nucleo.dominio.DerivacionDeFrentes;
 import kamayuk.catastro.nucleo.dominio.EstadoDeLaLongitud;
 import kamayuk.catastro.nucleo.dominio.FrenteDelPredio;
@@ -82,6 +85,11 @@ class DerivacionDeFrentesJdbcTest {
     private static TransactionTemplate enUnaTransaccion;
     private static long predioId;
 
+    /** #20: los dos casos de uso, con la {@code Auditoria} DE VERDAD y no con un doble. */
+    private static ProponerLosFrentesDeUnPredio derivador;
+
+    private static ConfirmarElFrente confirmador;
+
     @BeforeAll
     static void provisionar() throws SQLException, IOException {
         base = BaseDeDatosDePrueba.provisionar();
@@ -96,6 +104,12 @@ class DerivacionDeFrentesJdbcTest {
 
         frentes = new FrentesDelPredioJdbc(JdbcClient.create(pool));
         enUnaTransaccion = new TransactionTemplate(new TenantTransactionManager(pool));
+
+        // #20: la bitacora de verdad, la que escribe `cast(:datosNuevos AS jsonb)`. Con un doble
+        // que solo recuerda, los dos caminos de abajo pasan en verde con prosa dentro.
+        AuditoriaJdbc auditoria = new AuditoriaJdbc(JdbcClient.create(pool), RELOJ);
+        derivador = new ProponerLosFrentesDeUnPredio(frentes, auditoria, RELOJ);
+        confirmador = new ConfirmarElFrente(frentes, auditoria, RELOJ);
         predioId = unaCifraDe("SELECT id FROM predio ORDER BY id LIMIT 1").longValue();
     }
 
@@ -130,6 +144,7 @@ class DerivacionDeFrentesJdbcTest {
         // rol de la aplicacion para limpiar es la prueba de que el privilegio esta bien puesto.
         limpiarComoAdmin("DELETE FROM frente_predio");
         limpiarComoAdmin("DELETE FROM frente_derivacion");
+        limpiarComoAdmin("DELETE FROM auditoria");
         ejecutar("UPDATE via SET eje = NULL");
 
         // El lote: 200 m x 200 m en UTM 17S, transformado a WGS84.
@@ -344,6 +359,111 @@ class DerivacionDeFrentesJdbcTest {
         assertThat(propuestos)
                 .as("el predio del escenario existe, y desde la vecina no hay nada que cortar")
                 .isEmpty();
+    }
+
+    // ── #20: los dos caminos que morian en el `cast` ───────────────────
+
+    /**
+     * El derivador entero, con la bitacora de verdad (#20, AC-5).
+     *
+     * <p><b>Hasta #20 esto no se podia ejercer ni una vez.</b> {@code ProponerLosFrentesDeUnPredio}
+     * asentaba «Frente PROPUESTO a la via 3: 12.50 METROS…», y la columna es {@code jsonb}: el
+     * proceso del perfil {@code batch} moria en el PRIMER frente que conseguia proponer. Las
+     * pruebas que habia ejercian el <b>repositorio</b> —{@code cortarContraLasVias}, {@code
+     * proponer}, {@code confirmar}— y nunca el caso de uso, y la del caso de uso usaba un doble que
+     * solo recuerda: por eso el build estaba en verde.
+     */
+    @Test
+    @DisplayName("#20 — el derivador propone Y asienta: llega hasta el cast, con la Auditoria real")
+    void elDerivadorAsientaEnLaBitacoraDeVerdad() throws SQLException {
+        TenantContext.fijar(new MunicipalidadId(municipalidad));
+        OrigenContext.fijar(Origen.deProceso("derivacion-de-frentes"));
+
+        int escritos =
+                enUnaTransaccion.execute(
+                        estado -> derivador.proponer(predioId, OCHO_METROS, PORQUE));
+
+        assertThat(escritos).as("las dos vias del escenario").isEqualTo(2);
+        assertThat(asientosDe("frente_predio", "ALTA"))
+                .as("un asiento por frente propuesto, y los dos con su JSON dentro")
+                .hasSize(2)
+                .allSatisfy(
+                        datos ->
+                                assertThat(datos)
+                                        .as("lo que se asienta es el estado, no una frase")
+                                        .contains("\"estado\": \"PROPUESTA\"")
+                                        .contains("\"unidad\": \"ML\""));
+    }
+
+    /**
+     * Confirmar, que es el otro camino que reventaba SIEMPRE (#20, AC-5).
+     *
+     * <p>{@code POST /catastro/api/v1/catastro/frentes/{id}/confirmacion} contestaba <b>500</b>: su
+     * «antes» era la frase «Longitud PROPUESTA, derivada del corte contra el eje de calzada», que
+     * no es JSON.
+     */
+    @Test
+    @DisplayName("#20 — confirmar el frente asienta el antes y el despues, y los dos son JSON")
+    void confirmarAsientaElAntesYElDespues() throws SQLException {
+        TenantContext.fijar(new MunicipalidadId(municipalidad));
+        OrigenContext.fijar(new Origen("jperez", "PC-CATASTRO-01", "10.20.30.41"));
+        enUnaTransaccion.execute(estado -> derivador.proponer(predioId, OCHO_METROS, PORQUE));
+        long frenteId = leerFrentes().get(0).id();
+
+        FrenteDelPredio confirmado =
+                enUnaTransaccion.execute(
+                        estado ->
+                                confirmador.confirmar(
+                                        frenteId,
+                                        Medida.enMetrosLineales("111.00"),
+                                        Observacion.de("Medido en campo con cinta, 2026-09-06")));
+
+        assertThat(confirmado.estaConfirmada()).isTrue();
+        assertThat(
+                        unTexto(
+                                "SELECT datos_anteriores ->> 'estado' FROM auditoria"
+                                        + " WHERE tabla = 'frente_predio' AND operacion = 'MODIFICACION'"))
+                .as("el antes dice que era una PROPUESTA, y lo dice como campo y no como frase")
+                .isEqualTo("PROPUESTA");
+        assertThat(
+                        unTexto(
+                                "SELECT datos_nuevos ->> 'confirmadoPor' FROM auditoria"
+                                        + " WHERE tabla = 'frente_predio' AND operacion = 'MODIFICACION'"))
+                .as("y el despues, quien la firmo: de esta cifra cuelga un cobro")
+                .isEqualTo("jperez");
+        assertThat(
+                        unTexto(
+                                "SELECT datos_nuevos ->> 'longitud' FROM auditoria"
+                                        + " WHERE tabla = 'frente_predio' AND operacion = 'MODIFICACION'"))
+                .isEqualTo("111.00");
+    }
+
+    /** Los {@code datos_nuevos} de los asientos de una tabla, leidos como administrador. */
+    private static List<String> asientosDe(String tabla, String operacion) throws SQLException {
+        List<String> asientos = new java.util.ArrayList<>();
+        try (Connection admin = base.conexionAdmin();
+                Statement sentencia = admin.createStatement();
+                ResultSet filas =
+                        sentencia.executeQuery(
+                                "SELECT jsonb_pretty(datos_nuevos) FROM auditoria WHERE tabla = '"
+                                        + tabla
+                                        + "' AND operacion = '"
+                                        + operacion
+                                        + "'")) {
+            while (filas.next()) {
+                asientos.add(filas.getString(1));
+            }
+        }
+        return asientos;
+    }
+
+    private static String unTexto(String consulta) throws SQLException {
+        try (Connection admin = base.conexionAdmin();
+                Statement sentencia = admin.createStatement();
+                ResultSet fila = sentencia.executeQuery(consulta)) {
+            assertThat(fila.next()).as("tiene que haber un asiento que leer").isTrue();
+            return fila.getString(1);
+        }
     }
 
     // ── Fixtures ───────────────────────────────────────────────────────

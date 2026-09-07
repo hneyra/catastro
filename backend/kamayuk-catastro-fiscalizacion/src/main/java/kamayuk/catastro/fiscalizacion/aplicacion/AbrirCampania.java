@@ -3,6 +3,7 @@ package kamayuk.catastro.fiscalizacion.aplicacion;
 import java.time.Clock;
 import java.time.LocalDate;
 import kamayuk.catastro.auditoria.Auditoria;
+import kamayuk.catastro.auditoria.DatosDeAuditoria;
 import kamayuk.catastro.auditoria.Operacion;
 import kamayuk.catastro.auditoria.RegistroDeAuditoria;
 import kamayuk.catastro.dominio.Observacion;
@@ -99,25 +100,22 @@ public class AbrirCampania {
     }
 
     /**
-     * Un JSON escrito a mano y no un serializador, por lo mismo que en {@code RegistrarSector}: son
-     * cinco campos, y traer Jackson hasta la capa de aplicacion la ataria a la de presentacion.
+     * El estado de la campania para la bitacora.
+     *
+     * <p>Lo escribe el serializador de {@code ConfiguracionDeJson} desde #20. Antes era un JSON
+     * concatenado a mano con un {@code escapar()} propio —duplicado byte a byte en {@code
+     * DescripcionDelCandidato}— que cubria la barra y la comilla y <b>no los caracteres de
+     * control</b>: el nombre de campania con un salto de linea dentro rompia igual el que «si
+     * escapaba».
      */
-    private static String descripcion(Campania campania) {
-        return "{\"codigo\":\""
-                + escapar(campania.codigo())
-                + "\",\"nombre\":\""
-                + escapar(campania.nombre())
-                + "\",\"estado\":\""
-                + campania.estado()
-                + "\",\"umbral\":"
-                + campania.umbral()
-                + ",\"fin\":"
-                + (campania.fin() == null ? "null" : "\"" + campania.fin() + "\"")
-                + "}";
-    }
-
-    private static String escapar(String texto) {
-        return texto.replace("\\", "\\\\").replace("\"", "\\\"");
+    private static DatosDeAuditoria descripcion(Campania campania) {
+        return DatosDeAuditoria.objeto()
+                .campo("codigo", campania.codigo())
+                .campo("nombre", campania.nombre())
+                .campo("estado", campania.estado())
+                .campo("umbral", campania.umbral().valor())
+                .campo("fin", campania.fin())
+                .componer();
     }
 
     /** Ya hay una campania con ese codigo en esta municipalidad. */

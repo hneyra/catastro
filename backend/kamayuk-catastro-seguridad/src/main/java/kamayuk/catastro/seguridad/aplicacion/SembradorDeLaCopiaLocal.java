@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 import kamayuk.catastro.auditoria.Auditoria;
+import kamayuk.catastro.auditoria.DatosDeAuditoria;
 import kamayuk.catastro.auditoria.Operacion;
 import kamayuk.catastro.auditoria.RegistroDeAuditoria;
 import kamayuk.catastro.autorizacion.Privilegio;
@@ -91,11 +92,10 @@ public class SembradorDeLaCopiaLocal extends RepositorioJdbc {
                                 LocalDate.now(reloj), "acceso", "catalogo", Operacion.ALTA, porQue)
                         .con(
                                 null,
-                                "{\"accesosCreados\":"
-                                        + creados
-                                        + ",\"opcionesDelSistema\":"
-                                        + opciones.size()
-                                        + "}"));
+                                DatosDeAuditoria.objeto()
+                                        .campo("accesosCreados", creados)
+                                        .campo("opcionesDelSistema", opciones.size())
+                                        .componer()));
         return creados;
     }
 

@@ -104,7 +104,10 @@ class AuditoriaJdbcTest {
                                     Operacion.ALTA,
                                     Observacion.de("Alta de via por convenio con catastro 2026"),
                                     null,
-                                    "{\"codigo\":\"V-1\"}"));
+                                    DatosDeAuditoria.objeto()
+                                            .campo("codigo", "V-1")
+                                            .componer()
+                                            .json()));
                     return null;
                 });
 
@@ -344,6 +347,95 @@ class AuditoriaJdbcTest {
                 ResultSet resultado = sentencia.executeQuery()) {
             resultado.next();
             return resultado.getLong(1);
+        }
+    }
+
+    // ── #20: lo que va a las dos columnas jsonb ────────────────────────
+
+    /**
+     * El caso que este issue existe para cerrar, ejercido contra la columna de verdad.
+     *
+     * <p>Un inspector llamado {@code Juan "El Tuerto" Perez} rompia el asiento: el JSON se componia
+     * a mano y lo que se interpolaba no venia escapado. Aqui entran las cinco formas que un escape
+     * a mano se deja —comilla, barra invertida, salto de linea, tabulador y no-ASCII— y se leen de
+     * vuelta con {@code ->>}, que es lo unico que demuestra que el valor <b>llego entero</b> y no
+     * solo que la fila entro.
+     */
+    @Test
+    @DisplayName("un valor con comillas, barras, saltos de linea y enies entra y se lee entero")
+    void unValorConCaracteresDificilesEntraYSeLeeEntero() throws SQLException {
+        String inspector =
+                "Juan \"El Tuerto\" Perez \\ C:\\temp\n\tSeccion 2\u00ba \u00d1ancahuazu";
+
+        transaccion.execute(
+                estado -> {
+                    auditoria.registrar(
+                            new RegistroDeAuditoria(
+                                    EJERCICIO,
+                                    "acta",
+                                    "9001",
+                                    Operacion.ALTA,
+                                    Observacion.de("Acta levantada con el nombre completo"),
+                                    null,
+                                    DatosDeAuditoria.objeto()
+                                            .campo("inspector", inspector)
+                                            .componer()
+                                            .json()));
+                    return null;
+                });
+
+        assertThat(unTexto("SELECT datos_nuevos ->> 'inspector' FROM auditoria WHERE clave='9001'"))
+                .as(
+                        "no basta con que la fila entre: el valor tiene que salir igual que entro,"
+                                + " o el escape lo habria mutilado en silencio")
+                .isEqualTo(inspector);
+    }
+
+    /**
+     * El contraste, y sin el lo de arriba no demuestra nada.
+     *
+     * <p>Si la columna admitiera cualquier texto, el caso anterior pasaria con el defecto puesto.
+     * Esto es el {@code ERROR: invalid input syntax for type json} que dos casos de uso recibian
+     * <b>siempre</b> —{@code ConfirmarElFrente} y {@code ProponerLosFrentesDeUnPredio}— y que
+     * ninguna prueba veia porque ninguna llegaba hasta aqui.
+     */
+    @Test
+    @DisplayName("y la columna rechaza la prosa: el cast es de verdad")
+    void laColumnaRechazaLaProsa() {
+        assertThatThrownBy(
+                        () ->
+                                transaccion.execute(
+                                        estado ->
+                                                jdbc.sql(
+                                                                "INSERT INTO auditoria"
+                                                                        + " (municipalidad_id,"
+                                                                        + " ejercicio, tabla, clave,"
+                                                                        + " operacion, usuario_id,"
+                                                                        + " observacion, datos_nuevos)"
+                                                                        + " VALUES"
+                                                                        + " (current_setting('app.municipalidad_id')::bigint,"
+                                                                        + " 2026, 'frente_predio',"
+                                                                        + " 'z', 'MODIFICACION',"
+                                                                        + " 'jperez', 'Confirmacion"
+                                                                        + " del frente',"
+                                                                        + " cast(:prosa AS jsonb))")
+                                                        .param(
+                                                                "prosa",
+                                                                "Longitud PROPUESTA, derivada del"
+                                                                        + " corte contra el eje de"
+                                                                        + " calzada")
+                                                        .update()))
+                .as("la columna es jsonb y la prosa no es JSON: es el defecto de #20, literal")
+                .hasMessageContaining("invalid input syntax for type json");
+    }
+
+    /** Una cifra sola de una consulta, leida como administrador. */
+    private static String unTexto(String consulta) throws SQLException {
+        try (Connection admin = base.conexionAdmin();
+                PreparedStatement sentencia = admin.prepareStatement(consulta);
+                ResultSet fila = sentencia.executeQuery()) {
+            assertThat(fila.next()).as("la consulta tiene que devolver una fila").isTrue();
+            return fila.getString(1);
         }
     }
 }

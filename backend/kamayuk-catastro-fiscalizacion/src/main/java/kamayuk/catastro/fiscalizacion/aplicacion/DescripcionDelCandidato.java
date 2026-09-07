@@ -1,12 +1,15 @@
 package kamayuk.catastro.fiscalizacion.aplicacion;
 
+import kamayuk.catastro.auditoria.DatosDeAuditoria;
 import kamayuk.catastro.fiscalizacion.dominio.Candidato;
 
 /**
  * El «antes» y el «despues» de un candidato, para la columna JSON de la auditoria.
  *
- * <p>Escrito a mano y no con un serializador, por lo mismo que en {@code RegistrarSector}: son
- * cinco campos, y traer Jackson hasta la capa de aplicacion la ataria a la de presentacion.
+ * <p>Lo escribe el serializador de {@code ConfiguracionDeJson} desde #20. Se escribia a mano, con
+ * un {@code escapar()} identico byte a byte al de {@code AbrirCampania} y tan incompleto como el:
+ * un motivo de descarte con un salto de linea dentro producia texto que la columna {@code jsonb}
+ * rechaza, y con el la transaccion entera se deshacia.
  *
  * <p>Vive en su propia clase y no repetido en las dos compuertas porque una {@code MODIFICACION}
  * cuyo antes y despues se compongan de dos maneras distintas no se puede leer: la mitad de las
@@ -20,30 +23,22 @@ final class DescripcionDelCandidato {
 
     private DescripcionDelCandidato() {}
 
-    static String de(Candidato candidato) {
+    static DatosDeAuditoria de(Candidato candidato) {
         Candidato.Descarte descarte = candidato.descarte();
-        return "{\"clase\":\""
-                + candidato.clase()
-                + "\",\"origen\":\""
-                + candidato.origen()
-                + "\",\"score\":"
-                + candidato.score()
-                + ",\"estado\":\""
-                + candidato.estado()
-                + "\",\"descarte\":"
-                + (descarte == null
-                        ? "null"
-                        : "{\"etapa\":\""
-                                + descarte.etapa()
-                                + "\",\"motivo\":\""
-                                + escapar(descarte.motivo())
-                                + "\",\"quien\":\""
-                                + escapar(descarte.quien())
-                                + "\"}")
-                + "}";
+        return DatosDeAuditoria.objeto()
+                .campo("clase", candidato.clase())
+                .campo("origen", candidato.origen())
+                .campo("score", candidato.score().valor())
+                .campo("estado", candidato.estado())
+                .campo("descarte", descarte == null ? null : descarteDe(descarte))
+                .componer();
     }
 
-    private static String escapar(String texto) {
-        return texto.replace("\\", "\\\\").replace("\"", "\\\"");
+    /** El descarte va anidado y no aplanado: es opcional entero, no campo a campo. */
+    private static DatosDeAuditoria.Composicion descarteDe(Candidato.Descarte descarte) {
+        return DatosDeAuditoria.objeto()
+                .campo("etapa", descarte.etapa())
+                .campo("motivo", descarte.motivo())
+                .campo("quien", descarte.quien());
     }
 }

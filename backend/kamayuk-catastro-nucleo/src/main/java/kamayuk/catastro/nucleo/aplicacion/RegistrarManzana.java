@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.util.Objects;
 import kamayuk.catastro.auditoria.Auditoria;
+import kamayuk.catastro.auditoria.DatosDeAuditoria;
 import kamayuk.catastro.auditoria.Operacion;
 import kamayuk.catastro.auditoria.RegistroDeAuditoria;
 import kamayuk.catastro.dominio.Observacion;
@@ -68,11 +69,10 @@ public class RegistrarManzana {
         return guardada;
     }
 
-    private static String descripcion(Sector sector, Manzana manzana) {
-        return "{\"sectorCodigo\":\""
-                + sector.codigo()
-                + "\",\"codigo\":\""
-                + manzana.codigo()
-                + "\"}";
+    private static DatosDeAuditoria descripcion(Sector sector, Manzana manzana) {
+        return DatosDeAuditoria.objeto()
+                .campo("sectorCodigo", sector.codigo())
+                .campo("codigo", manzana.codigo())
+                .componer();
     }
 }

@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import kamayuk.catastro.auditoria.Auditoria;
+import kamayuk.catastro.auditoria.DatosDeAuditoria;
 import kamayuk.catastro.auditoria.Operacion;
 import kamayuk.catastro.auditoria.RegistroDeAuditoria;
 import kamayuk.catastro.dominio.Observacion;
@@ -121,41 +122,40 @@ public class DetectarSubvaluadores {
                                 observacion)
                         .con(
                                 null,
-                                "{\"campania\":"
-                                        + campaniaId
-                                        + ",\"contrastados\":"
-                                        + contrastes.size()
-                                        + ",\"detectados\":"
-                                        + detectados.size()
-                                        + ",\"tolerancia\":"
-                                        + tolerancia
-                                        + ",\"umbral\":"
-                                        + campania.umbral()
-                                        + "}"));
+                                DatosDeAuditoria.objeto()
+                                        .campo("campania", campaniaId)
+                                        .campo("contrastados", contrastes.size())
+                                        .campo("detectados", detectados.size())
+                                        .campo("tolerancia", tolerancia.valor())
+                                        .campo("umbral", campania.umbral().valor())
+                                        .componer()));
         return List.copyOf(detectados);
     }
 
     /**
      * Lo que disparo la sospecha, para poder volver a la fuente.
      *
-     * <p>JSON escrito a mano, por lo mismo que en {@code RegistrarSector}: son cuatro campos, y
-     * traer un serializador a la capa de aplicacion la ataria a la de presentacion. Guarda las dos
-     * areas <b>tal como estaban al contrastar</b>: si dentro de un mes alguien versiona la ficha,
-     * el descarte de este candidato tiene que poder explicarse con lo que se vio, no con lo que
-     * hay.
+     * <p>Guarda las dos areas <b>tal como estaban al contrastar</b>: si dentro de un mes alguien
+     * versiona la ficha, el descarte de este candidato tiene que poder explicarse con lo que se
+     * vio, no con lo que hay.
+     *
+     * <p><b>Lo escribe el serializador desde #20</b>, y devuelve un {@code String} porque esta
+     * columna es {@code candidato.insumos} y no una de la bitacora. Se componia a mano interpolando
+     * el {@code codigoReferenciaCatastral} sin escapar. Y las dos areas salen ahora <b>tipadas como
+     * {@code AreaM2}</b>, o sea entre comillas y no como numero JSON, que es donde #607 dice que se
+     * escriben; con eso la entrada de esta clase en {@code componenElAreaAManoConMotivo()} deja de
+     * tener nada que eximir.
      */
     private static String insumosDe(ContrasteDeAreas contraste) {
-        return "{\"origen\":\"CRUCE_DE_AREAS\",\"codigoReferenciaCatastral\":\""
-                + contraste.codigoReferenciaCatastral()
-                + "\",\"fichaId\":"
-                + contraste.fichaId()
-                + ",\"areaDeLaFicha\":"
-                + contraste.areaDeLaFicha().valor()
-                + ",\"areaDelPoligono\":"
-                + contraste.areaDelPoligono().valor()
-                + ",\"diferenciaRelativa\":"
-                + contraste.diferenciaRelativa()
-                + "}";
+        return DatosDeAuditoria.objeto()
+                .campo("origen", OrigenDelCandidato.CRUCE_DE_AREAS)
+                .campo("codigoReferenciaCatastral", contraste.codigoReferenciaCatastral())
+                .campo("fichaId", contraste.fichaId())
+                .campo("areaDeLaFicha", contraste.areaDeLaFicha())
+                .campo("areaDelPoligono", contraste.areaDelPoligono())
+                .campo("diferenciaRelativa", contraste.diferenciaRelativa().valor())
+                .componer()
+                .json();
     }
 
     /** La campania ya no admite candidatos: sus cifras estan cerradas. */

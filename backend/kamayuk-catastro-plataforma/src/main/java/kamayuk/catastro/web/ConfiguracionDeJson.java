@@ -35,7 +35,20 @@ import tools.jackson.databind.module.SimpleModule;
 public class ConfiguracionDeJson {
 
     @Bean
-    public SimpleModule moduloDeObjetosDeValor() {
+    public SimpleModule beanDelModuloDeObjetosDeValor() {
+        return moduloDeObjetosDeValor();
+    }
+
+    /**
+     * El mismo modulo, sin Spring de por medio.
+     *
+     * <p>Es {@code static} desde #20 porque la bitacora tiene que componer su JSON con <b>este</b>
+     * serializador y no con otro: {@code DatosDeAuditoria} se construye en la capa de aplicacion,
+     * donde no hay contexto que inyecte un bean. Que la definicion sea una sola es lo que hace que
+     * un {@code AreaM2} se asiente en la auditoria igual que sale por HTTP; con dos copias, la
+     * bitacora podria empezar a escribir un numero JSON el dia que alguien tocara una de ellas.
+     */
+    public static SimpleModule moduloDeObjetosDeValor() {
         SimpleModule modulo = new SimpleModule("sgtm-objetos-de-valor");
 
         registrar(modulo, Dinero.class, d -> d.valor().toPlainString(), Dinero::de);

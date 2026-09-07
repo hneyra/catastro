@@ -3,6 +3,7 @@ package kamayuk.catastro.fiscalizacion.aplicacion;
 import java.time.Clock;
 import java.time.LocalDate;
 import kamayuk.catastro.auditoria.Auditoria;
+import kamayuk.catastro.auditoria.DatosDeAuditoria;
 import kamayuk.catastro.auditoria.Operacion;
 import kamayuk.catastro.auditoria.RegistroDeAuditoria;
 import kamayuk.catastro.dominio.Observacion;
@@ -93,13 +94,16 @@ public class LevantarActa {
                                 observacion)
                         .con(
                                 null,
-                                "{\"numero\":\""
-                                        + numero
-                                        + "\",\"hallazgoId\":"
-                                        + hallazgoId
-                                        + ",\"inspector\":\""
-                                        + inspector
-                                        + "\"}"));
+                                // #20: el `inspector` y el `numero` se interpolaban SIN ESCAPAR en
+                                // un JSON escrito a mano, y la columna es `jsonb`: un inspector
+                                // llamado Juan "El Tuerto" Perez hacia imposible levantar su acta,
+                                // con la transaccion entera deshecha y un mensaje que hablaba de
+                                // JSON y no de el.
+                                DatosDeAuditoria.objeto()
+                                        .campo("numero", numero)
+                                        .campo("hallazgoId", hallazgoId)
+                                        .campo("inspector", inspector)
+                                        .componer()));
         return acta;
     }
 

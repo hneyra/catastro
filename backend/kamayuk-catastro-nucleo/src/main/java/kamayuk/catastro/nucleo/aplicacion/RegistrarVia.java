@@ -3,6 +3,7 @@ package kamayuk.catastro.nucleo.aplicacion;
 import java.time.Clock;
 import java.time.LocalDate;
 import kamayuk.catastro.auditoria.Auditoria;
+import kamayuk.catastro.auditoria.DatosDeAuditoria;
 import kamayuk.catastro.auditoria.Operacion;
 import kamayuk.catastro.auditoria.RegistroDeAuditoria;
 import kamayuk.catastro.dominio.Observacion;
@@ -138,15 +139,12 @@ public class RegistrarVia {
      * ataria la capa de aplicacion a la de presentacion. Cuando haya mas de dos casos de uso que lo
      * necesiten, saldra a un componente propio.
      */
-    private static String descripcion(Via via) {
-        return "{\"codigo\":\""
-                + via.codigo()
-                + "\",\"tipo\":\""
-                + via.tipo()
-                + "\",\"nombre\":\""
-                + via.nombre().replace("\"", "\\\"")
-                + "\",\"activa\":"
-                + via.activa()
-                + "}";
+    private static DatosDeAuditoria descripcion(Via via) {
+        return DatosDeAuditoria.objeto()
+                .campo("codigo", via.codigo())
+                .campo("tipo", via.tipo())
+                .campo("nombre", via.nombre())
+                .campo("activa", via.activa())
+                .componer();
     }
 }

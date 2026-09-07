@@ -58,11 +58,17 @@ class DerivacionDeLosFrentesTest {
                 .as(
                         "la auditoria dice que es una PROPUESTA y de donde salio: sin eso, dentro"
                                 + " de dos anios nadie puede contestar de donde salio la cifra con"
-                                + " la que se cobro")
+                                + " la que se cobro. Desde #20 lo dice en CAMPOS y no en una frase:"
+                                + " la columna es jsonb y la frase la rechazaba SIEMPRE — este doble"
+                                + " solo recuerda, asi que aqui pasaba en verde y el derivador moria"
+                                + " en el primer frente que conseguia proponer")
                 .hasSize(2)
-                .allMatch(descripcion -> descripcion.contains("PROPUESTO"))
-                .allMatch(descripcion -> descripcion.contains("ML"))
-                .allMatch(descripcion -> descripcion.contains("no confirmado"));
+                .allMatch(descripcion -> descripcion.contains("\"estado\":\"PROPUESTA\""))
+                .allMatch(descripcion -> descripcion.contains("\"unidad\":\"ML\""))
+                .allMatch(
+                        descripcion ->
+                                descripcion.contains(
+                                        "\"origen\":\"CORTE_CONTRA_EL_EJE_DE_CALZADA\""));
     }
 
     @Test

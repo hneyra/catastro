@@ -3,6 +3,7 @@ package kamayuk.catastro.nucleo.aplicacion;
 import java.time.Clock;
 import java.time.LocalDate;
 import kamayuk.catastro.auditoria.Auditoria;
+import kamayuk.catastro.auditoria.DatosDeAuditoria;
 import kamayuk.catastro.auditoria.Operacion;
 import kamayuk.catastro.auditoria.RegistroDeAuditoria;
 import kamayuk.catastro.dominio.Observacion;
@@ -173,8 +174,8 @@ public class RegistrarPredio {
             @org.jspecify.annotations.Nullable Long clave,
             Operacion operacion,
             Observacion observacion,
-            @org.jspecify.annotations.Nullable String antes,
-            String despues) {
+            @org.jspecify.annotations.Nullable DatosDeAuditoria antes,
+            DatosDeAuditoria despues) {
         auditoria.registrar(
                 RegistroDeAuditoria.enLaFechaDe(
                                 LocalDate.now(reloj),
@@ -185,41 +186,33 @@ public class RegistrarPredio {
                         .con(antes, despues));
     }
 
-    private static String descripcion(Predio predio) {
-        return "{\"codigo\":\""
-                + predio.codigo()
-                + "\",\"tipo\":\""
-                + predio.tipo()
-                + "\",\"direccion\":\""
-                + predio.direccion().replace("\"", "\\\"")
-                + "\",\"estado\":\""
-                + predio.estado()
-                + "\"}";
+    private static DatosDeAuditoria descripcion(Predio predio) {
+        return DatosDeAuditoria.objeto()
+                // El codigo de referencia catastral es un objeto de valor con su composicion
+                // dentro; a la bitacora va SU TEXTO. Se escribe aqui y no se le anade el tipo a
+                // DatosDeAuditoria porque `ConfiguracionDeJson` tampoco lo registra: el dia que
+                // haya que serializarlo, se decide una vez y para los dos sitios.
+                .campo("codigo", predio.codigo().valor())
+                .campo("tipo", predio.tipo())
+                .campo("direccion", predio.direccion())
+                .campo("estado", predio.estado())
+                .componer();
     }
 
-    private static String descripcion(Titularidad titularidad) {
-        return "{\"contribuyenteId\":"
-                + titularidad.contribuyenteId()
-                + ",\"condicion\":\""
-                + titularidad.condicion()
-                + "\",\"porcentaje\":\""
-                + titularidad.porcentaje()
-                + "\",\"vigenciaHasta\":"
-                + (titularidad.vigenciaHasta() == null
-                        ? "null"
-                        : "\"" + titularidad.vigenciaHasta() + "\"")
-                + "}";
+    private static DatosDeAuditoria descripcion(Titularidad titularidad) {
+        return DatosDeAuditoria.objeto()
+                .campo("contribuyenteId", titularidad.contribuyenteId())
+                .campo("condicion", titularidad.condicion())
+                .campo("porcentaje", titularidad.porcentaje())
+                .campo("vigenciaHasta", titularidad.vigenciaHasta())
+                .componer();
     }
 
-    private static String descripcion(Inquilino inquilino) {
-        return "{\"contribuyenteId\":"
-                + inquilino.contribuyenteId()
-                + ",\"uso\":"
-                + (inquilino.uso() == null ? "null" : "\"" + inquilino.uso() + "\"")
-                + ",\"vigenciaHasta\":"
-                + (inquilino.vigenciaHasta() == null
-                        ? "null"
-                        : "\"" + inquilino.vigenciaHasta() + "\"")
-                + "}";
+    private static DatosDeAuditoria descripcion(Inquilino inquilino) {
+        return DatosDeAuditoria.objeto()
+                .campo("contribuyenteId", inquilino.contribuyenteId())
+                .campo("uso", inquilino.uso())
+                .campo("vigenciaHasta", inquilino.vigenciaHasta())
+                .componer();
     }
 }

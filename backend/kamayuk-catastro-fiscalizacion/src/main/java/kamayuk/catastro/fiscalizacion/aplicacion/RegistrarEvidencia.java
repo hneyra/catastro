@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import kamayuk.catastro.auditoria.Auditoria;
+import kamayuk.catastro.auditoria.DatosDeAuditoria;
 import kamayuk.catastro.auditoria.Operacion;
 import kamayuk.catastro.auditoria.RegistroDeAuditoria;
 import kamayuk.catastro.dominio.Observacion;
@@ -101,17 +102,13 @@ public class RegistrarEvidencia {
                                 observacion)
                         .con(
                                 null,
-                                "{\"hallazgoId\":"
-                                        + hallazgoId
-                                        + ",\"tipo\":\""
-                                        + tipo
-                                        + "\",\"sha256\":\""
-                                        + huella
-                                        + "\",\"capturadoEn\":\""
-                                        + capturadoEn
-                                        + "\",\"recibidoEn\":\""
-                                        + evidencia.recibidoEn()
-                                        + "\"}"));
+                                DatosDeAuditoria.objeto()
+                                        .campo("hallazgoId", hallazgoId)
+                                        .campo("tipo", tipo)
+                                        .campo("sha256", huella)
+                                        .campo("capturadoEn", capturadoEn)
+                                        .campo("recibidoEn", evidencia.recibidoEn())
+                                        .componer()));
         return evidencia;
     }
 

@@ -23,7 +23,8 @@ import org.jspecify.annotations.Nullable;
  * @param clave clave de la fila afectada, en texto
  * @param operacion que clase de acto es
  * @param observacion por que se hizo, escrito por quien lo hizo
- * @param datosAnteriores estado previo en JSON, si la operacion lo tenia
+ * @param datosAnteriores estado previo en JSON, si la operacion lo tenia; se compone con {@link
+ *     DatosDeAuditoria}, que es lo unico que puede producirlo (#20)
  * @param datosNuevos estado resultante en JSON, si lo hay
  */
 public record RegistroDeAuditoria(
@@ -72,9 +73,26 @@ public record RegistroDeAuditoria(
                 Ejercicio.de(fecha), tabla, clave, operacion, observacion, null, null);
     }
 
-    /** El mismo registro con el antes y el despues. */
-    public RegistroDeAuditoria con(@Nullable String datosAnteriores, @Nullable String datosNuevos) {
+    /**
+     * El mismo registro con el antes y el despues.
+     *
+     * <p><b>Recibe {@link DatosDeAuditoria} y no un {@code String}, y ahi esta el arreglo de
+     * #20.</b> Las dos columnas son {@code jsonb} y {@link AuditoriaJdbc} las escribe con {@code
+     * cast(... AS jsonb)}: mientras esta firma admitio texto, el unico que comprobaba era el motor,
+     * y comprobaba en produccion. Dos casos de uso le pasaban prosa y diez mas componian el JSON a
+     * mano interpolando sin escapar, con el build en VERDE porque ninguna prueba llegaba al {@code
+     * cast}. Con un tipo, el que se escriba manana no puede equivocarse — y no hay lista de
+     * llamadores que se quede corta, que es como este defecto sobrevivio a una revision.
+     */
+    public RegistroDeAuditoria con(
+            @Nullable DatosDeAuditoria datosAnteriores, @Nullable DatosDeAuditoria datosNuevos) {
         return new RegistroDeAuditoria(
-                ejercicio, tabla, clave, operacion, observacion, datosAnteriores, datosNuevos);
+                ejercicio,
+                tabla,
+                clave,
+                operacion,
+                observacion,
+                datosAnteriores == null ? null : datosAnteriores.json(),
+                datosNuevos == null ? null : datosNuevos.json());
     }
 }

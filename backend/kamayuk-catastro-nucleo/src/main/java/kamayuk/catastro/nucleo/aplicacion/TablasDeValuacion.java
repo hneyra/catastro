@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 import kamayuk.catastro.auditoria.Auditoria;
+import kamayuk.catastro.auditoria.DatosDeAuditoria;
 import kamayuk.catastro.auditoria.Operacion;
 import kamayuk.catastro.auditoria.RegistroDeAuditoria;
 import kamayuk.catastro.dominio.Ejercicio;
@@ -113,6 +114,10 @@ public class TablasDeValuacion {
                                 String.valueOf(id),
                                 Operacion.ALTA,
                                 observacion)
-                        .con(null, "{\"conjuntoId\":" + conjunto.valor() + "}"));
+                        .con(
+                                null,
+                                DatosDeAuditoria.objeto()
+                                        .campo("conjuntoId", conjunto.valor())
+                                        .componer()));
     }
 }

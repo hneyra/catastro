@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import kamayuk.catastro.auditoria.Auditoria;
+import kamayuk.catastro.auditoria.DatosDeAuditoria;
 import kamayuk.catastro.auditoria.Operacion;
 import kamayuk.catastro.auditoria.RegistroDeAuditoria;
 import kamayuk.catastro.dominio.AreaM2;
@@ -226,7 +227,7 @@ public class ActualizarFichaCatastral {
             FichaCatastral ficha,
             Operacion operacion,
             Observacion observacion,
-            @Nullable String antes) {
+            @Nullable DatosDeAuditoria antes) {
         auditoria.registrar(
                 RegistroDeAuditoria.enLaFechaDe(
                                 LocalDate.now(reloj),
@@ -237,22 +238,18 @@ public class ActualizarFichaCatastral {
                         .con(antes, descripcion(ficha)));
     }
 
-    private static String descripcion(FichaCatastral ficha) {
-        return "{\"version\":"
-                + ficha.version()
-                + ",\"areaTerreno\":\""
-                // Sin la unidad dentro (#607): la concatenacion llama a AreaM2.toString(),
-                // que anade « m2», y esta cadena se publica VERBATIM por
-                // GET /seguridad/auditoria. Era la tercera convencion, y el escaner de
-                // fuentes no la ve porque aqui no hay ningun `.toString()` escrito.
-                + ficha.areaTerreno().valor().toPlainString()
-                + "\",\"uso\":\""
-                + ficha.uso().replace("\"", "\\\"")
-                + "\",\"construcciones\":"
-                + ficha.construcciones().size()
-                + ",\"vigenciaHasta\":"
-                + (ficha.vigenciaHasta() == null ? "null" : "\"" + ficha.vigenciaHasta() + "\"")
-                + "}";
+    private static DatosDeAuditoria descripcion(FichaCatastral ficha) {
+        return DatosDeAuditoria.objeto()
+                .campo("version", ficha.version())
+                // Sin la unidad dentro (#607), y desde #20 sin escribirlo a mano: la escribe el
+                // serializador de ConfiguracionDeJson, que es donde #607 dice que se escribe un
+                // area. El byte no cambia —ya salia entre comillas y con la cifra sola—; lo que
+                // cambia es que ya no hay una tercera convencion que mantener.
+                .campo("areaTerreno", ficha.areaTerreno())
+                .campo("uso", ficha.uso())
+                .campo("construcciones", ficha.construcciones().size())
+                .campo("vigenciaHasta", ficha.vigenciaHasta())
+                .componer();
     }
 
     /** El predio ya tiene ficha de ese tipo: lo que toca es actualizarla, no crear otra primera. */

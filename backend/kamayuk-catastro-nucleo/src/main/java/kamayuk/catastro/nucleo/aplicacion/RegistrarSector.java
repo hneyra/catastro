@@ -3,12 +3,12 @@ package kamayuk.catastro.nucleo.aplicacion;
 import java.time.Clock;
 import java.time.LocalDate;
 import kamayuk.catastro.auditoria.Auditoria;
+import kamayuk.catastro.auditoria.DatosDeAuditoria;
 import kamayuk.catastro.auditoria.Operacion;
 import kamayuk.catastro.auditoria.RegistroDeAuditoria;
 import kamayuk.catastro.dominio.Observacion;
 import kamayuk.catastro.nucleo.dominio.CatastroRepository;
 import kamayuk.catastro.nucleo.dominio.Sector;
-import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -129,30 +129,20 @@ public class RegistrarSector {
     }
 
     /**
-     * Un JSON escrito a mano y no un serializador, por lo mismo que en {@link RegistrarVia}: son
-     * cuatro campos, y traer Jackson hasta aqui ataria la capa de aplicacion a la de presentacion.
+     * El estado del sector para la bitacora, escrito por el serializador de {@code
+     * ConfiguracionDeJson} (#20).
      *
      * <p>La {@code zona} entra aunque sea opcional: es editable, asi que sin ella una {@code
-     * MODIFICACION} que solo la cambie dejaria el antes y el despues identicos.
+     * MODIFICACION} que solo la cambie dejaria el antes y el despues identicos. Y una zona ausente
+     * se asienta como {@code null} JSON y no como la cadena «null», que es lo que hacia el {@code
+     * textoOpcional} que aqui habia; ahora lo decide el serializador y no una rama escrita a mano.
      */
-    private static String descripcion(Sector sector) {
-        return "{\"codigo\":\""
-                + sector.codigo()
-                + "\",\"nombre\":\""
-                + escapar(sector.nombre())
-                + "\",\"zona\":"
-                + textoOpcional(sector.zona())
-                + ",\"activo\":"
-                + sector.activo()
-                + "}";
-    }
-
-    /** Una zona ausente se asienta como {@code null} JSON, no como la cadena «null». */
-    private static String textoOpcional(@Nullable String valor) {
-        return valor == null ? "null" : "\"" + escapar(valor) + "\"";
-    }
-
-    private static String escapar(String texto) {
-        return texto.replace("\\", "\\\\").replace("\"", "\\\"");
+    private static DatosDeAuditoria descripcion(Sector sector) {
+        return DatosDeAuditoria.objeto()
+                .campo("codigo", sector.codigo())
+                .campo("nombre", sector.nombre())
+                .campo("zona", sector.zona())
+                .campo("activo", sector.activo())
+                .componer();
     }
 }

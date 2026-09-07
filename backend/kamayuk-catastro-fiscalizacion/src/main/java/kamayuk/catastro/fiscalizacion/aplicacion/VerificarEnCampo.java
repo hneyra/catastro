@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.util.Objects;
 import kamayuk.catastro.auditoria.Auditoria;
+import kamayuk.catastro.auditoria.DatosDeAuditoria;
 import kamayuk.catastro.auditoria.Operacion;
 import kamayuk.catastro.auditoria.RegistroDeAuditoria;
 import kamayuk.catastro.dominio.AreaM2;
@@ -188,20 +189,23 @@ public class VerificarEnCampo {
                                 DescripcionDelCandidato.de(despues)));
     }
 
-    private static String descripcion(Hallazgo hallazgo) {
-        return "{\"clase\":\""
-                + hallazgo.clase()
-                + "\",\"candidatoId\":"
-                + hallazgo.candidatoId()
-                + ",\"fichaId\":"
-                + (hallazgo.fichaId() == null ? "null" : hallazgo.fichaId())
-                + ",\"areaDeLaFicha\":"
-                + (hallazgo.areaDeLaFicha() == null ? "null" : hallazgo.areaDeLaFicha().valor())
-                + ",\"areaVerificada\":"
-                + hallazgo.areaVerificada().valor()
-                + ",\"inspector\":\""
-                + hallazgo.inspector()
-                + "\"}";
+    /**
+     * El «antes/despues» del hallazgo para la bitacora.
+     *
+     * <p>Lo escribe el serializador desde #20: el {@code inspector} se interpolaba sin escapar en
+     * un JSON a mano, y una comilla en su nombre rompia el asiento. Las dos areas salen ahora
+     * tipadas como {@code AreaM2} —entre comillas y no como numero JSON—, que es donde #607 dice
+     * que se escriben.
+     */
+    private static DatosDeAuditoria descripcion(Hallazgo hallazgo) {
+        return DatosDeAuditoria.objeto()
+                .campo("clase", hallazgo.clase())
+                .campo("candidatoId", hallazgo.candidatoId())
+                .campo("fichaId", hallazgo.fichaId())
+                .campo("areaDeLaFicha", hallazgo.areaDeLaFicha())
+                .campo("areaVerificada", hallazgo.areaVerificada())
+                .campo("inspector", hallazgo.inspector())
+                .componer();
     }
 
     /**

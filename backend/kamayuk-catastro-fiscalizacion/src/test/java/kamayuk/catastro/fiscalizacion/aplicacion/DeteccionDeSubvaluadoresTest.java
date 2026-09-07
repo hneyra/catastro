@@ -139,10 +139,15 @@ class DeteccionDeSubvaluadoresTest {
                 .as(
                         "los insumos guardan las dos areas TAL COMO ESTABAN al contrastar: dentro"
                                 + " de un ano la ficha estara versionada y el area de entonces no"
-                                + " existira en ninguna parte")
+                                + " existira en ninguna parte. Y desde #20 las dos salen ENTRE"
+                                + " COMILLAS: las escribe el serializador de ConfiguracionDeJson con"
+                                + " el AreaM2 tipado, que es donde #607 dice que se escribe un area"
+                                + " —la cifra sola, como cadena y nunca como numero JSON, porque el"
+                                + " `number` de JavaScript redondea (RNF-055)—. Antes se"
+                                + " interpolaban a mano y salian como numero")
                 .contains("\"fichaId\":11")
-                .contains("\"areaDeLaFicha\":120.00")
-                .contains("\"areaDelPoligono\":180.00");
+                .contains("\"areaDeLaFicha\":\"120.00\"")
+                .contains("\"areaDelPoligono\":\"180.00\"");
         assertThat(repositorio.hallazgos(campaniaId, unaPagina()).contenido())
                 .as("y NINGUN hallazgo: eso lo produce una persona en la segunda compuerta")
                 .isEmpty();

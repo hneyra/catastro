@@ -6,11 +6,13 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import kamayuk.catastro.auditoria.Auditoria;
+import kamayuk.catastro.auditoria.DatosDeAuditoria;
 import kamayuk.catastro.auditoria.Operacion;
 import kamayuk.catastro.auditoria.RegistroDeAuditoria;
 import kamayuk.catastro.dominio.Medida;
 import kamayuk.catastro.dominio.Observacion;
 import kamayuk.catastro.nucleo.dominio.DerivacionDeFrentes;
+import kamayuk.catastro.nucleo.dominio.EstadoDeLaLongitud;
 import kamayuk.catastro.nucleo.dominio.FrentePropuesto;
 import kamayuk.catastro.nucleo.dominio.FrentesDelPredio;
 import org.jspecify.annotations.Nullable;
@@ -115,12 +117,18 @@ public class ProponerLosFrentesDeUnPredio {
      * <p>Anota la longitud <b>tal como quedo guardada</b> y no la que salio del corte: con cuantos
      * decimales se guarda lo decide la columna, no este codigo, y una auditoria que dijera otra
      * cifra que la de la tabla no serviria para explicar la tabla.
+     *
+     * <p><b>Era una frase y no un JSON hasta #20</b>, y la columna es {@code jsonb}: el derivador
+     * moria en el primer frente que conseguia proponer, con «invalid input syntax for type json».
+     * La frase decia lo mismo que estos cinco campos, en un formato que la columna no admite.
      */
-    private static String descripcion(long viaId, Medida guardada) {
-        return "Frente PROPUESTO a la via "
-                + viaId
-                + ": "
-                + guardada
-                + ". Derivado del corte contra el eje de calzada; no confirmado (ADR-0021)";
+    private static DatosDeAuditoria descripcion(long viaId, Medida guardada) {
+        return DatosDeAuditoria.objeto()
+                .campo("viaId", viaId)
+                .campo("longitud", guardada.magnitud())
+                .campo("unidad", guardada.unidad())
+                .campo("estado", EstadoDeLaLongitud.PROPUESTA)
+                .campo("origen", "CORTE_CONTRA_EL_EJE_DE_CALZADA")
+                .componer();
     }
 }

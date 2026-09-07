@@ -3,10 +3,12 @@ package kamayuk.catastro.nucleo.aplicacion;
 import java.time.Clock;
 import java.time.LocalDate;
 import kamayuk.catastro.auditoria.Auditoria;
+import kamayuk.catastro.auditoria.DatosDeAuditoria;
 import kamayuk.catastro.auditoria.Operacion;
 import kamayuk.catastro.auditoria.RegistroDeAuditoria;
 import kamayuk.catastro.dominio.Medida;
 import kamayuk.catastro.dominio.Observacion;
+import kamayuk.catastro.nucleo.dominio.EstadoDeLaLongitud;
 import kamayuk.catastro.nucleo.dominio.FrenteDelPredio;
 import kamayuk.catastro.nucleo.dominio.FrentesDelPredio;
 import org.springframework.stereotype.Service;
@@ -30,10 +32,27 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>Lo normal es que quien confirma haya ido con la cinta. Un acto que solo pudiera decir «sí a lo
  * que salio» seria un boton de aceptar, y entonces la distincion entre propuesta y medida no
- * significaria nada. La anterior no se pierde: queda en la auditoria, con el antes y el despues.
+ * significaria nada.
+ *
+ * <h2>Lo que la bitacora de este acto NO dice, medido en #20</h2>
+ *
+ * <p>El «antes» dice que la longitud <b>era una propuesta</b>, y no cuanto media. Aqui se escribia
+ * que «la anterior no se pierde: queda en la auditoria, con el antes y el despues», y era falso: el
+ * antes era una frase fija sin ninguna cifra dentro, y {@link FrentesDelPredio#confirmar} devuelve
+ * el frente ya confirmado, no el que habia. Guardar la cifra anterior exige una consulta mas antes
+ * de confirmar, o sea cambiar <b>que</b> se asienta; #20 cambia como se serializa. Queda dicho aqui
+ * en vez de seguir prometido.
  */
 @Service
 public class ConfirmarElFrente {
+
+    /**
+     * De donde salio la cifra que se esta sustituyendo.
+     *
+     * <p>Es una constante y no un texto libre porque el «antes» de este asiento es siempre el
+     * mismo: lo unico que puede haber antes de una confirmacion es lo que dejo el derivador.
+     */
+    private static final String ORIGEN_DE_LA_PROPUESTA = "CORTE_CONTRA_EL_EJE_DE_CALZADA";
 
     private final FrentesDelPredio frentes;
     private final Auditoria auditoria;
@@ -63,11 +82,16 @@ public class ConfirmarElFrente {
                                 Operacion.MODIFICACION,
                                 observacion)
                         .con(
-                                "Longitud PROPUESTA, derivada del corte contra el eje de calzada",
-                                "Longitud CONFIRMADA por "
-                                        + confirmado.confirmadoPor()
-                                        + ": "
-                                        + confirmado.longitud()));
+                                DatosDeAuditoria.objeto()
+                                        .campo("estado", EstadoDeLaLongitud.PROPUESTA)
+                                        .campo("origen", ORIGEN_DE_LA_PROPUESTA)
+                                        .componer(),
+                                DatosDeAuditoria.objeto()
+                                        .campo("estado", confirmado.estado())
+                                        .campo("confirmadoPor", confirmado.confirmadoPor())
+                                        .campo("longitud", confirmado.longitud().magnitud())
+                                        .campo("unidad", confirmado.longitud().unidad())
+                                        .componer()));
 
         return confirmado;
     }

@@ -3,6 +3,7 @@ package kamayuk.catastro.grd.aplicacion;
 import java.time.Clock;
 import java.time.LocalDate;
 import kamayuk.catastro.auditoria.Auditoria;
+import kamayuk.catastro.auditoria.DatosDeAuditoria;
 import kamayuk.catastro.auditoria.Operacion;
 import kamayuk.catastro.auditoria.RegistroDeAuditoria;
 import kamayuk.catastro.dominio.Observacion;
@@ -57,7 +58,7 @@ public class RegistrarCapaDeRiesgo {
             String tabla,
             @org.jspecify.annotations.Nullable Long clave,
             Observacion observacion,
-            String despues) {
+            DatosDeAuditoria despues) {
         auditoria.registrar(
                 RegistroDeAuditoria.enLaFechaDe(
                                 LocalDate.now(reloj),
@@ -68,25 +69,20 @@ public class RegistrarCapaDeRiesgo {
                         .con(null, despues));
     }
 
-    private static String descripcion(ZonaDeRiesgo zona) {
-        return "{\"codigo\":\""
-                + zona.codigo()
-                + "\",\"fenomeno\":\""
-                + zona.fenomeno()
-                + "\",\"nivel\":\""
-                + zona.nivel()
-                + "\",\"mitigable\":"
-                + zona.mitigable()
-                + "}";
+    private static DatosDeAuditoria descripcion(ZonaDeRiesgo zona) {
+        return DatosDeAuditoria.objeto()
+                .campo("codigo", zona.codigo())
+                .campo("fenomeno", zona.fenomeno())
+                .campo("nivel", zona.nivel())
+                .campo("mitigable", zona.mitigable())
+                .componer();
     }
 
-    private static String descripcion(FajaMarginal faja) {
-        return "{\"codigo\":\""
-                + faja.codigo()
-                + "\",\"cuerpoDeAgua\":\""
-                + faja.cuerpoDeAgua()
-                + "\",\"anchoM\":\""
-                + faja.ancho().magnitud().toPlainString()
-                + "\"}";
+    private static DatosDeAuditoria descripcion(FajaMarginal faja) {
+        return DatosDeAuditoria.objeto()
+                .campo("codigo", faja.codigo())
+                .campo("cuerpoDeAgua", faja.cuerpoDeAgua())
+                .campo("anchoM", faja.ancho().magnitud().toPlainString())
+                .componer();
     }
 }

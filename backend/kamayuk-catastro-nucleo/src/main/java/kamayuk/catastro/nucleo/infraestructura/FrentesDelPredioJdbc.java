@@ -36,6 +36,27 @@ public class FrentesDelPredioJdbc extends RepositorioJdbc implements FrentesDelP
                     + " f.confirmado_en";
 
     /**
+     * Los frentes de UN predio, con el nombre de su via.
+     *
+     * <p>Es constante y no una cadena dentro del metodo porque {@code HigieneDeIndicesTest} le pide
+     * el plan a ESTA sentencia: una copia escrita en la prueba seguiria verde el dia que alguien
+     * cambiara la de produccion, que es justo el cambio que no se ve en el resultado (la leccion de
+     * {@code FiscalizacionRepositoryJdbc.HALLAZGOS_DEL_PREDIO}, #17).
+     *
+     * <p>Filtra por {@code predio_id} a secas —la municipalidad la pone la politica—, y desde
+     * {@code V13} quien la sirve es {@code frente_predio_via_uq}: {@code frente_predio_ix} era su
+     * prefijo estricto, el planificador ya no lo elegia, y se retiro con la medida delante (#27).
+     */
+    static final String FRENTES_DEL_PREDIO =
+            "SELECT "
+                    + COLUMNAS
+                    + " FROM frente_predio f"
+                    + " JOIN via v ON v.municipalidad_id = f.municipalidad_id"
+                    + "           AND v.id = f.via_id"
+                    + " WHERE f.predio_id = :predio"
+                    + " ORDER BY f.es_principal DESC, f.via_id, f.id";
+
+    /**
      * El corte del lote contra el eje de calzada: el marco delante, el operador espacial detras
      * (ADR-0034 regla 2).
      *
@@ -122,14 +143,7 @@ public class FrentesDelPredioJdbc extends RepositorioJdbc implements FrentesDelP
 
     @Override
     public List<FrenteDelPredio> deUnPredio(long predioId) {
-        return jdbc().sql(
-                        "SELECT "
-                                + COLUMNAS
-                                + " FROM frente_predio f"
-                                + " JOIN via v ON v.municipalidad_id = f.municipalidad_id"
-                                + "           AND v.id = f.via_id"
-                                + " WHERE f.predio_id = :predio"
-                                + " ORDER BY f.es_principal DESC, f.via_id, f.id")
+        return jdbc().sql(FRENTES_DEL_PREDIO)
                 .param("predio", predioId)
                 .query(FrentesDelPredioJdbc::mapearFrente)
                 .list();

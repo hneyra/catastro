@@ -17,6 +17,7 @@ import kamayuk.catastro.fiscalizacion.dominio.Campania;
 import kamayuk.catastro.fiscalizacion.dominio.Candidato;
 import kamayuk.catastro.fiscalizacion.dominio.ClaseDeHallazgo;
 import kamayuk.catastro.fiscalizacion.dominio.ContrasteDeAreas;
+import kamayuk.catastro.fiscalizacion.dominio.CriterioDeCandidatos;
 import kamayuk.catastro.fiscalizacion.dominio.EstadoDelCandidato;
 import kamayuk.catastro.fiscalizacion.dominio.Score;
 import org.junit.jupiter.api.BeforeEach;
@@ -277,6 +278,74 @@ class DeteccionDeSubvaluadoresTest {
         assertThatThrownBy(() -> detector.detectar(campaniaId, OBSERVACION))
                 .isInstanceOf(DetectarSubvaluadores.CampaniaCerradaParaDetectar.class)
                 .hasMessageContaining("tasa de descarte que alguien ya pudo citar");
+    }
+
+    // ── El proceso de `batch` que la lanza (#30, AC-3) ─────────────────
+
+    @Test
+    @DisplayName("#30 — la corrida de batch NO sale con cero cuando no puede mirar: FALLA")
+    void elProcesoDeBatchFallaSinCartografia() {
+        DetectarEnCampania proceso =
+                new DetectarEnCampania(detectorCon(SIN_CARTOGRAFIA), datos(campaniaId));
+
+        assertThatThrownBy(() -> proceso.run(null))
+                .as(
+                        "esta es la mitad que se muda con el proceso: al salir del POST, «no puedo"
+                                + " mirar» tiene que seguir siendo visible. Un runner que atrapara"
+                                + " esto y terminara bien dejaria un Job en «Complete» sin haber"
+                                + " mirado un solo predio, que es el defecto de C-6")
+                .isInstanceOf(AreasDelPadron.SinCartografia.class);
+    }
+
+    @Test
+    @DisplayName("#30 — y con cartografia deja sus candidatos y limpia los dos contextos")
+    void elProcesoDeBatchDejaSusCandidatos() {
+        DetectarEnCampania proceso =
+                new DetectarEnCampania(
+                        detectorCon(con(contraste(7L, 11L, "120.00", "180.00", "0.5000"))),
+                        datos(campaniaId));
+
+        proceso.run(null);
+
+        assertThat(
+                        repositorio
+                                .candidatos(
+                                        CriterioDeCandidatos.deLaCampania(campaniaId), unaPagina())
+                                .contenido())
+                .as("la corrida de batch escribe lo mismo que escribia el endpoint")
+                .hasSize(1);
+        assertThat(kamayuk.catastro.compartido.TenantContext.actualSiHay())
+                .as("un proceso de vida corta limpia lo que fijo, como los ocho cargadores")
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("#30 — sin campania la propiedad se rechaza, y el mensaje dice cual falta")
+    void laCampaniaEsObligatoria() {
+        assertThatThrownBy(() -> datos(0L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("kamayuk.deteccion-de-subvaluadores.campania-id");
+    }
+
+    @Test
+    @DisplayName("#30 y #25 — el runner NO ofrece umbral ni tope: los congela la campania")
+    void elRunnerNoOfreceElCriterio() {
+        assertThat(
+                        java.util.Arrays.stream(
+                                        DatosDeDeteccionDeSubvaluadores.class.getRecordComponents())
+                                .map(java.lang.reflect.RecordComponent::getName)
+                                .toList())
+                .as(
+                        "es lo que `PeticionDeDeteccion` protegia en el borde hasta que #30 retiro"
+                                + " la ruta: quien lanza la corrida no puede contradecir el"
+                                + " criterio que la campania dice haber usado (#25)")
+                .containsExactly(
+                        "municipalidadId", "campaniaId", "usuarioDelProceso", "observacion");
+    }
+
+    private static DatosDeDeteccionDeSubvaluadores datos(long campaniaId) {
+        return new DatosDeDeteccionDeSubvaluadores(
+                200105L, campaniaId, "prueba", "corrida de prueba de #30");
     }
 
     private static kamayuk.catastro.compartido.Paginacion unaPagina() {

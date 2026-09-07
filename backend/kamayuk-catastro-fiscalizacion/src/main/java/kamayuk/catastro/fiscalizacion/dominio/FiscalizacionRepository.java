@@ -57,7 +57,7 @@ public interface FiscalizacionRepository {
     Optional<Candidato> candidatoPorId(long id);
 
     /** Los candidatos de una campania, filtrados por estado si se pide alguno. */
-    Pagina<Candidato> candidatos(CriterioDeCandidatos criterio, Paginacion paginacion);
+    Pagina<CandidatoEnLaCola> candidatos(CriterioDeCandidatos criterio, Paginacion paginacion);
 
     /**
      * Cuantos candidatos hay de cada estado en una campania, y cuantos descartados en cada etapa.

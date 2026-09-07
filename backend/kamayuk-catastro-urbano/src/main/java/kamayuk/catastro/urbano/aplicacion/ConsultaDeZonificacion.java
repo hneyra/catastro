@@ -9,7 +9,7 @@ import kamayuk.catastro.urbano.ZonificacionDelPredio;
 import kamayuk.catastro.urbano.dominio.EstadoDelPredio;
 import kamayuk.catastro.urbano.dominio.ParametroUrbanistico;
 import kamayuk.catastro.urbano.dominio.UrbanoRepository;
-import kamayuk.catastro.urbano.dominio.Zona;
+import kamayuk.catastro.urbano.dominio.ZonaQueRige;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -67,7 +67,7 @@ public class ConsultaDeZonificacion implements ZonificacionDelPredio {
             throw new PredioSinGeometria(predioId);
         }
 
-        List<Zona> zonas = urbano.zonasQueContienenAlPredio(predioId, aLaFecha);
+        List<ZonaQueRige> zonas = urbano.zonasQueContienenAlPredio(predioId, aLaFecha);
         if (zonas.isEmpty()) {
             throw new SinZonaVigente(predioId, aLaFecha);
         }
@@ -75,11 +75,11 @@ public class ConsultaDeZonificacion implements ZonificacionDelPredio {
             // No se elige, y no es cautela: de esta respuesta cuelga si una licencia se concede o
             // se niega, y elegir sin criterio es inventar el dato que falta. Lo dice la cabecera
             // de V7 del defecto que su restriccion existe para impedir.
-            throw new ZonaAmbigua(predioId, aLaFecha, zonas.stream().map(Zona::codigo).toList());
+            throw new ZonaAmbigua(
+                    predioId, aLaFecha, zonas.stream().map(ZonaQueRige::codigo).toList());
         }
-        Zona zona = zonas.getFirst();
-        long zonificacionId =
-                Objects.requireNonNull(zona.id(), "Una zona leida de la base tiene identificador");
+        ZonaQueRige zona = zonas.getFirst();
+        long zonificacionId = zona.id();
 
         return new ZonaVigente(
                 zona.codigo(),

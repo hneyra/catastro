@@ -1,6 +1,7 @@
 package kamayuk.catastro.fiscalizacion.infraestructura.web;
 
 import kamayuk.catastro.fiscalizacion.dominio.Candidato;
+import kamayuk.catastro.fiscalizacion.dominio.CandidatoEnLaCola;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -30,6 +31,29 @@ public record CandidatoResource(
         @Nullable String etapaDeDescarte,
         @Nullable String motivoDeDescarte,
         @Nullable String descartadoPor) {
+
+    /**
+     * Desde una fila de la cola, que es lo que la pagina lee (#30).
+     *
+     * <p>Dos fabricas y no una porque son dos registros distintos —lo que se escribe y lo que se
+     * lee— y esta capa publica exactamente los mismos campos desde los dos: el poligono no salia
+     * antes y no sale ahora, asi que <b>ni un byte del JSON cambia</b>.
+     */
+    public static CandidatoResource de(CandidatoEnLaCola candidato) {
+        Candidato.Descarte descarte = candidato.descarte();
+        return new CandidatoResource(
+                candidato.id(),
+                candidato.campaniaId(),
+                candidato.predioId(),
+                candidato.clase().name(),
+                candidato.origen().name(),
+                candidato.score().toString(),
+                candidato.insumos(),
+                candidato.estado().name(),
+                descarte == null ? null : descarte.etapa().name(),
+                descarte == null ? null : descarte.motivo(),
+                descarte == null ? null : descarte.quien());
+    }
 
     public static CandidatoResource de(Candidato candidato) {
         Candidato.Descarte descarte = candidato.descarte();

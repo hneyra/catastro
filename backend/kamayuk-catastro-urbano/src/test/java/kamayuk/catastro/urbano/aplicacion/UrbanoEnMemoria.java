@@ -12,6 +12,7 @@ import kamayuk.catastro.urbano.dominio.EstadoDelPredio;
 import kamayuk.catastro.urbano.dominio.ParametroUrbanistico;
 import kamayuk.catastro.urbano.dominio.UrbanoRepository;
 import kamayuk.catastro.urbano.dominio.Zona;
+import kamayuk.catastro.urbano.dominio.ZonaQueRige;
 
 /**
  * Un {@code urbano} en memoria para lo que no necesita base de datos: que el caso de uso distinga
@@ -69,12 +70,31 @@ final class UrbanoEnMemoria implements UrbanoRepository {
     }
 
     @Override
-    public List<Zona> zonasQueContienenAlPredio(long predioId, LocalDate aLaFecha) {
+    public List<ZonaQueRige> zonasQueContienenAlPredio(long predioId, LocalDate aLaFecha) {
         return zonasDelPredio.getOrDefault(predioId, List.of()).stream()
                 .map(zonas::get)
                 .filter(Objects::nonNull)
                 .filter(zona -> zona.rigeEn(aLaFecha))
+                .map(UrbanoEnMemoria::comoSeLee)
                 .toList();
+    }
+
+    /**
+     * Lo que la consulta devuelve: la zona SIN su poligono (#30).
+     *
+     * <p>El doble guarda {@link Zona} porque es lo que el cargador escribe, y publica {@link
+     * ZonaQueRige} porque es lo que la lectura devuelve — igual que el repositorio de verdad, que
+     * ni siquiera selecciona esa columna.
+     */
+    private static ZonaQueRige comoSeLee(Zona zona) {
+        return new ZonaQueRige(
+                Objects.requireNonNull(zona.id(), "Una zona guardada tiene identificador"),
+                zona.plan(),
+                zona.ordenanza(),
+                zona.codigo(),
+                zona.nombre(),
+                zona.vigenciaDesde(),
+                zona.vigenciaHasta());
     }
 
     @Override
@@ -83,13 +103,15 @@ final class UrbanoEnMemoria implements UrbanoRepository {
     }
 
     @Override
-    public Optional<Zona> zonaPorCodigo(String plan, String codigo, LocalDate vigenciaDesde) {
+    public Optional<Long> idDeLaZona(String plan, String codigo, LocalDate vigenciaDesde) {
         return zonas.values().stream()
                 .filter(
                         zona ->
                                 zona.plan().equals(plan)
                                         && zona.codigo().equals(codigo)
                                         && zona.vigenciaDesde().equals(vigenciaDesde))
+                .map(Zona::id)
+                .filter(Objects::nonNull)
                 .findFirst();
     }
 

@@ -13,6 +13,7 @@ import kamayuk.catastro.urbano.dominio.EstadoDelPredio;
 import kamayuk.catastro.urbano.dominio.ParametroUrbanistico;
 import kamayuk.catastro.urbano.dominio.UrbanoRepository;
 import kamayuk.catastro.urbano.dominio.Zona;
+import kamayuk.catastro.urbano.dominio.ZonaQueRige;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -25,20 +26,6 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public class UrbanoRepositoryJdbc extends RepositorioJdbc implements UrbanoRepository {
-
-    /**
-     * Las columnas de una zona, con el alias {@code z.} delante.
-     *
-     * <p>Calificadas y no a secas, y no es cosmetica: mientras la consulta de contencion fue un
-     * {@code JOIN} llano contra {@code predio} —las dos tablas tienen {@code id} y {@code
-     * geometria}— PostgreSQL contestaba «column reference "id" is ambiguous». Hoy esa consulta
-     * escribe las suyas dentro del {@code LATERAL} y esta constante la usa solo {@link
-     * #zonaPorCodigo}; el alias se conserva porque las dos hablan de lo mismo y una de las dos sin
-     * el invitaria a quitarselo a la otra.
-     */
-    private static final String COLUMNAS_DE_ZONA =
-            "z.id, z.plan, z.ordenanza, z.codigo, z.nombre, ST_AsText(z.geometria) AS geometria,"
-                    + " z.vigencia_desde, z.vigencia_hasta";
 
     /**
      * A que zona cae ESTE predio: el marco delante, el operador espacial detras (ADR-0034 regla 2).
@@ -133,18 +120,30 @@ public class UrbanoRepositoryJdbc extends RepositorioJdbc implements UrbanoRepos
      * conserva. Medido en #21 sobre la consulta hermana de {@code grd}, que no puede llevar {@code
      * LIMIT} y necesita {@code OFFSET 0} para lo mismo.
      *
+     * <h2>El poligono NO se selecciona (#30)</h2>
+     *
+     * <p>Hasta #30 esta consulta traia {@code ST_AsText(zz.geometria)} y {@link
+     * ConsultaDeZonificacion} <b>no lo leia</b>: el {@code ZonaVigente} que publica lleva codigo,
+     * nombre, plan, ordenanza, las dos vigencias y los parametros, y {@code ZonaResource} tampoco
+     * lo saca. Medido como {@code kamayuk_app} con un poligono de PDU de 5 001 vertices, la
+     * respuesta pesaba <b>188 636 bytes</b> por lectura —de los que 188 595 eran el poligono— y
+     * desde #22 son DOS zonas por consulta, no una.
+     *
+     * <p>Quitarlo no debilita nada: <b>el poligono ya decidio dentro del motor</b>, en el {@code
+     * ST_Covers} de esta misma sentencia. Lo que sale es {@code ZonaQueRige}, que es la fila sin la
+     * columna que nadie lee.
+     *
      * <h2>La fecha entra como argumento (regla 9)</h2>
      *
      * <p>No existe «la zona»: existe la zona vigente a una fecha. {@code vigencia_hasta} es
      * inclusiva, como en todo este esquema, y por eso la condicion es {@code >=} y no {@code >}.
      */
     static final String ZONA_QUE_CONTIENE =
-            "SELECT z.id, z.plan, z.ordenanza, z.codigo, z.nombre, z.geometria,"
+            "SELECT z.id, z.plan, z.ordenanza, z.codigo, z.nombre,"
                     + " z.vigencia_desde, z.vigencia_hasta"
                     + " FROM predio p"
                     + " CROSS JOIN LATERAL ("
                     + "   SELECT zz.id, zz.plan, zz.ordenanza, zz.codigo, zz.nombre,"
-                    + "          ST_AsText(zz.geometria) AS geometria,"
                     + "          zz.vigencia_desde, zz.vigencia_hasta"
                     + "     FROM zonificacion zz"
                     + "    WHERE zz.marco_oeste <= p.marco_este"
@@ -174,11 +173,11 @@ public class UrbanoRepositoryJdbc extends RepositorioJdbc implements UrbanoRepos
     }
 
     @Override
-    public List<Zona> zonasQueContienenAlPredio(long predioId, LocalDate aLaFecha) {
+    public List<ZonaQueRige> zonasQueContienenAlPredio(long predioId, LocalDate aLaFecha) {
         return jdbc().sql(ZONA_QUE_CONTIENE)
                 .param("predio", predioId)
                 .param("fecha", aLaFecha)
-                .query(UrbanoRepositoryJdbc::mapearZona)
+                .query(UrbanoRepositoryJdbc::mapearZonaQueRige)
                 .list();
     }
 
@@ -197,18 +196,23 @@ public class UrbanoRepositoryJdbc extends RepositorioJdbc implements UrbanoRepos
                 .list();
     }
 
+    /**
+     * Una columna, y es la que decide.
+     *
+     * <p>Traia las ocho —{@code ST_AsText(z.geometria)} incluida— para preguntar si la fila estaba.
+     * El poligono de una zona de PDU son cientos de kilobytes de texto por fila del CSV, y el unico
+     * llamador de esto llama a {@code isPresent()} (#30).
+     */
     @Override
-    public Optional<Zona> zonaPorCodigo(String plan, String codigo, LocalDate vigenciaDesde) {
+    public Optional<Long> idDeLaZona(String plan, String codigo, LocalDate vigenciaDesde) {
         return jdbc().sql(
-                        "SELECT "
-                                + COLUMNAS_DE_ZONA
-                                + " FROM zonificacion z"
+                        "SELECT z.id FROM zonificacion z"
                                 + " WHERE z.plan = :plan AND z.codigo = :codigo"
                                 + " AND z.vigencia_desde = :desde")
                 .param("plan", plan)
                 .param("codigo", codigo)
                 .param("desde", vigenciaDesde)
-                .query(UrbanoRepositoryJdbc::mapearZona)
+                .query(Long.class)
                 .optional();
     }
 
@@ -259,18 +263,17 @@ public class UrbanoRepositoryJdbc extends RepositorioJdbc implements UrbanoRepos
         }
     }
 
-    private static Zona mapearZona(ResultSet fila, int numero) throws SQLException {
+    private static ZonaQueRige mapearZonaQueRige(ResultSet fila, int numero) throws SQLException {
         LocalDate hasta =
                 fila.getDate("vigencia_hasta") == null
                         ? null
                         : fila.getDate("vigencia_hasta").toLocalDate();
-        return new Zona(
+        return new ZonaQueRige(
                 fila.getLong("id"),
                 fila.getString("plan"),
                 fila.getString("ordenanza"),
                 fila.getString("codigo"),
                 fila.getString("nombre"),
-                fila.getString("geometria"),
                 fila.getDate("vigencia_desde").toLocalDate(),
                 hasta);
     }

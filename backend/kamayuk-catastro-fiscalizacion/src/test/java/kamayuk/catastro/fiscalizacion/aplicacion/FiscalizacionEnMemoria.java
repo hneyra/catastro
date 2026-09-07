@@ -11,6 +11,7 @@ import kamayuk.catastro.dominio.Observacion;
 import kamayuk.catastro.fiscalizacion.dominio.Acta;
 import kamayuk.catastro.fiscalizacion.dominio.Campania;
 import kamayuk.catastro.fiscalizacion.dominio.Candidato;
+import kamayuk.catastro.fiscalizacion.dominio.CandidatoEnLaCola;
 import kamayuk.catastro.fiscalizacion.dominio.CriterioDeCandidatos;
 import kamayuk.catastro.fiscalizacion.dominio.EstadoDelCandidato;
 import kamayuk.catastro.fiscalizacion.dominio.EtapaDeVerificacion;
@@ -93,14 +94,36 @@ final class FiscalizacionEnMemoria implements FiscalizacionRepository {
     }
 
     @Override
-    public Pagina<Candidato> candidatos(CriterioDeCandidatos criterio, Paginacion paginacion) {
-        List<Candidato> encontrados =
+    public Pagina<CandidatoEnLaCola> candidatos(
+            CriterioDeCandidatos criterio, Paginacion paginacion) {
+        List<CandidatoEnLaCola> encontrados =
                 candidatos.values().stream()
                         .filter(c -> c.campaniaId() == criterio.campaniaId())
                         .filter(c -> criterio.estado() == null || c.estado() == criterio.estado())
                         .filter(c -> criterio.clase() == null || c.clase() == criterio.clase())
+                        .map(FiscalizacionEnMemoria::enLaCola)
                         .toList();
         return Pagina.de(encontrados, paginacion, encontrados.size());
+    }
+
+    /**
+     * Lo que la pagina devuelve: el candidato SIN su poligono (#30).
+     *
+     * <p>El doble guarda {@link Candidato} porque es lo que se escribe, y publica {@link
+     * CandidatoEnLaCola} porque es lo que la cola de gabinete lee — igual que el repositorio de
+     * verdad, cuya consulta ni siquiera selecciona esa columna.
+     */
+    private static CandidatoEnLaCola enLaCola(Candidato candidato) {
+        return new CandidatoEnLaCola(
+                candidato.id() == null ? 0L : candidato.id(),
+                candidato.campaniaId(),
+                candidato.predioId(),
+                candidato.clase(),
+                candidato.origen(),
+                candidato.score(),
+                candidato.insumos(),
+                candidato.estado(),
+                candidato.descarte());
     }
 
     @Override

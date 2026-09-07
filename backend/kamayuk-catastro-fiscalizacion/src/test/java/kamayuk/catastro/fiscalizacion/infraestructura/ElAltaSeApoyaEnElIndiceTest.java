@@ -26,6 +26,7 @@ import kamayuk.catastro.fiscalizacion.aplicacion.AbrirCampania;
 import kamayuk.catastro.fiscalizacion.dominio.Acta;
 import kamayuk.catastro.fiscalizacion.dominio.Campania;
 import kamayuk.catastro.fiscalizacion.dominio.Candidato;
+import kamayuk.catastro.fiscalizacion.dominio.CandidatoEnLaCola;
 import kamayuk.catastro.fiscalizacion.dominio.CriterioDeCandidatos;
 import kamayuk.catastro.fiscalizacion.dominio.Evidencia;
 import kamayuk.catastro.fiscalizacion.dominio.FiscalizacionRepository;
@@ -236,7 +237,8 @@ class ElAltaSeApoyaEnElIndiceTest {
         }
 
         @Override
-        public Pagina<Candidato> candidatos(CriterioDeCandidatos criterio, Paginacion paginacion) {
+        public Pagina<CandidatoEnLaCola> candidatos(
+                CriterioDeCandidatos criterio, Paginacion paginacion) {
             return real.candidatos(criterio, paginacion);
         }
 

@@ -15,14 +15,23 @@ import type { Ruta } from './ruta';
  * A, el acordeon con chevron.
  */
 
-const EJERCICIOS = ['2026', '2025', '2024', '2023'] as const;
-
 export type Pestania = { modulo: string; hoja: string };
 
 export type ShellProps = {
   ruta: Ruta;
   entidad: string;
   ejercicio: string;
+  /**
+   * Los ejercicios que ofrece el desplegable, en el orden en que se ofrecen.
+   *
+   * **Llegan de fuera y no se escriben aqui**: eran cuatro literales congelados
+   * —`['2026','2025','2024','2023']`— y el 1 de enero de 2027 la interfaz se
+   * quedaba sin poder elegir el ano en curso, sin error y sin aviso. Los deriva
+   * `shell/ejercicios.ts` del reloj que `App.tsx` lee una sola vez, que es donde
+   * esta escrito por que se admite un reloj y que sigue suponiendo esta lista
+   * hasta que exista #51.
+   */
+  ejercicios: readonly string[];
   onEjercicio: (v: string) => void;
   pestanas: readonly Pestania[];
   onIr: (modulo: string, hoja: string) => void;
@@ -98,6 +107,7 @@ export function Shell(props: ShellProps) {
           cerrarTodo();
         }}
         ejercicio={props.ejercicio}
+        ejercicios={props.ejercicios}
         onEjercicio={props.onEjercicio}
         avisoAbierto={aviso}
         verAviso={() => setAviso((x) => !x)}
@@ -262,6 +272,7 @@ function BarraGlobal(p: {
   panelAbierto: boolean;
   alternarPanel: () => void;
   ejercicio: string;
+  ejercicios: readonly string[];
   onEjercicio: (v: string) => void;
   avisoAbierto: boolean;
   verAviso: () => void;
@@ -364,7 +375,10 @@ function BarraGlobal(p: {
       </button>
 
       {/* El ejercicio es global a la sesion: lo declara asi el artboard, y aqui
-          ademas decide de que conjunto sellado se leen los cuadros. */}
+          ademas decide de que conjunto sellado se leen los cuadros. Los anos que
+          se ofrecen NO se escriben aqui: llegan derivados del reloj
+          (`shell/ejercicios.ts`), porque una lista congelada deja de ofrecer el
+          ano en curso sin que nada lo diga. */}
       <div
         style={{
           display: 'flex',
@@ -404,7 +418,7 @@ function BarraGlobal(p: {
             cursor: 'pointer',
           }}
         >
-          {EJERCICIOS.map((a) => (
+          {p.ejercicios.map((a) => (
             <option key={a} value={a}>
               {a}
             </option>

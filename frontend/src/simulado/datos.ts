@@ -35,7 +35,29 @@ export type { FilaDelPadron };
  */
 export const PREDIO_CON_POLIGONO = 1;
 
-/** El ejercicio del que hablan los cuadros de abajo. */
+/**
+ * El ejercicio del que hablan los cuadros de abajo.
+ *
+ * **Es el unico ano que este proxy sella**, y desde #48 la barra global pide el
+ * **ano en curso**: el 1 de enero de 2027 dejan de coincidir, y a partir de ese
+ * dia la demostracion ensenara «el ejercicio 2027 no tiene un conjunto de
+ * parametros sellado» en vez de tres cuadros. **Eso es correcto y es lo que hara
+ * la instalacion de verdad** mientras `normativa` no selle 2027 —una lista de
+ * anos congelada ensenando los cuadros del anterior como si fueran los del ano
+ * en curso es justo el defecto que #48 cierra—, y `mirar` sigue en verde porque
+ * un 404 es una respuesta.
+ *
+ * Lo que NO es correcto es el efecto de rebote, y esta medido: con la aplicacion
+ * pidiendo un ano que este proxy no sella, `yarn errores` da **21 problemas
+ * sobre 36 renders** —los 6 titulos de la superficie `aranceles-sin-el-catalogo-vial`
+ * mas sus 15 pares byte a byte, que es `C(6,2)`—, porque el 404 del cuadro tapa
+ * los seis rechazos que esa superficie existe para distinguir. Su mensaje manda
+ * a mirar al sitio equivocado, asi que queda escrito aqui, que es la causa.
+ *
+ * Se cierra con **#51** —preguntarle al backend que ejercicios tienen conjunto
+ * sellado y ofrecer esos— o sellando aqui el ano en curso, que es una decision:
+ * este proxy dice tres lineas mas abajo que **no tiene reloj** a proposito.
+ */
 export const EJERCICIO = 2026;
 
 /**

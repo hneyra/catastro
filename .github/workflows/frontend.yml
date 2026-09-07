@@ -35,7 +35,14 @@
 #      otro arnes lo ve: `mirar` la ve llena, `impedimentos` ve botones
 #      habilitados, y `errores` mide rechazos que aqui no llegan a producirse.
 #      Ejecuta ademas un acto, porque comparar una cola en reposo se cumple sola.
-#   9. `ejercicios` — el desplegable de la barra global sale del RELOJ, y se mide
+#   9. `territorio` — las cinco escrituras del catalogo territorial, conducidas
+#      de verdad: se teclea cada campo con una marca y se mira el cuerpo que sale
+#      por `fetch`, mas el JSON que vuelve contra las cifras que se pintan. Los
+#      dos defectos que existe para atrapar viajan en verde por todos los demas
+#      arneses: un campo que el servidor DESCARTA —el `activo` del alta, el
+#      `codigo` de un `PUT`— contesta 201 sin aplicarse, y un conteo nulo pintado
+#      como cero se ve exactamente igual que uno contado.
+#  10. `ejercicios` — el desplegable de la barra global sale del RELOJ, y se mide
 #      MOVIENDOLO. Es la unica forma de medirlo: los cuatro literales que #48
 #      quita coinciden hoy con el reloj letra por letra, asi que una guarda que
 #      pregunte «ofrece el ano en curso» pasa en verde con el defecto puesto
@@ -269,6 +276,17 @@ jobs:
       # ofrecido cuadra con el estado» se cumple sola para siempre.
       - name: Cada fila ofrece lo que su estado admite, y el ciclo avanza
         run: CATASTRO_BASE=http://localhost:5210 node verificaciones/transiciones.mjs
+
+      # Conduce las cinco escrituras del catalogo territorial y mira LO QUE
+      # VIAJA y LO QUE VUELVE, no lo que la pantalla dibuja: el `activo` del alta
+      # de un sector y el `codigo` del cuerpo de un `PUT` estan en el `record`
+      # —asi que `rutas` los da por buenos, y con razon: viajan— y el controlador
+      # los lee y los TIRA. Un control asi no da error, no da aviso, el servidor
+      # contesta 201, y el dato no acaba en ningun sitio. Ademas exige que toda
+      # cifra del panel de resultado venga del JSON: los conteos llegan NULOS en
+      # las respuestas de escritura, y un cero ahi se pinta igual que uno leido.
+      - name: Lo que se teclea en el catalogo llega entero, y ningun conteo se inventa
+        run: CATASTRO_BASE=http://localhost:5210 node verificaciones/territorio.mjs
 
       # Compila su PROPIA vista previa con la bandera apagada y la sirve en otro
       # puerto: el proxy se apaga al compilar —Vite resuelve `import.meta.env`

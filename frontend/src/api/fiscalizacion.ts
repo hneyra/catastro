@@ -41,7 +41,7 @@
  * prototipo.
  */
 import { camino, solicitar } from './cliente';
-import type { Paginacion, RespuestaPaginada } from './cliente';
+import type { CuerpoSinPareja, Paginacion, RespuestaPaginada } from './cliente';
 
 export const RUTAS = {
   campanias: '/fiscalizacion/campanias',
@@ -578,22 +578,9 @@ export const CUERPOS_DE_ESCRITURA = {
   PeticionDeActa: ['numero', 'inspector', 'detalle', 'observacion'],
 } as const satisfies Readonly<Record<string, readonly string[]>>;
 
-type Faltan<T, L extends readonly string[]> = Exclude<keyof T, L[number]>;
-type Sobran<T, L extends readonly string[]> = Exclude<L[number], keyof T>;
-
-/**
- * Que el tipo y su lista digan lo mismo. Si divergen, esto **no compila**.
- *
- * Una lista de nombres al lado de un tipo es una copia, y una copia se queda
- * vieja en silencio: quien anada un campo al tipo y no a la lista dejaria el
- * arnes comparando cinco de seis, en verde. Es la misma atadura que
- * `CampoDelAltaSinPareja` pone en `catastro.ts`, generalizada a siete cuerpos.
- */
-export type CuerpoSinPareja<T, L extends readonly string[]> = [Faltan<T, L>] extends [never]
-  ? [Sobran<T, L>] extends [never]
-    ? true
-    : ['sobra en CUERPOS_DE_ESCRITURA', Sobran<T, L>]
-  : ['falta en CUERPOS_DE_ESCRITURA', Faltan<T, L>];
+/* `CuerpoSinPareja` vivia aqui hasta #72 y se mudo a `cliente.ts`: con un
+   segundo modulo que escribe —el catalogo territorial— copiarlo habria sido la
+   misma clase de defecto que el tipo existe para atrapar, un escalon mas arriba. */
 
 export const LOS_CUERPOS_DE_ESCRITURA_CUADRAN: {
   PeticionDeCampania: CuerpoSinPareja<PeticionDeCampania, typeof CUERPOS_DE_ESCRITURA.PeticionDeCampania>;

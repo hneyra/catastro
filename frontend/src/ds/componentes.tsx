@@ -591,14 +591,22 @@ export function Servida({
   /** Las rutas del contrato que esta pantalla lee, como las declara `src/api`. */
   lee: readonly string[];
   /**
-   * Y las que ESCRIBE, cuando la pantalla escribe.
+   * Y las que ESCRIBE, **cada una con su verbo**.
    *
-   * Van aparte y con su verbo porque no son lo mismo: una lectura que no llega
+   * Van aparte de las lecturas porque no son lo mismo: una lectura que no llega
    * deja la pantalla sin datos, y una escritura que no llega deja al usuario sin
    * saber si guardo. Ensenarlas con el mismo «GET» delante diria que esta
    * pantalla solo consulta, que es justo lo contrario.
+   *
+   * **Y el verbo se pasa, no se supone.** Hasta #72 se escribia «POST» fijo,
+   * porque las nueve escrituras de fiscalizacion lo son; el catalogo territorial
+   * trajo dos `PUT` —la correccion de un sector y la de una via— y con el verbo
+   * fijo el pie afirmaba un metodo que esa ruta **no admite**: pedirla con POST
+   * contesta 405 «METODO_NO_ADMITIDO», que es uno de los doce codigos que este
+   * cliente distingue. Un pie que existe para decir la verdad sobre el contrato
+   * no puede llevar dentro la mitad inventada.
    */
-  escribe?: readonly string[];
+  escribe?: readonly { readonly metodo: string; readonly ruta: string }[];
   /** Lo que el backend no publica, y por eso esta pantalla no lo dibuja. */
   falta?: ReactNode;
 }) {
@@ -630,12 +638,12 @@ export function Servida({
       {escribe && escribe.length > 0 ? (
         <p style={{ margin: '6px 0 0' }}>
           {escribe.length === 1 ? 'La escribe' : 'La escriben'}{' '}
-          {escribe.map((ruta, i) => (
-            <span key={ruta}>
+          {escribe.map((operacion, i) => (
+            <span key={`${operacion.metodo} ${operacion.ruta}`}>
               {i > 0 ? ' · ' : ''}
               <code style={{ fontSize: 12, color: 'var(--tinta-2)' }}>
-                POST {RAIZ}
-                {ruta}
+                {operacion.metodo} {RAIZ}
+                {operacion.ruta}
               </code>
             </span>
           ))}

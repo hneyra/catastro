@@ -61,6 +61,14 @@ const { EJERCICIO } = await leerModulo('src/simulado/datos.ts', '.registro-error
    se escriben: con una copia aqui, renombrar un campo dejaria este arnes
    rellenando un formulario que ya no existe y midiendo el error equivocado. */
 const { ACTOS, CAMPOS } = await leerModulo('src/datos/fiscalizacion.ts', '.registro-errores-fiscalizacion');
+/* Y los del catalogo territorial, por lo mismo: dos de las diez superficies son
+   escrituras suyas, y con los rotulos copiados aqui renombrar un campo dejaria
+   este arnes rellenando un formulario que ya no existe. */
+const { ACTOS_DEL_TERRITORIO, CAMPOS_DEL_TERRITORIO } = await leerModulo(
+  'src/datos/catastro.ts',
+  '.registro-errores-catastro',
+);
+const { IRREVERSIBLE, LA_OBSERVACION } = await leerModulo('src/datos/actos.ts', '.registro-errores-actos');
 
 const BASE = process.env.CATASTRO_BASE ?? 'http://localhost:5190';
 
@@ -268,6 +276,59 @@ const SUPERFICIES = [
     region: (pagina) => elPanel(pagina, ACTOS.dejarSinEfecto),
     detalle: 'completo',
   },
+  /**
+   * Las dos ESCRITURAS del catalogo territorial (#72), por lo mismo que las de
+   * fiscalizacion: un `POST` no tiene envoltorio que dibuje su rechazo.
+   *
+   * Se elige una de cada clase y **las dos son las caras del mismo problema**:
+   *
+   *   · El **alta de un sector**, donde el `409` del codigo repetido no se
+   *     arregla reintentando sino con otro codigo, y el `404` no puede pasar. Es
+   *     la unica escritura del catalogo que no cuelga de ningun sujeto.
+   *   · La **retirada de una via**, que es la que mas cara sale de entender mal:
+   *     su `403` no dice «no tiene permiso para esta pantalla» —quien lo recibe
+   *     acaba de corregir una via sin problema— sino «le falta ELIMINACION, que
+   *     es otro privilegio y lo concede otra persona». Sin esa distincion, ese
+   *     403 se lee como una averia del sistema, que es lo que el AC-2 de #72
+   *     existe para impedir.
+   *
+   * Y las dos **declaran su verbo**: sus caminos son los mismos que los de sus
+   * lecturas, asi que sin el se romperia tambien el arbol y lo que se mediria
+   * seria la `Lectura` de al lado.
+   */
+  {
+    k: 'sector-al-registrarlo',
+    que: 'El alta de un sector cuando `POST /catastro/sectores` la rechaza',
+    hash: '#/catastro/territorio/01?acto=altaDeSector',
+    rompe: { camino: '/catastro/sectores', exacto: true, metodo: 'POST' },
+    preparar: async (pagina) => {
+      const panel = elPanel(pagina, ACTOS_DEL_TERRITORIO.altaDeSector);
+      await panel.getByLabel(CAMPOS_DEL_TERRITORIO.codigoDeSector.rotulo).fill('91');
+      await panel.getByLabel(CAMPOS_DEL_TERRITORIO.nombreDelSector.rotulo).fill('Ampliacion del cercado');
+      await panel.getByLabel(LA_OBSERVACION.rotulo).fill('Se incorpora el sector del plan de ampliacion');
+      await panel.getByRole('button', { name: ACTOS_DEL_TERRITORIO.altaDeSector }).click();
+      await pagina.waitForTimeout(900);
+    },
+    region: (pagina) => elPanel(pagina, ACTOS_DEL_TERRITORIO.altaDeSector),
+    detalle: 'completo',
+  },
+  {
+    k: 'via-al-retirarla',
+    que: 'La retirada de una via cuando `PUT /catastro/vias/{codigo}` la rechaza',
+    hash: '#/catastro/territorio/vias?acto=bajaDeVia&via=V-0003',
+    rompe: { camino: '/catastro/vias/V-0003', exacto: true, metodo: 'PUT' },
+    preparar: async (pagina) => {
+      const panel = elPanel(pagina, ACTOS_DEL_TERRITORIO.bajaDeVia);
+      await panel.getByLabel(LA_OBSERVACION.rotulo).fill('La calle se anulo en el plan de habilitacion');
+      /* Dos pulsaciones, que es lo que una retirada exige: la primera abre la
+         confirmacion y la segunda la firma. */
+      await panel.getByRole('button', { name: ACTOS_DEL_TERRITORIO.bajaDeVia }).click();
+      await panel.getByRole('button', { name: IRREVERSIBLE.confirmar }).click();
+      await pagina.waitForTimeout(900);
+    },
+    region: (pagina) => elPanel(pagina, ACTOS_DEL_TERRITORIO.bajaDeVia),
+    detalle: 'completo',
+  },
   {
     k: 'documento-de-la-ficha',
     que: 'La descarga de la ficha del contribuyente',
@@ -327,10 +388,20 @@ for (const superficie of elegidas) {
     await contexto.addInitScript(
       ({ rompe, escenario: esc, raiz }) => {
         window.__peticiones = [];
+        window.__conVerbo = [];
         window.__rotas = 0;
-        const casa = (url) => {
+        /* Y QUE se rompio, no solo cuantas veces: romper de mas mide otra
+           pantalla. */
+        window.__rotasOperaciones = [];
+        /* El VERBO importa desde #72: las escrituras del catalogo territorial
+           comparten camino con sus lecturas —`POST /catastro/sectores` y el `GET`
+           del arbol son la misma URI—, asi que sin el se romperian las dos y lo
+           que se mediria seria la `Lectura`, que ya pasa por `Fallo`. Es la misma
+           precision que `conParametro` da para la descarga de la ficha. */
+        const casa = (url, metodo) => {
           const camino = raiz + rompe.camino;
           const cuadra = rompe.exacto ? url.pathname === camino : url.pathname.startsWith(camino);
+          if (rompe.metodo && metodo !== rompe.metodo) return false;
           return cuadra && (!rompe.conParametro || url.searchParams.has(rompe.conParametro));
         };
         let actual = globalThis.fetch;
@@ -338,9 +409,14 @@ for (const superficie of elegidas) {
           const href =
             typeof entrada === 'string' ? entrada : entrada instanceof URL ? entrada.href : entrada.url;
           const url = new URL(href, location.origin);
-          if (url.pathname.startsWith(raiz)) window.__peticiones.push(url.pathname);
-          if (!casa(url)) return delegar(entrada, opciones);
+          const metodo = (opciones?.method ?? 'GET').toUpperCase();
+          if (url.pathname.startsWith(raiz)) {
+            window.__peticiones.push(url.pathname);
+            window.__conVerbo.push(`${metodo} ${url.pathname}`);
+          }
+          if (!casa(url, metodo)) return delegar(entrada, opciones);
           window.__rotas += 1;
+          window.__rotasOperaciones.push(`${metodo} ${url.pathname}`);
           /* La red caida: `fetch` rechaza con un `TypeError`, que es lo que
              `cliente.ts` traduce a SIN_RESPUESTA. Un 502 no vale: eso SI es una
              respuesta y trae otro codigo. */
@@ -391,6 +467,24 @@ for (const superficie of elegidas) {
 
     const problemas = [];
 
+    /* 0 · Y se rompio EXACTAMENTE una operacion, no dos.
+       Sin esto, un `rompe` que ademas alcanzara la LECTURA de la pantalla la
+       dejaria midiendo otra cosa —la `Lectura`, que ya pasa por `Fallo`— y
+       taparia justo la superficie que se queria mirar. Ocurre de verdad en cuanto
+       una escritura comparte camino con su lectura: `POST /catastro/sectores` y
+       el `GET` del arbol territorial son la misma URI, y por eso esa superficie
+       declara su verbo. Medido: sin el verbo, esta comprobacion sale roja con las
+       DOS. */
+    const rotasOperaciones = [...new Set(await pagina.evaluate(() => window.__rotasOperaciones))];
+    if (rotasOperaciones.length !== 1) {
+      problemas.push(
+        `se rompieron ${rotasOperaciones.length} operacion(es) y no una: ${rotasOperaciones.join(', ')}. ` +
+          'Romper de mas cambia lo que esta superficie mide: con su lectura caida tambien, lo que se ve es ' +
+          'el `Fallo` de la `Lectura` y no el de esta escritura. Se acota con `exacto`, `metodo` o ' +
+          '`conParametro`.',
+      );
+    }
+
     /* 1 · Lo NOMBRA. El titulo del codigo es lo que separa «se rompio algo» de
        «no tiene permiso» y de «falta publicar una cifra». */
     const titulo = tituloDeError(error.codigo);
@@ -418,8 +512,11 @@ for (const superficie of elegidas) {
       });
       await region.getByRole('button', { name: 'Reintentar' }).click();
       await pagina.waitForTimeout(1100);
-      const dePaso = await pagina.evaluate(() => window.__peticiones);
-      const camino = RAIZ + superficie.rompe.camino;
+      const conVerbo = superficie.rompe.metodo !== undefined;
+      const dePaso = await pagina.evaluate((v) => (v ? window.__conVerbo : window.__peticiones), conVerbo);
+      const camino = conVerbo
+        ? `${superficie.rompe.metodo} ${RAIZ}${superficie.rompe.camino}`
+        : RAIZ + superficie.rompe.camino;
       const laSuya = dePaso.some((p) => (superficie.rompe.exacto ? p === camino : p.startsWith(camino)));
       if (!laSuya) {
         problemas.push(

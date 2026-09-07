@@ -10,7 +10,7 @@
  * volver a formatearlos es como se pierde un decimal, y lo prohibe ESLint.
  */
 import { camino, solicitar } from './cliente';
-import type { Paginacion, RespuestaPaginada } from './cliente';
+import type { CuerpoSinPareja, Paginacion, RespuestaPaginada } from './cliente';
 
 /** Las rutas del contrato, con sus llaves y tal como las declara el backend. */
 export const RUTAS = {
@@ -45,8 +45,17 @@ export const RUTAS = {
   altaBienesComunes: '/catastro/fichas/bienes-comunes',
   altaRural: '/catastro/fichas/rural',
   sectores: '/catastro/sectores',
+  /* La correccion y la baja logica de un sector son la MISMA ruta: `PUT` con el
+     codigo, y lo que decide cual de las dos es el cuerpo. Esa es la razon de que
+     el privilegio de la baja no pueda comprobarlo el guardia (ver
+     `LO_QUE_EL_SERVIDOR_DESCARTA` y `modificarSector`). */
+  sector: '/catastro/sectores/{codigo}',
+  /* Una sola ruta para las manzanas de un sector: `GET` las lista y `POST` da
+     de alta. No hay `PUT`: una manzana no se edita, porque su codigo es un tramo
+     del codigo catastral de sus predios y cambiarlo los desalinearia todos. */
   manzanas: '/catastro/sectores/{codigo}/manzanas',
   vias: '/catastro/vias',
+  via: '/catastro/vias/{codigo}',
   aranceles: '/catastro/tablas/aranceles',
   valoresUnitarios: '/catastro/tablas/valores-unitarios',
   depreciacion: '/catastro/tablas/depreciacion',
@@ -619,6 +628,202 @@ export function vias(
   return solicitar(RUTAS.vias, { parametros: { ...filtros, ...pagina }, senal });
 }
 
+/* ── El mantenimiento del catalogo territorial (#72) ─────────────────────── */
+
+/**
+ * Los tipos de via del catalogo (`TipoVia`).
+ *
+ * Es un enumerado y no texto libre por lo que dice su propio javadoc: «con texto
+ * libre, la misma calle entra tres veces como AV., AVENIDA y Avenida, y el
+ * padron acaba con tres vias distintas donde hay una». El controlador normaliza
+ * —quita tildes y sube a mayusculas— y contesta **422 nombrando el valor** a
+ * cualquier otra cosa, asi que un desplegable con una opcion de mas no ordena
+ * raro: rechaza el alta despues de rellenarla.
+ */
+export const TIPOS_DE_VIA = [
+  'AVENIDA',
+  'CALLE',
+  'JIRON',
+  'PASAJE',
+  'CARRETERA',
+  'MALECON',
+  'OVALO',
+  'PLAZA',
+  'PROLONGACION',
+  'OTRO',
+] as const;
+
+/**
+ * El cuerpo de un alta o una correccion de sector (`SectorController.PeticionDeSector`).
+ *
+ * **Lista blanca**: lo que no esta en el `record` se descarta aunque llegue en
+ * el JSON. Los cinco campos estan porque los dos verbos comparten `record`, y
+ * **cada verbo ignora uno distinto** — eso no lo dice el tipo y no puede
+ * decirlo: esta en `LO_QUE_EL_SERVIDOR_DESCARTA`, que es lo que las pantallas
+ * leen para no ofrecer un control que el servidor no lee.
+ *
+ * `observacion` es obligatoria en las dos (regla 10, RNF-052): sin ella, 422.
+ * Los demas son opcionales en el `PUT` —«lo que no viene, no cambia»— y el alta
+ * exige `codigo` y `nombre`, que es una regla del servidor y no se copia aqui.
+ */
+export type PeticionDeSector = {
+  observacion: string;
+  codigo?: string;
+  nombre?: string;
+  /** Cadena vacia BORRA la zona; ausente la conserva. Es la instruccion, no la omision. */
+  zona?: string;
+  /** `false` es la baja logica, y exige ademas el privilegio `ELIMINACION`. */
+  activo?: boolean;
+};
+
+/** El cuerpo de un alta de manzana. El sector lo dice la ruta, por su codigo. */
+export type PeticionDeManzana = {
+  observacion: string;
+  codigo?: string;
+};
+
+/**
+ * El cuerpo de un alta o una correccion de via (`ViaController.PeticionDeVia`).
+ *
+ * `sector`, `zonaDeArancel` y las cuadras que dibuja el prototipo **no estan en
+ * el `record`**, asi que tampoco aqui: `ViaResource` todavia no los publica
+ * (Track 2 de #290).
+ */
+export type PeticionDeVia = {
+  observacion: string;
+  codigo?: string;
+  tipo?: string;
+  nombre?: string;
+  /** Cadena vacia BORRA el ubigeo; ausente lo conserva. */
+  ubigeo?: string;
+  /** `false` es la baja logica, y exige ademas el privilegio `ELIMINACION`. */
+  activa?: boolean;
+};
+
+/**
+ * Lo que cada escritura **recibe y descarta**, con su motivo, por operacion.
+ *
+ * <h2>Que existe para impedir</h2>
+ *
+ * Los dos campos de aqui estan en el `record`, asi que el punto 9 de
+ * `verificaciones/rutas.mjs` —que compara el cuerpo contra sus componentes— los
+ * da por buenos, y con razon: **viajan**. Lo que el `record` no puede decir es
+ * que el controlador los lee y los tira, y eso es peor que un campo que no
+ * existe: el tecnico ve el control, lo rellena, guarda, y el servidor contesta
+ * `201` sin haberlo aplicado. Es el defecto que #34 midio con
+ * `documentoDeOrigen`, por el otro lado —alli el campo no llegaba al `record`;
+ * aqui llega y se descarta—.
+ *
+ * <h2>Los dos, con el motivo que el backend escribe</h2>
+ *
+ *   · **`activo` en el alta de un sector.** «Un sector nace activo, y el
+ *     `activo` del cuerpo se ignora: darlo de alta ya retirado del catalogo
+ *     seria un alta y una baja en un solo acto, y dejaria la auditoria con un
+ *     `ALTA` donde hubo dos cosas.»
+ *   · **`codigo` en la correccion.** «El codigo del sector es uno de los tramos
+ *     del codigo de referencia catastral, y cambiarlo desalinearia el codigo de
+ *     todos los predios del sector.» Lo mismo vale para la via, cuyo codigo
+ *     compone la direccion de sus predios.
+ *
+ * Las claves son `METODO ruta`, tal como el backend las declara, para que se
+ * puedan cruzar con lo que sale por la puerta. Lo lee
+ * `verificaciones/territorio.mjs`, que conduce cada formulario y mira el cuerpo
+ * que de verdad viajo.
+ */
+export const LO_QUE_EL_SERVIDOR_DESCARTA: Readonly<
+  Record<string, { readonly campos: readonly string[]; readonly motivo: string }>
+> = {
+  [`POST ${RUTAS.sectores}`]: {
+    campos: ['activo'],
+    motivo:
+      'Un sector nace activo. Darlo de alta ya retirado seria un alta y una baja en un solo acto, y ' +
+      'dejaria la auditoria con un ALTA donde hubo dos cosas: para retirarlo esta la baja logica, que ' +
+      'ademas exige otro privilegio.',
+  },
+  [`PUT ${RUTAS.sector}`]: {
+    campos: ['codigo'],
+    motivo:
+      'El codigo del sector es uno de los tramos del codigo de referencia catastral: cambiarlo ' +
+      'desalinearia el codigo de todos los predios del sector. El de la ruta identifica el sector; el ' +
+      'del cuerpo se ignora.',
+  },
+  [`PUT ${RUTAS.via}`]: {
+    campos: ['codigo'],
+    motivo:
+      'El codigo de la via identifica la calle en la direccion de todos sus predios: cambiarlo aqui ' +
+      'los dejaria apuntando a una via que ya no se llama asi. El de la ruta manda; el del cuerpo se ' +
+      'ignora.',
+  },
+};
+
+/**
+ * Da de alta un sector del catastro (`201`).
+ *
+ * `409` dice que el codigo ya esta tomado en esta municipalidad, y no se arregla
+ * reintentando: se arregla con otro codigo. `422` nombra el campo que falta.
+ */
+export function registrarSector(peticion: PeticionDeSector, senal?: AbortSignal): Promise<Sector> {
+  return solicitar(RUTAS.sectores, { metodo: 'POST', cuerpo: peticion, senal });
+}
+
+/**
+ * Corrige un sector, **o lo retira del catalogo**.
+ *
+ * Es una sola operacion en el backend y son dos actos distintos en la pantalla,
+ * porque el privilegio no es el mismo: `activo: false` exige ademas
+ * `ELIMINACION`, comprobado a mano dentro del controlador —la anotacion declara
+ * lo que exige la RUTA, y la ruta es una sola—. Quien puede editar y no dar de
+ * baja recibe **403 `SIN_PRIVILEGIO`** sobre una pantalla en la que acaba de
+ * guardar sin problema, asi que ese 403 hay que explicarlo o se lee como una
+ * averia.
+ *
+ * `404` si no hay ningun sector con ese codigo. Los tres conteos llegan **nulos**
+ * en la respuesta: quien escribe un sector no pidio contar nada.
+ */
+export function modificarSector(
+  codigo: string,
+  peticion: PeticionDeSector,
+  senal?: AbortSignal,
+): Promise<Sector> {
+  return solicitar(camino(RUTAS.sector, { codigo }), { metodo: 'PUT', cuerpo: peticion, senal });
+}
+
+/**
+ * Da de alta una manzana dentro de un sector (`201`).
+ *
+ * `404` si el sector de la ruta no existe —se decide leyendolo antes, y no
+ * traduciendo la excepcion del caso de uso, que tambien la lanza un codigo fuera
+ * de rango, que si es 422—. `409` si ese codigo de manzana ya esta usado **en
+ * ese sector**: el mismo codigo en otro sector es otra manzana y entra.
+ */
+export function registrarManzana(
+  codigoDeSector: string,
+  peticion: PeticionDeManzana,
+  senal?: AbortSignal,
+): Promise<Manzana> {
+  return solicitar(camino(RUTAS.manzanas, { codigo: codigoDeSector }), {
+    metodo: 'POST',
+    cuerpo: peticion,
+    senal,
+  });
+}
+
+/** Da de alta una via del catalogo vial (`201`). `409` si el codigo ya existe. */
+export function registrarVia(peticion: PeticionDeVia, senal?: AbortSignal): Promise<Via> {
+  return solicitar(RUTAS.vias, { metodo: 'POST', cuerpo: peticion, senal });
+}
+
+/**
+ * Corrige una via, **o la retira del catalogo**.
+ *
+ * La misma forma que `modificarSector` y por la misma razon: `activa: false` es
+ * la baja y exige `ELIMINACION` aparte. «Lo que no viene, no cambia»: un `PUT`
+ * que solo trae el nombre conserva el tipo, el ubigeo y el estado.
+ */
+export function modificarVia(codigo: string, peticion: PeticionDeVia, senal?: AbortSignal): Promise<Via> {
+  return solicitar(camino(RUTAS.via, { codigo }), { metodo: 'PUT', cuerpo: peticion, senal });
+}
+
 /* ── El plano ───────────────────────────────────────────────────────────── */
 
 export type LoteDelPlano = {
@@ -1024,6 +1229,35 @@ export function inscribirFicha(
   return solicitar(RUTA_DEL_ALTA[tipo], { metodo: 'POST', cuerpo: peticion, senal });
 }
 
+/* ── Los cuerpos de escritura, contra los `record` que los reciben ───────── */
+
+/**
+ * Que campos lleva cada cuerpo de escritura de este modulo, por su `record`.
+ *
+ * No es documentacion: lo lee el punto 9 de `verificaciones/rutas.mjs`, que abre
+ * el `.java`, saca los componentes del `record` y los compara **en los dos
+ * sentidos**. Un campo que este aqui y no en el `record` **se descarta en
+ * silencio** con la operacion hecha igual; uno que el `record` declare y no este
+ * aqui es la mitad del contrato que esta interfaz no llena, y se nombra.
+ *
+ * `PeticionDeAlta` no esta: la mide el punto 4, que es anterior y sigue vivo.
+ */
+export const CUERPOS_DE_ESCRITURA = {
+  PeticionDeSector: ['observacion', 'codigo', 'nombre', 'zona', 'activo'],
+  PeticionDeManzana: ['observacion', 'codigo'],
+  PeticionDeVia: ['observacion', 'codigo', 'tipo', 'nombre', 'ubigeo', 'activa'],
+} as const satisfies Readonly<Record<string, readonly string[]>>;
+
+export const LOS_CUERPOS_DE_ESCRITURA_CUADRAN: {
+  PeticionDeSector: CuerpoSinPareja<PeticionDeSector, typeof CUERPOS_DE_ESCRITURA.PeticionDeSector>;
+  PeticionDeManzana: CuerpoSinPareja<PeticionDeManzana, typeof CUERPOS_DE_ESCRITURA.PeticionDeManzana>;
+  PeticionDeVia: CuerpoSinPareja<PeticionDeVia, typeof CUERPOS_DE_ESCRITURA.PeticionDeVia>;
+} = {
+  PeticionDeSector: true,
+  PeticionDeManzana: true,
+  PeticionDeVia: true,
+};
+
 /* ── De donde sale cada lista de este modulo ─────────────────────────────── */
 
 /**
@@ -1059,6 +1293,7 @@ export const LISTAS_DERIVADAS_DE_UN_ENUM: Readonly<Record<string, string>> = {
   ESTADOS_DE_CONSERVACION: 'EstadoDeConservacion',
   CONDICIONES_DE_TITULARIDAD: 'CondicionDeTitularidad',
   ORIENTACIONES: 'Orientacion',
+  TIPOS_DE_VIA: 'TipoVia',
 };
 
 /**

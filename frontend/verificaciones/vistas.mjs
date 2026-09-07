@@ -62,6 +62,64 @@ export const VISTAS = [
   },
   { modulo: 'catastro', hoja: 'territorio', sujeto: '02', nombre: 'manzanas de otro sector' },
   { modulo: 'catastro', hoja: 'territorio', sujeto: 'vias', nombre: 'catalogo vial' },
+  /* Las cinco escrituras del catalogo territorial (#72). Como los nueve actos de
+     fiscalizacion, viven en ESTADOS de esta hoja —el formulario se abre desde la
+     ruta—, asi que con el destino a secas no se dibuja ni uno y los arneses
+     informarian en verde sobre las cinco operaciones que este issue anade.
+     Se recorren las SIETE formas distintas de formulario y no las nueve claves:
+     `reactivarSector` y `reactivarVia` son el mismo `Acto` que su baja con el
+     estado al reves y sin la confirmacion aparte, y el catalogo de demostracion
+     no trae ningun sector ni ninguna via retirada que las alcance sin escribir
+     antes —eso lo hace `territorio.mjs`, que si conduce el ciclo—. */
+  {
+    modulo: 'catastro',
+    hoja: 'territorio',
+    sujeto: '01',
+    filtros: { acto: 'altaDeSector' },
+    nombre: 'alta de un sector',
+  },
+  {
+    modulo: 'catastro',
+    hoja: 'territorio',
+    sujeto: '01',
+    filtros: { acto: 'corregirSector' },
+    nombre: 'correccion de un sector',
+  },
+  {
+    modulo: 'catastro',
+    hoja: 'territorio',
+    sujeto: '01',
+    filtros: { acto: 'bajaDeSector' },
+    nombre: 'retirada de un sector del catalogo',
+  },
+  {
+    modulo: 'catastro',
+    hoja: 'territorio',
+    sujeto: '01',
+    filtros: { acto: 'altaDeManzana' },
+    nombre: 'alta de una manzana',
+  },
+  {
+    modulo: 'catastro',
+    hoja: 'territorio',
+    sujeto: 'vias',
+    filtros: { acto: 'altaDeVia' },
+    nombre: 'alta de una via',
+  },
+  {
+    modulo: 'catastro',
+    hoja: 'territorio',
+    sujeto: 'vias',
+    filtros: { acto: 'corregirVia', via: 'V-0003' },
+    nombre: 'correccion de una via',
+  },
+  {
+    modulo: 'catastro',
+    hoja: 'territorio',
+    sujeto: 'vias',
+    filtros: { acto: 'bajaDeVia', via: 'V-0003' },
+    nombre: 'retirada de una via del catalogo',
+  },
   { modulo: 'catastro', hoja: 'valores', filtros: { cuadro: 'unitarios' }, nombre: 'matriz de valores unitarios' },
   { modulo: 'catastro', hoja: 'valores', filtros: { cuadro: 'depreciacion' }, nombre: 'matriz de depreciacion' },
   { modulo: 'urbano', hoja: 'zonificacion', sujeto: '1', nombre: 'zona de un predio con poligono' },

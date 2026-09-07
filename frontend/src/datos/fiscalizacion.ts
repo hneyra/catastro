@@ -18,6 +18,8 @@
  * existe.
  */
 
+import { ACTO, IRREVERSIBLE, LA_OBSERVACION } from './actos';
+
 /* ── Lo que el backend no publica ───────────────────────────────────────── */
 
 export const MOTIVOS = {
@@ -41,10 +43,11 @@ export const MOTIVOS = {
     'Esta lectura no puede devolver un omiso catastral, y no es un filtro: un OMISO_CATASTRAL no le toca a ningun predio —la restriccion de contraste del esquema le exige el predio nulo, porque si lo tuviera no seria un omiso sino otra cosa—. Quien busque omisos los encuentra en la pagina de su campania.',
   laListaVaciaNoEsUnCuatrocientosCuatro:
     'Un predio sin hallazgos contesta con la lista vacia; uno que no esta en el padron de esta municipalidad contesta 404. No son la misma respuesta y no se arreglan igual: el primero cierra la revision y el segundo se teclea otra vez.',
-  observacion:
-    'Toda escritura exige la observacion de quien la hace, y sin ella no se guarda (RNF-052, ADR-0008). El servidor la rechaza si no explica el cambio.',
-  elProxyNoPersiste:
-    'Contra el proxy de datos del navegador, el recorrido avanza mientras la pagina siga abierta y se olvida al recargarla: no hay ningun servidor detras. Contra el backend, lo que se escribe se queda.',
+  /* Las dos ultimas no son de fiscalizacion: son de cualquier escritura, y por
+     eso viven en `actos.ts` desde #72. Se reexportan con el nombre que este
+     modulo ya usaba para no dejar dos frases donde hay una. */
+  observacion: ACTO.observacion,
+  elProxyNoPersiste: ACTO.elProxyNoPersiste,
 } as const;
 
 /* ── Las columnas ───────────────────────────────────────────────────────── */
@@ -141,9 +144,7 @@ export const NOTAS_DE_LOS_ACTOS = {
  * pantalla, con lo que se va a hacer escrito delante.
  */
 export const IRREVERSIBLES = {
-  titulo: 'Esto no se deshace',
-  confirmar: 'Si, confirmar',
-  cancelar: 'Cancelar',
+  ...IRREVERSIBLE,
   anulacion:
     'El hallazgo deja de estar firme. No hay ninguna operacion que lo devuelva: su fila se queda con el motivo, con quien lo decidio y con cuando, y eso es todo lo que quedara para explicarlo. Y exige el privilegio de ELIMINACION y no el de MODIFICACION: es lo que permite darle la compuerta de campo a una brigada sin darle con ella la de retirar un hallazgo firme.',
   cierre:
@@ -201,10 +202,10 @@ export const CAMPOS = {
   dispositivo: { rotulo: 'Dispositivo', ayuda: 'Con que se capturo. Es el unico campo opcional de esta operacion.' },
   numeroDelActa: { rotulo: 'Numero del acta', ayuda: 'Unico en la municipalidad. Si ya existe —o el hallazgo ya tiene la suya—, el servidor contesta 409.' },
   detalle: { rotulo: 'Detalle', ayuda: 'Que se hallo. Sin importe y sin tributo.' },
-  observacion: {
-    rotulo: 'Observacion',
-    ayuda: 'Por que se hace esta escritura. Es obligatoria en todas y sin ella no se guarda nada (RNF-052).',
-  },
+  /* Tampoco es de fiscalizacion: la observacion la exige toda escritura, y su
+     rotulo lo pone `Acto` cuando la anade. Se conserva aqui el nombre porque
+     `verificaciones/errores.mjs` rellena el formulario por el. */
+  observacion: LA_OBSERVACION,
 } as const;
 
 /* ── Los sujetos que estas pantallas piden a mano ───────────────────────── */
@@ -253,4 +254,4 @@ export const VACIOS = {
 } as const;
 
 /** Lo que dice el boton primario cuando esta apagado, delante de lo que falta. */
-export const FALTA = 'Falta rellenar: ';
+export { FALTA } from './actos';

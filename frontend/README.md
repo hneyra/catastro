@@ -32,7 +32,7 @@ yarn datos      # en `src/datos/` no hay ni una cifra, solo rotulos y motivos
 yarn motor      # `.nvmrc` y `engines` dicen lo mismo, vite lo admite, y ningún
                 # guión se llama como un comando de yarn —se llamaba `node`, y
                 # `yarn node` es el comando de yarn: el arnés no corría—
-yarn mirar      # recorre los 16 destinos y sus 18 vistas en Chromium y guarda
+yarn mirar      # recorre los 16 destinos y sus 35 vistas en Chromium y guarda
                 # una captura de cada uno en .capturas/; falla ante un error de
                 # consola o si el <main> se queda en blanco —que es como falla
                 # de verdad una pantalla a medio hacer: en silencio—
@@ -73,6 +73,17 @@ yarn transiciones # cada fila de la cola de fiscalización ofrece EXACTAMENTE lo
                 # existe manda a concluir que el sistema está roto. Ejecuta además
                 # UN acto y comprueba que la fila cambia de estado y de lo que
                 # ofrece, porque comparar una cola en reposo se cumple sola
+yarn territorio # las cinco escrituras del catálogo territorial, conducidas de
+                # verdad: rellena TODO control editable con una marca y exige que
+                # cada marca aparezca en el cuerpo que salió por `fetch`, que ese
+                # cuerpo NO traiga lo que el servidor descarta —el `activo` del
+                # alta, el `codigo` de un `PUT`: están en el `record` y el
+                # controlador los tira—, que ninguna cifra del panel de resultado
+                # falte en el JSON —los conteos llegan NULOS al escribir y un cero
+                # ahí se pinta igual que uno contado—, que lo que no se deshace no
+                # escriba hasta confirmarse aparte, que la lista siguiente traiga
+                # lo recién escrito, y que los cinco rechazos —dos «409» de verdad
+                # y un 404, un 422 y un 403 inyectados— digan QUÉ HAY QUE HACER
 yarn imagen     # los dos archivos que deciden CÓMO SE SIRVE: levanta `nginx.conf`
                 # sobre la base del `Dockerfile` y pregunta POR HTTP si las tres
                 # cabeceras de seguridad llegan en cada ruta —`add_header` no se
@@ -81,7 +92,7 @@ yarn imagen     # los dos archivos que deciden CÓMO SE SIRVE: levanta `nginx.co
                 # construcción
 ```
 
-`mirar`, `impedimentos`, `paleta`, `errores`, `ejercicios`, `ficha` y `transiciones` necesitan una vista previa levantada; si no está en el 5190, se le dice con
+`mirar`, `impedimentos`, `paleta`, `errores`, `ejercicios`, `ficha`, `transiciones` y `territorio` necesitan una vista previa levantada; si no está en el 5190, se le dice con
 `CATASTRO_BASE=http://localhost:5210 yarn mirar`. `sin-red` **levanta la suya**, y hace falta:
 la bandera del proxy la resuelve Vite al compilar, así que correrlo contra otra vista previa
 mediría el paquete equivocado. `imagen` necesita **Docker**, y sin Docker **sale con 2, no se
@@ -101,13 +112,23 @@ src/
   datos/          Los RÓTULOS: columnas, motivos y enumerados. Ni una cifra
     catastro.ts   los del módulo · alta.ts   los seis pasos del asistente
     fiscalizacion.ts  los del ciclo: actos, campos y lo que el backend no publica
+    actos.ts      los que comparte CUALQUIER acto de escritura: la observación
+                  obligatoria, lo que dice el primario apagado y la confirmación
+                  aparte de lo que no se deshace
   simulado/       La pieza que desaparece (ADR-0010)
     proxy.ts      sustituye `fetch` y devuelve `Response` de verdad
     respuestas.ts la forma de un rechazo, de un listado y de lo recién creado
-    ciclo.ts      las nueve operaciones de fiscalización, y la ÚNICA excepción de
-                  ADR-0010 que hay aquí: recuerda lo escrito mientras dure la
-                  página, porque sin memoria la lectura siguiente contradiría a
-                  la escritura anterior — un par que el backend no puede producir
+    ciclo.ts      las nueve operaciones de fiscalización. Recuerda lo escrito
+                  mientras dure la página, porque sin memoria la lectura
+                  siguiente contradiría a la escritura anterior — un par que el
+                  backend no puede producir
+    catalogo.ts   las cinco escrituras del catálogo territorial (#72). Recuerda
+                  por otro motivo, y se volvió a decidir en vez de heredarlo: la
+                  hoja Territorio es un maestro-detalle donde el maestro ES la
+                  lista, así que sin memoria el alta contesta `201` y el árbol
+                  vuelve igual que antes — que es como se ve un alta que no se
+                  guardó. Medido: `territorio.mjs` da «se dio de alta X y
+                  «[data-lista]» NO lo trae»
     servidas.ts   lo que el backend YA sirve. Nace vacía y crece hasta las 64
     padron.ts     GENERADO de `infra/carga-de-datos/ejemplos/`: el padrón y el
                   detalle de las 23 fichas, con sus dos versiones
@@ -118,14 +139,17 @@ src/
     ruta.ts       `#/<modulo>/<destino>/<sujeto>?<filtros>`
     ejercicios.ts qué años ofrece la barra global, derivados del reloj (#48)
   ds/             El sistema de diseño del artboard
+    Acto.tsx      el formulario de una escritura: observación obligatoria,
+                  primario apagado con su motivo, confirmación aparte de lo
+                  irreversible y QUÉ HAY QUE HACER con cada rechazo (#71, #72)
     tokens/       colores, tipografía y medidas, con sus valores literales
     fuentes/      Source Sans 3, auto-hospedada
   modulos/<k>/    Un módulo por carpeta
     catastro/AltaDeFicha.tsx   el asistente de seis pasos del alta
     fiscalizacion/Fiscalizacion.tsx  el ciclo entero: las dos compuertas, la
                   evidencia, el acta, la anulación y el cierre (#71)
-verificaciones/   Los trece arneses, sus vistas y las muestras que violan cada regla
-                  Doce miran `src/`; `imagen.mjs` mira los dos archivos que deciden
+verificaciones/   Los catorce arneses, sus vistas y las muestras que violan cada regla
+                  Trece miran `src/`; `imagen.mjs` mira los dos archivos que deciden
                   cómo se sirve: `nginx.conf` y `Dockerfile`
 ```
 
@@ -146,9 +170,17 @@ la ruta real y todo el camino se ejerce.
 paquete**, porque se carga con `import()` dinámico—; operación por operación, moviendo entradas
 a `servidas.ts`; y del todo, borrando el directorio, que es su final previsto.
 
-**No finge lo que no sabe.** No filtra, no ordena, no pagina, no valida y no persiste. Un proxy
-que fingiera la semántica de `?uso=Comercio` estaría inventando un comportamiento que el
-backend todavía no ha decidido, y la interfaz acabaría construida contra esa invención.
+**No finge lo que no sabe.** No filtra, no ordena, no pagina y no valida. Un proxy que fingiera
+la semántica de `?uso=Comercio` estaría inventando un comportamiento que el backend todavía no
+ha decidido, y la interfaz acabaría construida contra esa invención.
+
+**Y no persiste, salvo donde no persistir MIENTE.** Son dos sitios y los dos están escritos con
+su motivo: `ciclo.ts` porque simula una máquina de estados, y `catalogo.ts` porque la hoja
+Territorio es un maestro-detalle donde el maestro es la propia lista. La regla que queda no es
+«no guardar» sino la de siempre: **el proxy no puede producir un par de respuestas que el backend
+no pueda producir**, y una lectura que contradice a la escritura anterior es exactamente eso.
+Lo demás sigue igual: la memoria dura lo que la página y se olvida al recargarla, así que toda
+captura de los arneses se puede volver a producir.
 
 **El mismo origen, o nada.** `backend/` no tiene ni una línea de CORS —cero ocurrencias de
 `cors` y de `allowedOrigins` en todo el árbol—, así que un React servido desde otro origen se

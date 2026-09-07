@@ -94,3 +94,30 @@ export function escribirRuta(ruta: Ruta): string {
   const cola = consulta.toString();
   return `#/${partes.join('/')}${cola ? `?${cola}` : ''}`;
 }
+
+/**
+ * Los filtros sin las claves de un acto, para cerrarlo.
+ *
+ * Un formulario de escritura se abre desde la ruta —`?acto=…`— para que la
+ * pantalla abierta sea enlazable y para que los arneses puedan llegar a ella sin
+ * pulsar nada. Cerrarlo es quitar esas claves y **conservar las demas**: el chip
+ * o la pestana que estuvieran puestos no son del acto y no tienen por que
+ * perderse al cerrarlo.
+ *
+ * Se escribe asi y no con un `rest` que descarte por nombre porque un
+ * `const { acto: _fuera, ...resto }` deja variables que nadie lee, y eso lo
+ * prohibe la configuracion de ESLint —con razon: una variable inutilizada es
+ * indistinguible de una que se olvido usar—.
+ *
+ * Vive aqui desde #72, que trajo el segundo modulo que escribe: hasta entonces
+ * era una funcion privada de `Fiscalizacion.tsx`, y copiarla habria dejado dos
+ * sitios con la misma verdad para algo que es de la ruta y no del modulo.
+ */
+export function sinClaves(
+  filtros: Readonly<Record<string, string>>,
+  claves: readonly string[],
+): Record<string, string> {
+  const resto: Record<string, string> = {};
+  for (const [k, v] of Object.entries(filtros)) if (!claves.includes(k)) resto[k] = v;
+  return resto;
+}

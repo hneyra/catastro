@@ -724,13 +724,17 @@ public class CatastroRepositoryJdbc extends RepositorioJdbc implements CatastroR
      * publicar coordenadas que ningun dato respalda, y el segundo un 500 sobre un padron que el
      * sistema acepto.
      *
+     * <p>Es visible en el paquete y no privado porque {@link FrentesDelPredioJdbc} lo consume para
+     * la misma pregunta con otro {@code FROM} (#29): dos copias de este mapeo acabarian discrepando
+     * en el caso degenerado, que es justo el que nadie prueba dos veces.
+     *
      * <p>Y el <b>degenerado es lo unico</b> que puede llegar a ese {@code catch}, medido: la otra
      * cosa que {@link MarcoGeografico} rechaza es una coordenada fuera de rango, y {@code
      * geography} no puede tener ninguna —PostGIS las <i>coerciona</i> al insertar: un poligono
      * escrito en la longitud 200 entra como −160, avisando «Coordinate values were coerced into
      * range»—.
      */
-    private static MarcoDeLoLevantado mapearMarcoDeLoLevantado(ResultSet fila, int numeroDeFila)
+    static MarcoDeLoLevantado mapearMarcoDeLoLevantado(ResultSet fila, int numeroDeFila)
             throws SQLException {
         long lotes = fila.getLong("lotes");
         if (lotes == 0) {

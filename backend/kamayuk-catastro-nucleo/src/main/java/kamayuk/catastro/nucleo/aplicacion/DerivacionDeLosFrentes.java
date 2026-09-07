@@ -2,9 +2,13 @@ package kamayuk.catastro.nucleo.aplicacion;
 
 import java.util.List;
 import java.util.Objects;
+import kamayuk.catastro.compartido.MarcoGeografico;
 import kamayuk.catastro.dominio.Medida;
 import kamayuk.catastro.dominio.Observacion;
 import kamayuk.catastro.nucleo.dominio.FrentesDelPredio;
+import kamayuk.catastro.nucleo.dominio.MarcoDeLoLevantado;
+import kamayuk.catastro.nucleo.dominio.MargenDelMarco;
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 
 /**
@@ -51,6 +55,8 @@ public class DerivacionDeLosFrentes {
                     "Una corrida que no recorre ningun predio no es una corrida: tope " + tope);
         }
 
+        String avisoDeLatitud = avisoDeLatitud();
+
         List<Long> predios = frentes.prediosPorDerivar(0L, tope);
         int propuestos = 0;
         int conFrentes = 0;
@@ -61,7 +67,28 @@ public class DerivacionDeLosFrentes {
                 conFrentes++;
             }
         }
-        return new Informe(predios.size(), conFrentes, propuestos);
+        return new Informe(predios.size(), conFrentes, propuestos, avisoDeLatitud);
+    }
+
+    /**
+     * Si el margen del corte vale en la latitud de este padron, y si no, por que no (#29).
+     *
+     * <p>Se pregunta <b>antes</b> del bucle y una sola vez: es una propiedad del padron entero, y
+     * preguntarla por predio serian catorce mil agregados para contestar lo mismo.
+     *
+     * <p><b>Avisa, no se niega.</b> Fuera de la banda lo que el corte encuentra sigue siendo
+     * correcto —el {@code ST_DWithin} metrico de detras no cambia—; lo que falta son las vias que
+     * el marco descarto antes de que aquel las viera. Negarse dejaria a esa municipalidad sin ni un
+     * frente en vez de con los que si salen; callarse dejaria un predio de esquina con un frente en
+     * vez de dos, y eso no se distingue de un predio que no da a la calle.
+     *
+     * <p>Sin cartografia no hay latitud que mirar, y eso <b>no</b> es un aviso: es el estado de hoy
+     * en toda instalacion, y ya lo dice el informe con sus ceros y cada predio con su motivo.
+     */
+    private @Nullable String avisoDeLatitud() {
+        MarcoDeLoLevantado levantado = frentes.marcoDelPadron();
+        MarcoGeografico marco = levantado.marco();
+        return marco == null ? null : MargenDelMarco.avisoSiNoCubre(marco);
     }
 
     /**
@@ -70,7 +97,14 @@ public class DerivacionDeLosFrentes {
      * @param prediosRecorridos cuantos predios se miraron
      * @param prediosConFrenteNuevo en cuantos se escribio al menos una propuesta
      * @param frentesPropuestos cuantas propuestas se escribieron
+     * @param avisoDeLatitud por que el corte propone de menos en este padron, o {@code null} si el
+     *     margen del marco vale aqui (#29). Viaja en el informe y no en un registro suelto para que
+     *     quien invoque la corrida —hoy un {@code ApplicationRunner}, manana lo que sea— tenga que
+     *     decidir que hace con el
      */
     public record Informe(
-            int prediosRecorridos, int prediosConFrenteNuevo, int frentesPropuestos) {}
+            int prediosRecorridos,
+            int prediosConFrenteNuevo,
+            int frentesPropuestos,
+            @Nullable String avisoDeLatitud) {}
 }

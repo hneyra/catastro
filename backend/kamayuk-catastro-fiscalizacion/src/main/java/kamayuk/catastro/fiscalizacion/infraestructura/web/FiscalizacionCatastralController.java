@@ -8,6 +8,7 @@ import kamayuk.catastro.dominio.Observacion;
 import kamayuk.catastro.fiscalizacion.aplicacion.AbrirCampania;
 import kamayuk.catastro.fiscalizacion.aplicacion.ConsultaDeCandidatos;
 import kamayuk.catastro.fiscalizacion.aplicacion.ConsultaDeHallazgos;
+import kamayuk.catastro.fiscalizacion.aplicacion.DejarSinEfectoElHallazgo;
 import kamayuk.catastro.fiscalizacion.aplicacion.DetectarSubvaluadores;
 import kamayuk.catastro.fiscalizacion.aplicacion.LevantarActa;
 import kamayuk.catastro.fiscalizacion.aplicacion.RegistrarEvidencia;
@@ -21,7 +22,6 @@ import kamayuk.catastro.fiscalizacion.dominio.EstadoDelCandidato;
 import kamayuk.catastro.fiscalizacion.dominio.HuellaDeEvidencia;
 import kamayuk.catastro.fiscalizacion.dominio.Score;
 import kamayuk.catastro.fiscalizacion.dominio.TipoDeEvidencia;
-import kamayuk.catastro.fiscalizacion.dominio.Tolerancia;
 import kamayuk.catastro.web.Api;
 import kamayuk.catastro.web.CodigoDeError;
 import kamayuk.catastro.web.ParametrosDePaginacion;
@@ -84,6 +84,7 @@ public class FiscalizacionCatastralController {
     private final VerificarEnCampo campo;
     private final RegistrarEvidencia evidencias;
     private final LevantarActa actas;
+    private final DejarSinEfectoElHallazgo anulaciones;
     private final ConsultaDeCandidatos consultaDeCandidatos;
     private final ConsultaDeHallazgos consultaDeHallazgos;
 
@@ -94,6 +95,7 @@ public class FiscalizacionCatastralController {
             VerificarEnCampo campo,
             RegistrarEvidencia evidencias,
             LevantarActa actas,
+            DejarSinEfectoElHallazgo anulaciones,
             ConsultaDeCandidatos consultaDeCandidatos,
             ConsultaDeHallazgos consultaDeHallazgos) {
         this.campanias = campanias;
@@ -102,6 +104,7 @@ public class FiscalizacionCatastralController {
         this.campo = campo;
         this.evidencias = evidencias;
         this.actas = actas;
+        this.anulaciones = anulaciones;
         this.consultaDeCandidatos = consultaDeCandidatos;
         this.consultaDeHallazgos = consultaDeHallazgos;
     }
@@ -118,6 +121,7 @@ public class FiscalizacionCatastralController {
                             exigir(peticion.codigo(), "codigo"),
                             exigir(peticion.nombre(), "nombre"),
                             scoreDe(peticion.umbral()),
+                            topeDe(peticion.tope()),
                             observacionDe(peticion.observacion())));
         } catch (AbrirCampania.CampaniaYaAbierta yaEsta) {
             throw new ProblemaDeNegocio(CodigoDeError.CONFLICTO, mensajeDe(yaEsta));
@@ -134,24 +138,43 @@ public class FiscalizacionCatastralController {
     @PostMapping("/campanias/{campaniaId}/deteccion")
     @ResponseStatus(HttpStatus.CREATED)
     @RequiereAcceso(acceso = "fiscalizacion_catastral", privilegio = Privilegio.EJECUCION)
-    public List<CandidatoResource> detectar(
+    public DeteccionResource detectar(
             @PathVariable long campaniaId, @RequestBody PeticionDeDeteccion peticion) {
         try {
-            return detector
-                    .detectar(
-                            campaniaId,
-                            toleranciaDe(peticion.tolerancia()),
-                            peticion.tope() == null ? 500 : peticion.tope(),
-                            observacionDe(peticion.observacion()))
-                    .stream()
-                    .map(CandidatoResource::de)
-                    .toList();
+            return DeteccionResource.de(
+                    detector.detectar(campaniaId, observacionDe(peticion.observacion())));
         } catch (AreasDelPadron.SinCartografia sinPlanos) {
             throw new ProblemaDeNegocio(CodigoDeError.CONFLICTO, mensajeDe(sinPlanos));
         } catch (AbrirCampania.CampaniaInexistente noEsta) {
             throw new ProblemaDeNegocio(CodigoDeError.NO_ENCONTRADO, mensajeDe(noEsta));
         } catch (DetectarSubvaluadores.CampaniaCerradaParaDetectar cerrada) {
             throw new ProblemaDeNegocio(CodigoDeError.CONFLICTO, mensajeDe(cerrada));
+        }
+    }
+
+    /**
+     * Cierra la campania: deja de admitir candidatos (#23 AC-6).
+     *
+     * <p>Sin esta ruta, {@code EstadoDeCampania.CERRADA} era inalcanzable, {@code
+     * admiteCandidatos()} nunca era falso y {@code
+     * DetectarSubvaluadores.CampaniaCerradaParaDetectar} era una rama muerta — de modo que una
+     * campania seguia admitiendo candidatos <b>despues</b> de que alguien hubiera citado su tasa de
+     * descarte, que es justo lo que esa excepcion existe para impedir.
+     *
+     * <p>Cerrarla no borra nada ni consolida ninguna cifra: lo unico que hace es que sus recuentos
+     * dejen de moverse, que es lo que permite citarlos.
+     */
+    @PostMapping("/campanias/{campaniaId}/cierre")
+    @RequiereAcceso(acceso = "fiscalizacion_catastral", privilegio = Privilegio.MODIFICACION)
+    public CampaniaResource cerrar(
+            @PathVariable long campaniaId, @RequestBody PeticionDeCierre peticion) {
+        try {
+            return CampaniaResource.de(
+                    campanias.cerrar(campaniaId, observacionDe(peticion.observacion())));
+        } catch (AbrirCampania.CampaniaInexistente noEsta) {
+            throw new ProblemaDeNegocio(CodigoDeError.NO_ENCONTRADO, mensajeDe(noEsta));
+        } catch (AbrirCampania.CampaniaYaCerrada yaEstaba) {
+            throw new ProblemaDeNegocio(CodigoDeError.CONFLICTO, mensajeDe(yaEstaba));
         }
     }
 
@@ -224,7 +247,6 @@ public class FiscalizacionCatastralController {
                             candidatoId,
                             areaDe(peticion.areaVerificada()),
                             exigir(peticion.inspector(), "inspector"),
-                            null,
                             observacionDe(peticion.observacion())));
         } catch (VerificarEnGabinete.CandidatoInexistente noEsta) {
             throw new ProblemaDeNegocio(CodigoDeError.NO_ENCONTRADO, mensajeDe(noEsta));
@@ -325,6 +347,37 @@ public class FiscalizacionCatastralController {
                 .toList();
     }
 
+    /**
+     * Deja sin efecto un hallazgo (#23 AC-1 y AC-2).
+     *
+     * <p><b>{@code ELIMINACION} y no {@code MODIFICACION}</b>, y el privilegio lo dice el propio
+     * enumerado: «existe porque el manual lo tiene, y gobierna la <b>baja</b> —desactivar—, no un
+     * {@code DELETE}: la aplicacion no borra nada (RNF-051)». Esto es literalmente eso — la fila se
+     * queda, su acta se queda, y lo que deja de valer es lo que el hallazgo habilitaba—, y
+     * separarlo de {@code MODIFICACION} permite que una municipalidad de la compuerta de campo a
+     * una brigada sin darle con ella la de retirar un hallazgo firme.
+     *
+     * <p>El motivo y la observacion se piden los dos: el motivo dice por que ese hallazgo ya no
+     * vale y viaja en la fila y al consumidor; la observacion dice por que se hizo esta escritura
+     * (regla 10).
+     */
+    @PostMapping("/hallazgos/{hallazgoId}/anulacion")
+    @RequiereAcceso(acceso = "fiscalizacion_catastral", privilegio = Privilegio.ELIMINACION)
+    public HallazgoResource dejarSinEfecto(
+            @PathVariable long hallazgoId, @RequestBody PeticionDeAnulacion peticion) {
+        try {
+            return HallazgoResource.de(
+                    anulaciones.dejarSinEfecto(
+                            hallazgoId,
+                            exigir(peticion.motivo(), "motivo"),
+                            observacionDe(peticion.observacion())));
+        } catch (RegistrarEvidencia.HallazgoInexistente noEsta) {
+            throw new ProblemaDeNegocio(CodigoDeError.NO_ENCONTRADO, mensajeDe(noEsta));
+        } catch (RegistrarEvidencia.HallazgoSinEfecto yaEstaba) {
+            throw new ProblemaDeNegocio(CodigoDeError.CONFLICTO, mensajeDe(yaEstaba));
+        }
+    }
+
     @PostMapping("/hallazgos/{hallazgoId}/acta")
     @ResponseStatus(HttpStatus.CREATED)
     @RequiereAcceso(acceso = "fiscalizacion_catastral", privilegio = Privilegio.REGISTRO)
@@ -384,17 +437,27 @@ public class FiscalizacionCatastralController {
         }
     }
 
-    /** La tolerancia, como FRACCION de 1 y nunca como porcentaje. Ver {@link Tolerancia}. */
-    private static Tolerancia toleranciaDe(@Nullable String texto) {
-        try {
-            return Tolerancia.de(exigir(texto, "tolerancia"));
-        } catch (IllegalArgumentException malFormada) {
+    /**
+     * El tope de la campania: cuantos predios como mucho mira una de sus corridas (#25 AC-2).
+     *
+     * <p>Se exige y <b>no tiene valor por omision</b>, que es lo que cambia respecto de antes: el
+     * borde ponia 500 cuando la peticion no traia ninguno, y ese numero no quedaba en ninguna parte
+     * — de modo que la tasa de descarte de la campania se calculaba sobre un conjunto recortado por
+     * una cifra que nadie podia leer despues.
+     */
+    private static int topeDe(@Nullable Integer tope) {
+        if (tope == null) {
             throw new ProblemaDeNegocio(
                     CodigoDeError.VALIDACION,
-                    "La tolerancia va de 0 a 1, como fraccion y no como porcentaje: '"
-                            + texto
-                            + "'");
+                    "Falta el campo 'tope': una campania declara cuantos predios como mucho mira"
+                            + " una corrida suya, y ese numero se guarda con ella para que su tasa"
+                            + " de descarte se pueda comparar con la de otra");
         }
+        if (tope <= 0) {
+            throw new ProblemaDeNegocio(
+                    CodigoDeError.VALIDACION, "El tope tiene que ser positivo: " + tope);
+        }
+        return tope;
     }
 
     private static AreaM2 areaDe(@Nullable String texto) {
@@ -449,15 +512,29 @@ public class FiscalizacionCatastralController {
      * el {@code record} lo prohibe la regla 1, y ademas Jackson lo leeria con la imprecision que
      * {@code Score} existe para evitar.
      */
+    /**
+     * Abrir la campania, con su criterio entero (#25).
+     *
+     * <p>{@code umbral} y {@code tope} son las DOS cifras con las que esta campania detecta, y las
+     * dos se guardan en su fila: sin las dos, su tasa de descarte no se puede comparar con la de
+     * ninguna otra corrida.
+     */
     public record PeticionDeCampania(
             @Nullable String codigo,
             @Nullable String nombre,
             @Nullable String umbral,
+            @Nullable Integer tope,
             @Nullable String observacion) {}
 
-    /** Lanzar la deteccion. La tolerancia entra por peticion: la sabe quien lanza la campania. */
-    public record PeticionDeDeteccion(
-            @Nullable String tolerancia, @Nullable Integer tope, @Nullable String observacion) {}
+    /**
+     * Lanzar la deteccion: <b>solo su observacion</b> (#25 AC-1 y AC-2).
+     *
+     * <p>Ni tolerancia ni tope. Hasta #25 los dos entraban por aqui y ninguno se guardaba: la
+     * tolerancia era la que de verdad filtraba —con {@code tolerancia > umbral} el umbral de la
+     * fila no quitaba nada— y el tope tenia 500 por omision escrito en el borde. El criterio lo
+     * declara quien abre la campania y vive en su fila.
+     */
+    public record PeticionDeDeteccion(@Nullable String observacion) {}
 
     /**
      * Una compuerta: admitir o descartar.
@@ -490,6 +567,18 @@ public class FiscalizacionCatastralController {
             @Nullable String capturadoEn,
             @Nullable String dispositivo,
             @Nullable String observacion) {}
+
+    /** Cerrar la campania: solo su observacion. Lo que se cierra ya esta dicho por la ruta. */
+    public record PeticionDeCierre(@Nullable String observacion) {}
+
+    /**
+     * Dejar sin efecto un hallazgo (#23).
+     *
+     * <p>{@code motivo} y {@code observacion} son dos campos y no uno: el primero dice por que ese
+     * hallazgo ya no vale —viaja en la fila y sale al consumidor— y el segundo por que se hizo esta
+     * escritura (regla 10). Uno solo obligaria a elegir cual de las dos se contesta.
+     */
+    public record PeticionDeAnulacion(@Nullable String motivo, @Nullable String observacion) {}
 
     /** El acta. Sin importe: lo que se cobre lo decide `rentas` (ADR-0024). */
     public record PeticionDeActa(

@@ -40,8 +40,26 @@ import org.jspecify.annotations.Nullable;
  * ClaseDeHallazgo#OMISO_CATASTRAL} exige que sean nulos, porque si hay predio no es un omiso
  * catastral. Lo sostiene tambien la base ({@code hallazgo_contraste_check}).
  *
+ * <h2>Dejar sin efecto es un ACTO, con las columnas de un acto (#23)</h2>
+ *
+ * <p>Hasta #23 {@link #dejadoSinEfecto} no lo llamaba nadie —ni caso de uso, ni endpoint— y {@link
+ * EstadoDelHallazgo#DEJADO_SIN_EFECTO} era inalcanzable. Y no guardaba <b>ni motivo, ni quien, ni
+ * cuando</b>: lo unico que habria quedado era la {@code observacion} de la fila, que la anulacion
+ * sobrescribe. Ahora lleva su {@link Anulacion}, como {@code candidato.descarte} lleva la suya y
+ * como {@code itse} lleva su fecha y su motivo.
+ *
+ * <h2>Y NO lleva geometria, desde #23</h2>
+ *
+ * <p>La tenia y no se podia llenar por ninguna via: {@code TODA_GEOMETRIA_ENTRA_POR_BATCH}
+ * (ADR-0021) cierra la entrada por HTTP, no hay ningun cargador que la escriba, y el unico camino
+ * de produccion —{@code VerificarEnCampo}— recibia {@code null} del borde. Se midio antes de
+ * retirarla: ningun {@code *Resource} la publica y el contrato que {@code rentas} declara de las
+ * dos lecturas de hallazgos tiene once campos y ninguno es ella. La columna, sus cuatro columnas de
+ * marco generadas y su GiST se pagaban en cada escritura y mentian sobre lo que la tabla guarda.
+ * Vuelve el dia que haya un cargador que la llene, en otra migracion.
+ *
  * @param id nulo mientras no se haya guardado
- * @param geometria el poligono de lo verificado, en WKT; nulo cuando la brigada no levanto ninguno
+ * @param anulacion nulo mientras el hallazgo siga firme
  */
 public record Hallazgo(
         @Nullable Long id,
@@ -54,7 +72,7 @@ public record Hallazgo(
         String inspector,
         LocalDate verificadoEn,
         EstadoDelHallazgo estado,
-        @Nullable String geometria) {
+        @Nullable Anulacion anulacion) {
 
     private static final int INSPECTOR_MAXIMO = 60;
 
@@ -86,6 +104,48 @@ public record Hallazgo(
                     "Un omiso catastral es, por definicion, lo que NO tiene predio: si lo tuviera no"
                             + " seria un omiso catastral sino otra cosa");
         }
+        // El estado y el acto van atados en los DOS sentidos, igual que en `candidato`: un
+        // DEJADO_SIN_EFECTO sin motivo no explica nada, y un hallazgo FIRME con motivo de
+        // anulacion es una contradiccion escrita en una fila. Lo sostiene tambien la base
+        // (`hallazgo_anulacion_check` de `V12`).
+        if ((estado == EstadoDelHallazgo.DEJADO_SIN_EFECTO) != (anulacion != null)) {
+            throw new IllegalArgumentException(
+                    "Un hallazgo dejado sin efecto lleva su motivo, quien lo decidio y cuando; y"
+                            + " uno firme no lleva ninguna de las tres (#23)");
+        }
+    }
+
+    /**
+     * El acto de dejarlo sin efecto: por que, quien y cuando.
+     *
+     * <p>Las tres cosas y no una: «lo anularon» sin motivo no explica nada, sin nombre no responde
+     * a quien lo decidio —que es la unica pregunta que un estado no contesta— y sin fecha no se
+     * puede ordenar contra el acta que ese hallazgo ya habia producido.
+     */
+    public record Anulacion(String motivo, String quien, java.time.Instant cuando) {
+
+        private static final int MOTIVO_MAXIMO = 500;
+        private static final int QUIEN_MAXIMO = 60;
+
+        public Anulacion {
+            Objects.requireNonNull(motivo, "Una anulacion sin motivo no explica nada (regla 4)");
+            Objects.requireNonNull(quien, "Una anulacion dice quien la decidio");
+            Objects.requireNonNull(cuando, "Una anulacion dice cuando se decidio");
+            motivo = motivo.strip();
+            quien = quien.strip();
+            if (motivo.isEmpty() || motivo.length() > MOTIVO_MAXIMO) {
+                throw new IllegalArgumentException(
+                        "El motivo de la anulacion va de 1 a "
+                                + MOTIVO_MAXIMO
+                                + " caracteres: '"
+                                + motivo
+                                + "'");
+            }
+            if (quien.isEmpty() || quien.length() > QUIEN_MAXIMO) {
+                throw new IllegalArgumentException(
+                        "Quien anula va de 1 a " + QUIEN_MAXIMO + " caracteres: '" + quien + "'");
+            }
+        }
     }
 
     /** El hallazgo de un subvaluador: la version que se contrasto y las dos areas. */
@@ -96,8 +156,7 @@ public record Hallazgo(
             AreaM2 areaDeLaFicha,
             AreaM2 areaVerificada,
             String inspector,
-            LocalDate verificadoEn,
-            @Nullable String geometria) {
+            LocalDate verificadoEn) {
         return new Hallazgo(
                 null,
                 candidatoId,
@@ -109,18 +168,14 @@ public record Hallazgo(
                 inspector,
                 verificadoEn,
                 EstadoDelHallazgo.FIRME,
-                geometria);
+                null);
     }
 
     /**
      * El hallazgo de un omiso catastral: no hay predio, y por eso no hay ficha ni area de ficha.
      */
     public static Hallazgo deOmisoCatastral(
-            long candidatoId,
-            AreaM2 areaVerificada,
-            String inspector,
-            LocalDate verificadoEn,
-            @Nullable String geometria) {
+            long candidatoId, AreaM2 areaVerificada, String inspector, LocalDate verificadoEn) {
         return new Hallazgo(
                 null,
                 candidatoId,
@@ -132,7 +187,7 @@ public record Hallazgo(
                 inspector,
                 verificadoEn,
                 EstadoDelHallazgo.FIRME,
-                geometria);
+                null);
     }
 
     public boolean esNuevo() {
@@ -161,8 +216,17 @@ public record Hallazgo(
         return java.util.Optional.of(new AreaM2(areaVerificada.valor().subtract(inscrita.valor())));
     }
 
-    /** Lo deja sin efecto. No se borra (regla 4): su acta se queda donde esta. */
-    public Hallazgo dejadoSinEfecto() {
+    /**
+     * Lo deja sin efecto, con su motivo, su nombre y su fecha (#23 AC-1).
+     *
+     * <p><b>No se borra</b> (regla 4): la fila se queda, su acta se queda donde esta —es INMUTABLE
+     * y {@code V9} le revoca el {@code UPDATE}— y lo unico que cambia es que este hallazgo deja de
+     * habilitar ningun acto nuevo.
+     *
+     * <p>Y no se reescribe nada de lo que el inspector verifico: las dos areas siguen diciendo lo
+     * que dijeron. Corregirlas aqui dejaria su acta afirmando una cosa y la base otra.
+     */
+    public Hallazgo dejadoSinEfecto(String motivo, String quien, java.time.Instant cuando) {
         if (!estaFirme()) {
             throw new IllegalStateException(
                     "El hallazgo ya estaba dejado sin efecto; dejarlo dos veces escribiria dos"
@@ -179,6 +243,6 @@ public record Hallazgo(
                 inspector,
                 verificadoEn,
                 EstadoDelHallazgo.DEJADO_SIN_EFECTO,
-                geometria);
+                new Anulacion(motivo, quien, cuando));
     }
 }

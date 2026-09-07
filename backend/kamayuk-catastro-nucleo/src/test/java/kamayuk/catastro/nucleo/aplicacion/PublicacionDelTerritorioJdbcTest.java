@@ -115,6 +115,15 @@ class PublicacionDelTerritorioJdbcTest {
         // El buzon se vacia entre pruebas: cada una cuenta cuantos hechos produjo, y `V5` no deja
         // borrar a la aplicacion (ni debe). Por eso limpia el administrador y no `kamayuk_app`.
         limpiarComoAdmin("DELETE FROM catastro_evento");
+
+        // Y el hallazgo vuelve a FIRME (#23). Las dos pruebas de la retractacion lo dejan
+        // DEJADO_SIN_EFECTO, y sin esto la de «un hallazgo firme viaja con su inspector» encuentra
+        // CERO segun el orden en que caigan — medido: «expected: 1 but was: 0». Las tablas se
+        // comparten entre casos y el estado de esta es, desde #23, algo que las pruebas mueven.
+        limpiarComoAdmin(
+                "UPDATE hallazgo SET estado = 'FIRME', motivo_anulacion = NULL,"
+                        + " anulado_por = NULL, anulado_en = NULL");
+        limpiarComoAdmin("UPDATE hallazgo SET area_verificada = 180.00");
     }
 
     @AfterEach
@@ -220,6 +229,69 @@ class PublicacionDelTerritorioJdbcTest {
     }
 
     @Test
+    @DisplayName("un hallazgo ya publicado que se anula SALE RETRACTADO, con su motivo (#23)")
+    void elHallazgoAnuladoSaleRetractado() throws SQLException {
+        TenantContext.fijar(new MunicipalidadId(municipalidad));
+        publicacion.publicar();
+        assertThat(deTipo(TipoDeEventoDeCatastro.HALLAZGO_DEJADO_SIN_EFECTO)).isEmpty();
+
+        // Se deja sin efecto, con las tres columnas del acto que `V12` anadio.
+        ejecutarComoApp(
+                "UPDATE hallazgo SET estado = 'DEJADO_SIN_EFECTO',"
+                        + " motivo_anulacion = 'el area medida era la del vecino',"
+                        + " anulado_por = 'ana.jefa', anulado_en = now()");
+
+        PublicacionDelTerritorio.Informe informe = publicacion.publicar();
+
+        assertThat(informe.retractacionesNuevas())
+                .as(
+                        "sin esto, el hallazgo anulado DEJA DE APARECER en la proyeccion —que"
+                                + " filtra por FIRME— y nada se lo dice a `rentas`: el hecho sigue"
+                                + " en pie del otro lado de la frontera para siempre")
+                .isEqualTo(1);
+        EventoDeCatastro retractacion =
+                deTipo(TipoDeEventoDeCatastro.HALLAZGO_DEJADO_SIN_EFECTO).get(0);
+        assertThat(retractacion.cuerpo())
+                .as("lleva por que, quien y cuando: lo que un estado no contesta")
+                .contains("\"motivo\"")
+                .contains("el area medida era la del vecino")
+                .contains("\"anuladoPor\"")
+                .contains("\"anuladoEn\"");
+        assertThat(retractacion.cuerpo())
+                .as(
+                        "y NO repite las areas del hallazgo: lo que se retracta es el hecho entero,"
+                                + " y repetir sus cifras invitaria a aplicarlas")
+                .doesNotContain("areaVerificada")
+                .doesNotContain("importe");
+        assertThat(retractacion.ejercicio())
+                .as(
+                        "una retractacion no es de ningun ejercicio, igual que el hallazgo que retracta")
+                .isNull();
+    }
+
+    @Test
+    @DisplayName("y la retractacion tampoco se reescribe: cambiarle el motivo SE PARA (#23)")
+    void laRetractacionTampocoSeReescribe() throws SQLException {
+        TenantContext.fijar(new MunicipalidadId(municipalidad));
+        ejecutarComoApp(
+                "UPDATE hallazgo SET estado = 'DEJADO_SIN_EFECTO',"
+                        + " motivo_anulacion = 'el area medida era la del vecino',"
+                        + " anulado_por = 'ana.jefa', anulado_en = now()");
+        publicacion.publicar();
+
+        ejecutarComoApp("UPDATE hallazgo SET motivo_anulacion = 'otro motivo distinto'");
+
+        assertThatThrownBy(() -> publicacion.publicar())
+                .as(
+                        "la identidad sale del hallazgo y no del contenido, por lo mismo que la del"
+                                + " hallazgo firme: cambiar el motivo de una anulacion ya publicada"
+                                + " es alguien cambiando la retractacion que hubo")
+                .isInstanceOf(BuzonDeSalida.HechoSelladoReescrito.class)
+                .hasMessageContaining("HALLAZGO_DEJADO_SIN_EFECTO")
+                .hasMessageContaining("Retractar un hallazgo es otro acto");
+    }
+
+    @Test
     @DisplayName("y el mismo hallazgo con otro contenido SE PARA: es un acto que alguien firmo")
     void elMismoHallazgoConOtroContenidoSePara() throws SQLException {
         TenantContext.fijar(new MunicipalidadId(municipalidad));
@@ -240,7 +312,7 @@ class PublicacionDelTerritorioJdbcTest {
                 // corrida de valuacion por un acta de fiscalizacion. Lo destapo una de las roturas
                 // de AC 8.
                 .hasMessageContaining("Un hallazgo firme es lo que una PERSONA verifico")
-                .hasMessageContaining("dejarlo sin efecto y levantar otro")
+                .hasMessageContaining("dejarlo sin efecto")
                 .hasMessageNotContaining("Una valuacion es un HECHO SELLADO");
     }
 

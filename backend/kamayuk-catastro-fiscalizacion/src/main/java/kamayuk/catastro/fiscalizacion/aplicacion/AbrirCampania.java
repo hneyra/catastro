@@ -9,6 +9,7 @@ import kamayuk.catastro.dominio.Observacion;
 import kamayuk.catastro.fiscalizacion.dominio.Campania;
 import kamayuk.catastro.fiscalizacion.dominio.FiscalizacionRepository;
 import kamayuk.catastro.fiscalizacion.dominio.Score;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,12 +44,23 @@ public class AbrirCampania {
      * un error.
      */
     @Transactional
-    public Campania abrir(String codigo, String nombre, Score umbral, Observacion observacion) {
+    public Campania abrir(
+            String codigo, String nombre, Score umbral, int tope, Observacion observacion) {
+        // El atajo del caso corriente, y NADA MAS: la garantia es `campania_codigo_uq` y no este
+        // `if`. Dos peticiones simultaneas leerian las dos «no esta» y las dos insertarian, y sin
+        // la captura de abajo la segunda contestaria un 500 en vez de decir que ya existe.
         if (repositorio.campaniaPorCodigo(codigo).isPresent()) {
             throw new CampaniaYaAbierta(codigo);
         }
-        Campania guardada =
-                repositorio.guardar(Campania.nueva(codigo, nombre, LocalDate.now(reloj), umbral));
+        Campania guardada;
+        try {
+            guardada =
+                    repositorio.guardar(
+                            Campania.nueva(codigo, nombre, LocalDate.now(reloj), umbral, tope),
+                            observacion);
+        } catch (DuplicateKeyException repetida) {
+            throw new CampaniaYaAbierta(codigo);
+        }
 
         auditoria.registrar(
                 RegistroDeAuditoria.enLaFechaDe(
@@ -84,8 +96,9 @@ public class AbrirCampania {
                         kamayuk.catastro.fiscalizacion.dominio.EstadoDeCampania.CERRADA,
                         anterior.inicio(),
                         LocalDate.now(reloj),
-                        anterior.umbral());
-        Campania guardada = repositorio.guardar(cerrada);
+                        anterior.umbral(),
+                        anterior.tope());
+        Campania guardada = repositorio.guardar(cerrada, observacion);
 
         auditoria.registrar(
                 RegistroDeAuditoria.enLaFechaDe(
@@ -111,6 +124,8 @@ public class AbrirCampania {
                 + campania.estado()
                 + "\",\"umbral\":"
                 + campania.umbral()
+                + ",\"tope\":"
+                + campania.tope()
                 + ",\"fin\":"
                 + (campania.fin() == null ? "null" : "\"" + campania.fin() + "\"")
                 + "}";

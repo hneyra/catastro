@@ -54,14 +54,17 @@ public class PublicarElTerritorio implements ApplicationRunner {
             log.info(
                     "Territorio publicado en la municipalidad {}: {} manzana(s) leida(s) y {}"
                             + " nueva(s); {} predio(s) con frentes y {} hecho(s) nuevo(s); {}"
-                            + " hallazgo(s) firme(s) y {} nuevo(s)",
+                            + " hallazgo(s) firme(s) y {} nuevo(s); {} dejado(s) sin efecto y {}"
+                            + " retractacion(es) nueva(s)",
                     municipalidadId,
                     informe.manzanasLeidas(),
                     informe.manzanasNuevas(),
                     informe.prediosConFrentes(),
                     informe.frentesNuevos(),
                     informe.hallazgosFirmes(),
-                    informe.hallazgosNuevos());
+                    informe.hallazgosNuevos(),
+                    informe.hallazgosDejadosSinEfecto(),
+                    informe.retractacionesNuevas());
         } catch (BuzonDeSalida.HechoSelladoReescrito reescrito) {
             // No se traga: un hallazgo firme que vuelve con otro contenido es alguien reescribiendo
             // lo que otra persona firmo, y el receptor no puede distinguirlo de un reenvio.

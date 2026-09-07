@@ -14,6 +14,7 @@ import kamayuk.catastro.dominio.AreaM2;
 import kamayuk.catastro.fiscalizacion.aplicacion.AbrirCampania;
 import kamayuk.catastro.fiscalizacion.aplicacion.ConsultaDeCandidatos;
 import kamayuk.catastro.fiscalizacion.aplicacion.ConsultaDeHallazgos;
+import kamayuk.catastro.fiscalizacion.aplicacion.DejarSinEfectoElHallazgo;
 import kamayuk.catastro.fiscalizacion.aplicacion.DetectarSubvaluadores;
 import kamayuk.catastro.fiscalizacion.aplicacion.LevantarActa;
 import kamayuk.catastro.fiscalizacion.aplicacion.RegistrarEvidencia;
@@ -64,8 +65,8 @@ class FiscalizacionCatastralControllerTest {
     private static AreasDelPadron padronCon(boolean tieneElPredio) {
         return new AreasDelPadron() {
             @Override
-            public List<kamayuk.catastro.fiscalizacion.dominio.ContrasteDeAreas> contrastar(
-                    kamayuk.catastro.fiscalizacion.dominio.Tolerancia tolerancia, int tope) {
+            public AreasDelPadron.CruceDelPadron contrastar(
+                    kamayuk.catastro.fiscalizacion.dominio.Score umbral, int tope) {
                 throw new AreasDelPadron.SinCartografia();
             }
 
@@ -107,6 +108,7 @@ class FiscalizacionCatastralControllerTest {
                                 new VerificarEnCampo(repositorio, NINGUNA_FICHA, auditoria, RELOJ),
                                 new RegistrarEvidencia(repositorio, auditoria, RELOJ),
                                 new LevantarActa(repositorio, auditoria, RELOJ),
+                                new DejarSinEfectoElHallazgo(repositorio, auditoria, RELOJ),
                                 new ConsultaDeCandidatos(repositorio),
                                 new ConsultaDeHallazgos(repositorio, padron)))
                 .setControllerAdvice(new ManejadorDeErrores())
@@ -129,7 +131,7 @@ class FiscalizacionCatastralControllerTest {
                                         .content(
                                                 """
                                                 {"codigo":"CAM-1","nombre":"Barrido 2026",
-                                                 "umbral":"0.20"}
+                                                 "umbral":"0.20","tope":500}
                                                 """))
                         .andReturn();
 
@@ -163,23 +165,98 @@ class FiscalizacionCatastralControllerTest {
     }
 
     @Test
-    @DisplayName("la tolerancia va como FRACCION de 1: un 10 se rechaza, y dice por que")
-    void laToleranciaEsUnaFraccion() throws Exception {
+    @DisplayName("sin `tope` no se abre una campania: 422, y dice para que sirve esa cifra (#25)")
+    void sinTopeNoSeAbreLaCampania() throws Exception {
         MvcResult rechazada =
                 mvc.perform(
-                                post("/catastro/api/v1/fiscalizacion/campanias/1/deteccion")
+                                post("/catastro/api/v1/fiscalizacion/campanias")
                                         .contentType(MediaType.APPLICATION_JSON)
                                         .content(
                                                 """
-                                                {"tolerancia":"10",
-                                                 "observacion":"corrida de deteccion de prueba"}
+                                                {"codigo":"CAM-1","nombre":"Barrido 2026",
+                                                 "umbral":"0.20",
+                                                 "observacion":"apertura de la campania"}
                                                 """))
                         .andReturn();
 
         assertThat(rechazada.getResponse().getStatus()).isEqualTo(422);
         assertThat(rechazada.getResponse().getContentAsString())
-                .as("0,10 y 10 son la misma tolerancia escritas de dos maneras, y no lo son")
-                .contains("como fraccion y no como porcentaje");
+                .as(
+                        "y NO se toma 500 por omision, que es lo que hacia el borde antes de #25:"
+                                + " ese numero recortaba el conjunto sobre el que se calcula la"
+                                + " tasa de descarte y no quedaba en ninguna parte")
+                .contains("Falta el campo 'tope'");
+    }
+
+    @Test
+    @DisplayName("la deteccion ya no admite `tolerancia` ni `tope`: el criterio es de la campania")
+    void laDeteccionNoTraeElCriterio() throws Exception {
+        assertThat(
+                        java.util.Arrays.stream(
+                                        FiscalizacionCatastralController.PeticionDeDeteccion.class
+                                                .getRecordComponents())
+                                .map(java.lang.reflect.RecordComponent::getName)
+                                .toList())
+                .as(
+                        "un campo que viaja en el cuerpo y nadie lee se descarta en silencio, que"
+                                + " es el defecto de C-1; y aqui ademas eran los dos campos que"
+                                + " decidian lo que la campania dice haber hecho (#25)")
+                .containsExactly("observacion");
+    }
+
+    @Test
+    @DisplayName(
+            "anular un hallazgo sin motivo es 422: «lo anularon» a secas no explica nada (#23)")
+    void laAnulacionExigeSuMotivo() throws Exception {
+        MvcResult rechazada =
+                mvc.perform(
+                                post("/catastro/api/v1/fiscalizacion/hallazgos/1/anulacion")
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content(
+                                                """
+                                                {"observacion":"rectificacion de la jefatura"}
+                                                """))
+                        .andReturn();
+
+        assertThat(rechazada.getResponse().getStatus()).isEqualTo(422);
+        assertThat(rechazada.getResponse().getContentAsString()).contains("motivo");
+    }
+
+    @Test
+    @DisplayName("y sin observacion tampoco: el motivo y la observacion son DOS cosas (#23)")
+    void laAnulacionExigeLasDosCosas() throws Exception {
+        MvcResult rechazada =
+                mvc.perform(
+                                post("/catastro/api/v1/fiscalizacion/hallazgos/1/anulacion")
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content(
+                                                """
+                                                {"motivo":"el area era la del vecino"}
+                                                """))
+                        .andReturn();
+
+        assertThat(rechazada.getResponse().getStatus()).isEqualTo(422);
+        assertThat(rechazada.getResponse().getContentAsString())
+                .as(
+                        "el motivo dice por que ese hallazgo ya no vale y viaja al consumidor; la"
+                                + " observacion dice por que se hizo esta escritura (regla 10)")
+                .contains("observacion");
+    }
+
+    @Test
+    @DisplayName("cerrar una campania que no existe es 404, y no un 500 (#23 AC-6)")
+    void cerrarUnaCampaniaQueNoExisteEs404() throws Exception {
+        MvcResult noEsta =
+                mvc.perform(
+                                post("/catastro/api/v1/fiscalizacion/campanias/99/cierre")
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content(
+                                                """
+                                                {"observacion":"cierre de la campania"}
+                                                """))
+                        .andReturn();
+
+        assertThat(noEsta.getResponse().getStatus()).isEqualTo(404);
     }
 
     @Test
@@ -411,8 +488,7 @@ class FiscalizacionCatastralControllerTest {
                                                         77L,
                                                         AreaM2.de("240.00"),
                                                         "mlopez",
-                                                        java.time.LocalDate.of(2026, 5, 12),
-                                                        null),
+                                                        java.time.LocalDate.of(2026, 5, 12)),
                                         3L,
                                         "CAM-2026",
                                         null))
@@ -437,7 +513,8 @@ class FiscalizacionCatastralControllerTest {
 
         @Override
         public kamayuk.catastro.fiscalizacion.dominio.Campania guardar(
-                kamayuk.catastro.fiscalizacion.dominio.Campania campania) {
+                kamayuk.catastro.fiscalizacion.dominio.Campania campania,
+                kamayuk.catastro.dominio.Observacion observacion) {
             throw noSeLlama();
         }
 
@@ -463,7 +540,8 @@ class FiscalizacionCatastralControllerTest {
                             kamayuk.catastro.fiscalizacion.dominio.EstadoDeCampania.ABIERTA,
                             java.time.LocalDate.of(2026, 9, 1),
                             null,
-                            kamayuk.catastro.fiscalizacion.dominio.Score.de("0.20")));
+                            kamayuk.catastro.fiscalizacion.dominio.Score.de("0.20"),
+                            500));
         }
 
         @Override
@@ -474,7 +552,8 @@ class FiscalizacionCatastralControllerTest {
 
         @Override
         public kamayuk.catastro.fiscalizacion.dominio.Candidato guardar(
-                kamayuk.catastro.fiscalizacion.dominio.Candidato candidato) {
+                kamayuk.catastro.fiscalizacion.dominio.Candidato candidato,
+                kamayuk.catastro.dominio.Observacion observacion) {
             throw noSeLlama();
         }
 
@@ -500,7 +579,8 @@ class FiscalizacionCatastralControllerTest {
 
         @Override
         public kamayuk.catastro.fiscalizacion.dominio.Hallazgo guardar(
-                kamayuk.catastro.fiscalizacion.dominio.Hallazgo hallazgo) {
+                kamayuk.catastro.fiscalizacion.dominio.Hallazgo hallazgo,
+                kamayuk.catastro.dominio.Observacion observacion) {
             throw noSeLlama();
         }
 
@@ -563,7 +643,8 @@ class FiscalizacionCatastralControllerTest {
 
         @Override
         public kamayuk.catastro.fiscalizacion.dominio.Evidencia guardar(
-                kamayuk.catastro.fiscalizacion.dominio.Evidencia evidencia) {
+                kamayuk.catastro.fiscalizacion.dominio.Evidencia evidencia,
+                kamayuk.catastro.dominio.Observacion observacion) {
             throw noSeLlama();
         }
 
@@ -575,7 +656,8 @@ class FiscalizacionCatastralControllerTest {
 
         @Override
         public kamayuk.catastro.fiscalizacion.dominio.Acta guardar(
-                kamayuk.catastro.fiscalizacion.dominio.Acta acta) {
+                kamayuk.catastro.fiscalizacion.dominio.Acta acta,
+                kamayuk.catastro.dominio.Observacion observacion) {
             throw noSeLlama();
         }
 

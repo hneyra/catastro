@@ -374,24 +374,30 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
     }
 
     /**
-     * Los dos envoltorios de decimal que anade este sistema (#6).
+     * El envoltorio de decimal que anade este sistema (#6, y uno solo desde #25).
      *
      * <p>La regla existe para que ninguna regla de negocio maneje {@code BigDecimal} suelto, no
      * para impedir que el tipo que lo guarda pueda devolverlo — su propio javadoc lo dice—. {@link
-     * kamayuk.catastro.fiscalizacion.dominio.Score} y {@link
-     * kamayuk.catastro.fiscalizacion.dominio.Tolerancia} son exactamente eso: dos fracciones de 0 a
-     * 1 con su rango comprobado en el constructor, y la alternativa —pasarlas como {@code
-     * BigDecimal}— es justo lo que la regla quiere impedir, porque a la vista 0,10 y 10 son la
-     * misma tolerancia escrita de dos maneras.
+     * kamayuk.catastro.fiscalizacion.dominio.Score} es exactamente eso: una fraccion de 0 a 1 con
+     * su rango comprobado en el constructor, y la alternativa —pasarla como {@code BigDecimal}— es
+     * justo lo que la regla quiere impedir, porque a la vista 0,10 y 10 son el mismo umbral escrito
+     * de dos maneras.
      *
-     * <p><b>Ninguna de las dos es una cifra tributaria</b> (regla 5): no entran en nada que se
-     * cobre. Lo unico que deciden es a quien mira primero una persona.
+     * <p><b>No es una cifra tributaria</b> (regla 5): no entra en nada que se cobre. Lo unico que
+     * decide es a quien mira primero una persona.
+     *
+     * <p><b>Eran dos, y `Tolerancia` se retiro con #25</b>: era la misma cifra que el umbral con
+     * otro nombre, y tenerla dos veces —una en el cuerpo de la peticion y otra en la fila de la
+     * campania— es lo que permitia que la campania dijera un criterio que no fue el que corrio. Y
+     * la entrada que quedaba aqui es un hallazgo por si sola: medido, borrar la clase y dejar su
+     * nombre en esta lista deja `verificarArquitectura` en VERDE. Una exencion que nombra un tipo
+     * que ya no existe no protege nada y nadie se entera; es la leccion de R-N por el eje de las
+     * exenciones.
      */
     @Override
     public Set<String> envoltoriosDeDecimal() {
         Set<String> heredados = ConfiguracionDeLasVerificaciones.super.envoltoriosDeDecimal();
-        Set<String> propios =
-                Set.of(".fiscalizacion.dominio.Score", ".fiscalizacion.dominio.Tolerancia");
+        Set<String> propios = Set.of(".fiscalizacion.dominio.Score");
         return java.util.stream.Stream.concat(heredados.stream(), propios.stream())
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
     }

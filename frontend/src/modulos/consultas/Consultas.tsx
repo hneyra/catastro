@@ -10,6 +10,7 @@ import {
   Boton,
   Campo,
   Dato,
+  Fallo,
   Insignia,
   Lectura,
   Rejilla,
@@ -93,7 +94,22 @@ export function FichaDelContribuyente({ ruta, onSujeto }: PantallaProps) {
   const codigo = ruta.sujeto;
   const [formato, setFormato] = useState<FormatoDeDocumento>('PDF');
   const [entrega, setEntrega] = useState<string | null>(null);
-  const [falloAlBajar, setFalloAlBajar] = useState<string | null>(null);
+  /**
+   * El `ErrorDeApi` ENTERO, y no su mensaje.
+   *
+   * Guardaba `e.mensaje`, o sea una cadena, y ahi se quedaban el codigo, los
+   * `detalles`, la `incidencia`, el `parametroQueFalta` y el `reintentable`
+   * (#49). Medido con el mismo mensaje en cuatro escenarios —500 con
+   * incidencia, 422 con `{ejercicio}`, 422 con `{ejercicio, llave}` y 403—, la
+   * pantalla decia **byte a byte lo mismo**: «No se pudo entregar» y la frase
+   * del servidor. Cuatro rechazos que piden cuatro trabajos distintos —llamar a
+   * quien atiende con un numero, esperar a que se selle un conjunto en
+   * «normativa», pedir un permiso— se leian igual.
+   *
+   * Y perdia ademas el `SIN_RESPUESTA` que `descargar()` lanza cuando el 200
+   * trae JSON en vez de binario, que **es reintentable** y no lo decia.
+   */
+  const [falloAlBajar, setFalloAlBajar] = useState<ErrorDeApi | null>(null);
 
   const ficha = useRecurso(
     (senal) => api.fichaDelContribuyente(codigo, undefined, senal),
@@ -108,7 +124,14 @@ export function FichaDelContribuyente({ ruta, onSujeto }: PantallaProps) {
       .documentoDeLaFicha(codigo, formato)
       .then((d) => setEntrega(d.nombre))
       .catch((e: unknown) =>
-        setFalloAlBajar(e instanceof ErrorDeApi ? e.mensaje : 'No se pudo entregar el documento'),
+        setFalloAlBajar(
+          /* Lo que no sea un `ErrorDeApi` se envuelve en uno en vez de quedarse
+             en cadena: asi la pantalla tiene siempre las cuatro distinciones a
+             mano, y este camino —un fallo del navegador al entregar el archivo—
+             se dice reintentable, que es lo que es. Es lo mismo que hace
+             `useRecurso` con los suyos. */
+          e instanceof ErrorDeApi ? e : new ErrorDeApi('SIN_RESPUESTA', 'No se pudo entregar el documento', 0),
+        ),
       );
   };
 
@@ -185,13 +208,13 @@ export function FichaDelContribuyente({ ruta, onSujeto }: PantallaProps) {
             </Aviso>
           </div>
         ) : null}
-        {falloAlBajar ? (
-          <div style={{ padding: '0 16px 14px' }}>
-            <Aviso tono="bad" titulo="No se pudo entregar">
-              {falloAlBajar}
-            </Aviso>
-          </div>
-        ) : null}
+        {/* El mismo `Fallo` que las 26 lecturas que pasan por `<Lectura>`: el
+            titulo sale del codigo, los `detalles` salen como lista, la
+            `incidencia` se publica, `parametroQueFalta` dice que no se arregla
+            desde aqui, y «Reintentar» sale solo si reintentar puede cambiar
+            algo. Reintentar es volver a pedir el documento, que es lo que esta
+            superficie hace. */}
+        {falloAlBajar ? <Fallo error={falloAlBajar} reintentar={bajar} /> : null}
         <p
           style={{
             margin: 0,

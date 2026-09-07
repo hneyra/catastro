@@ -3,6 +3,7 @@ package kamayuk.catastro.grd.aplicacion;
 import java.time.Clock;
 import java.time.LocalDate;
 import kamayuk.catastro.auditoria.Auditoria;
+import kamayuk.catastro.auditoria.DatosDeAuditoria;
 import kamayuk.catastro.auditoria.Operacion;
 import kamayuk.catastro.auditoria.RegistroDeAuditoria;
 import kamayuk.catastro.dominio.Observacion;
@@ -57,7 +58,7 @@ public class RegistrarCapaDeRiesgo {
             String tabla,
             @org.jspecify.annotations.Nullable Long clave,
             Observacion observacion,
-            String despues) {
+            DatosDeAuditoria despues) {
         auditoria.registrar(
                 RegistroDeAuditoria.enLaFechaDe(
                                 LocalDate.now(reloj),
@@ -68,25 +69,27 @@ public class RegistrarCapaDeRiesgo {
                         .con(null, despues));
     }
 
-    private static String descripcion(ZonaDeRiesgo zona) {
-        return "{\"codigo\":\""
-                + zona.codigo()
-                + "\",\"fenomeno\":\""
-                + zona.fenomeno()
-                + "\",\"nivel\":\""
-                + zona.nivel()
-                + "\",\"mitigable\":"
-                + zona.mitigable()
-                + "}";
+    private static DatosDeAuditoria descripcion(ZonaDeRiesgo zona) {
+        return DatosDeAuditoria.campos()
+                .mas("codigo", zona.codigo())
+                .mas("fenomeno", zona.fenomeno())
+                .mas("nivel", zona.nivel())
+                .mas("mitigable", zona.mitigable())
+                .datos();
     }
 
-    private static String descripcion(FajaMarginal faja) {
-        return "{\"codigo\":\""
-                + faja.codigo()
-                + "\",\"cuerpoDeAgua\":\""
-                + faja.cuerpoDeAgua()
-                + "\",\"anchoM\":\""
-                + faja.ancho().magnitud().toPlainString()
-                + "\"}";
+    /**
+     * La faja, para la bitacora.
+     *
+     * <p>El ancho va tipado como {@code Medida} y lo escribe el serializador —«8.00 ML», con la
+     * unidad dentro, que es como este sistema publica una medida (#607)—. Hasta #20 se componia a
+     * mano con {@code .magnitud().toPlainString()}, o sea la cifra sin decir de que era.
+     */
+    private static DatosDeAuditoria descripcion(FajaMarginal faja) {
+        return DatosDeAuditoria.campos()
+                .mas("codigo", faja.codigo())
+                .mas("cuerpoDeAgua", faja.cuerpoDeAgua())
+                .mas("ancho", faja.ancho())
+                .datos();
     }
 }

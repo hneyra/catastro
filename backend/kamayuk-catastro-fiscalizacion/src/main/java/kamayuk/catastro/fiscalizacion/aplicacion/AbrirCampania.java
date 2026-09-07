@@ -3,6 +3,7 @@ package kamayuk.catastro.fiscalizacion.aplicacion;
 import java.time.Clock;
 import java.time.LocalDate;
 import kamayuk.catastro.auditoria.Auditoria;
+import kamayuk.catastro.auditoria.DatosDeAuditoria;
 import kamayuk.catastro.auditoria.Operacion;
 import kamayuk.catastro.auditoria.RegistroDeAuditoria;
 import kamayuk.catastro.dominio.Observacion;
@@ -112,27 +113,27 @@ public class AbrirCampania {
     }
 
     /**
-     * Un JSON escrito a mano y no un serializador, por lo mismo que en {@code RegistrarSector}: son
-     * cinco campos, y traer Jackson hasta la capa de aplicacion la ataria a la de presentacion.
+     * La campania, para la bitacora.
+     *
+     * <p>Aqui vivia uno de los dos {@code escapar()} que #20 borro: cubria {@code \\} y {@code "} y
+     * <b>no los caracteres de control</b>, asi que una campania cuyo nombre trajera un salto de
+     * linea rompia el {@code cast(… AS jsonb)} igual que la que no escapaba nada. Un escape a mano
+     * que hay que acordarse de llamar es el defecto, no el arreglo.
+     *
+     * <p>El umbral entra como su cifra y no como el objeto {@code Score}: un {@code Score} es un
+     * envoltorio de un decimal y serializado como objeto saldria {@code {"valor":"0.20"}}, que dice
+     * lo mismo y se lee peor. La cifra sale entrecomillada porque la bitacora escribe todo decimal
+     * como texto — el motivo esta en {@code ObjetosDeValorEnJson.decimalesComoTexto()}.
      */
-    private static String descripcion(Campania campania) {
-        return "{\"codigo\":\""
-                + escapar(campania.codigo())
-                + "\",\"nombre\":\""
-                + escapar(campania.nombre())
-                + "\",\"estado\":\""
-                + campania.estado()
-                + "\",\"umbral\":"
-                + campania.umbral()
-                + ",\"tope\":"
-                + campania.tope()
-                + ",\"fin\":"
-                + (campania.fin() == null ? "null" : "\"" + campania.fin() + "\"")
-                + "}";
-    }
-
-    private static String escapar(String texto) {
-        return texto.replace("\\", "\\\\").replace("\"", "\\\"");
+    private static DatosDeAuditoria descripcion(Campania campania) {
+        return DatosDeAuditoria.campos()
+                .mas("codigo", campania.codigo())
+                .mas("nombre", campania.nombre())
+                .mas("estado", campania.estado())
+                .mas("umbral", campania.umbral().valor())
+                .mas("tope", campania.tope())
+                .mas("fin", campania.fin())
+                .datos();
     }
 
     /** Ya hay una campania con ese codigo en esta municipalidad. */

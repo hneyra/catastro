@@ -295,8 +295,8 @@ class ViaControllerTest {
         assertThat(ultimoAsiento().operacion()).isEqualTo(Operacion.MODIFICACION);
         assertThat(ultimoAsiento().datosAnteriores())
                 .as("una MODIFICACION sin el estado previo no permite reconstruir nada")
-                .isNotNull()
-                .contains("Avenida Grau");
+                .isNotNull();
+        assertThat(String.valueOf(ultimoAsiento().datosAnteriores())).contains("Avenida Grau");
     }
 
     @Test
@@ -405,7 +405,7 @@ class ViaControllerTest {
         assertThat(ultimoAsiento().operacion())
                 .as("Operacion.BAJA es, literalmente, «una via retirada del catalogo»")
                 .isEqualTo(Operacion.BAJA);
-        assertThat(ultimoAsiento().datosAnteriores()).isNotNull().contains("\"activa\":true");
+        assertThat(String.valueOf(ultimoAsiento().datosAnteriores())).contains("\"activa\":true");
     }
 
     @Test

@@ -174,8 +174,11 @@ class DeteccionDeSubvaluadoresTest {
                                 + " de un ano la ficha estara versionada y el area de entonces no"
                                 + " existira en ninguna parte")
                 .contains("\"fichaId\":11")
-                .contains("\"areaDeLaFicha\":120.00")
-                .contains("\"areaDelPoligono\":180.00");
+                // Entrecomilladas desde #20: las dos areas van tipadas como `AreaM2` y las
+                // escribe el serializador —la cifra sola, sin la unidad—, que es donde #607 dice
+                // que tienen que escribirse. Antes se componian a mano con `.valor()`.
+                .contains("\"areaDeLaFicha\":\"120.00\"")
+                .contains("\"areaDelPoligono\":\"180.00\"");
         assertThat(repositorio.hallazgos(campaniaId, unaPagina()).contenido())
                 .as("y NINGUN hallazgo: eso lo produce una persona en la segunda compuerta")
                 .isEmpty();
@@ -240,11 +243,14 @@ class DeteccionDeSubvaluadoresTest {
         assertThat(bitacora)
                 .as("es UN acto con una observacion, no N filas identicas salvo la clave")
                 .hasSize(1);
-        assertThat(bitacora.get(0).datosNuevos())
+        assertThat(String.valueOf(bitacora.get(0).datosNuevos()))
                 .contains("\"contrastados\":2")
                 .contains("\"detectados\":2")
                 .as("el criterio que se asienta es el de la campania, y son las DOS cifras (#25)")
-                .contains("\"umbral\":0.20")
+                // Entrecomillada desde #20: la bitacora escribe todo decimal como texto, porque
+                // se republica verbatim y ahi ningun esquema declara el tipo de nada. El tope es
+                // un entero y sigue sin comillas.
+                .contains("\"umbral\":\"0.20\"")
                 .contains("\"tope\":500");
         assertThat(bitacora.get(0).observacion()).isEqualTo(OBSERVACION);
     }

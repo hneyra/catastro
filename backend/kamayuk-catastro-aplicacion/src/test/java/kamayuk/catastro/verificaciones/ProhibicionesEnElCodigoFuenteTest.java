@@ -6,11 +6,14 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 import kamayuk.comun.verificaciones.ProhibicionesEnElCodigoFuenteTestBase;
 import kamayuk.comun.verificaciones.RevisorDeCodigoFuente;
 import kamayuk.comun.verificaciones.RevisorDeEsquema;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -18,9 +21,9 @@ import org.junit.jupiter.api.Test;
  * Las prohibiciones de texto de ARQ-04 §2, sobre el codigo de {@code sgtm}.
  *
  * <p>Hereda de {@code comun-verificaciones} el escaner y las pruebas que lo demuestran, y añade las
- * dos que son <b>de este repositorio</b>: el censo de las clases que componen el area a mano —esa
- * lista es suya, no de la libreria— y la celda del historial, que se afirma leyendo una clase de
- * produccion de {@code kamayuk-catastro-fiscalizacion}.
+ * que son <b>de este repositorio</b>: el censo de las clases que componen el area a mano —esa lista
+ * es suya, no de la libreria—, la comprobacion de que ninguna de sus entradas esta muerta, y el
+ * reparto de tablas de la regla 11.
  */
 @DisplayName("ARQ-04 §2 — Prohibiciones en el codigo fuente")
 class ProhibicionesEnElCodigoFuenteTest extends ProhibicionesEnElCodigoFuenteTestBase {
@@ -90,17 +93,18 @@ class ProhibicionesEnElCodigoFuenteTest extends ProhibicionesEnElCodigoFuenteTes
     }
 
     @Test
-    @DisplayName("las cinco clases de catastro que componen el area a mano, una a una")
+    @DisplayName("las DOS clases de catastro que componen el area a mano, una a una")
     void elCensoDeLasClasesQueComponenElArea() {
         // La misma linea, byte a byte, en dos archivos: en uno es un hallazgo y en el otro no.
         // Lo que decide es el NOMBRE DE LA CLASE, y por eso la lista se escribe por clase y no
         // por paquete: anadir una tercera es una linea visible en el diff.
         //
-        // En el monolito eran seis. Al llegar aqui fueron DOS —las otras cuatro son de `rentas`
-        // y de `licencias`, y dejar en la lista una clase que no existe seria una entrada muerta,
-        // que es justo el defecto que esta prueba mide dos metodos mas abajo para la celda del
-        // historial— y hoy son CINCO: C-8 anadio el componedor de hechos del buzon, y #6 las dos
-        // de la fiscalizacion catastral.
+        // En el monolito eran seis. Al llegar aqui fueron DOS, con C-8 y #6 subieron a CINCO, y
+        // con #20 vuelven a ser DOS. El motivo de cada baja esta en el javadoc de
+        // `componenElAreaAManoConMotivo()`, y no es el mismo para las tres:
+        // `ActualizarFichaCatastral`
+        // dejo de componer el area a mano —ahora la pasa tipada a `DatosDeAuditoria`—, y las dos
+        // de fiscalizacion NUNCA produjeron un hallazgo, medido.
         String fuente =
                 """
                 final class Modelo {
@@ -121,62 +125,111 @@ class ProhibicionesEnElCodigoFuenteTest extends ProhibicionesEnElCodigoFuenteTes
                 .isEmpty();
         assertThat(new ConfiguracionDeCatastro().componenElAreaAManoConMotivo())
                 .as(
-                        "las cinco de hoy: el modelo del papel de la ficha, la descripcion de"
-                                + " auditoria del versionado, el componedor de hechos del buzon"
-                                + " (C-8) y las dos de la fiscalizacion catastral (#6). La columna"
-                                + " JSON de la bitacora SI sale por HTTP —la publica verbatim—, asi"
-                                + " que el motivo de la segunda no es «no llega al cliente» sino que"
-                                + " ahi el area no es un campo tipado sino texto libre; el de la"
-                                + " tercera es que ahi el area se compone SOLO para la huella del"
-                                + " hecho, que es un resumen criptografico y no pasa por ningun"
-                                + " serializador; y el de las dos ultimas es el mismo que el de la"
-                                + " segunda — los `insumos` del candidato y el «antes/despues» del"
-                                + " hallazgo son instantaneas de texto libre que tienen que poder"
-                                + " explicarse solas dentro de un ano, cuando la ficha ya este"
-                                + " versionada tres veces. Lo que SI va tipado es HallazgoResource."
-                                + " Las cinco escriben la cifra sola")
-                .containsExactlyInAnyOrder(
-                        "ModeloDeLaFichaDelContribuyente",
-                        "ActualizarFichaCatastral",
-                        "ComponedorDeHechos",
-                        "DetectarSubvaluadores",
-                        "VerificarEnCampo");
+                        "las dos de hoy: el modelo del papel de la ficha —donde la unidad va en el"
+                                + " rotulo de la fila— y el componedor de hechos del buzon (C-8),"
+                                + " donde el area se compone SOLO para la huella del hecho, que es"
+                                + " un resumen criptografico y no pasa por ningun serializador."
+                                + " Cambiarlo moveria la huella de eventos ya publicados. Las dos"
+                                + " escriben la cifra sola")
+                .containsExactlyInAnyOrder("ModeloDeLaFichaDelContribuyente", "ComponedorDeHechos");
     }
 
     @Test
-    @DisplayName("la descripcion del versionado esta en la lista, y la celda del historial no")
-    void laDescripcionDelVersionadoEstaYLaCeldaDelHistorialNoPuedeEstar() throws IOException {
-        // La otra mitad de #607, adaptada a lo que ESTE sistema tiene despues de P5C.
+    @DisplayName("y ninguna entrada de la lista esta muerta: las dos eximen un hallazgo de verdad")
+    void ningunaEntradaDeLaListaEstaMuerta() throws IOException {
+        // ESTA es la prueba que faltaba, y #20 la escribio porque midio lo contrario: de las cinco
+        // entradas que la lista tenia, DOS —`DetectarSubvaluadores` y `VerificarEnCampo`, anadidas
+        // por #6— no producian un solo hallazgo. El escaner busca `area….toString()` o
+        // `area….valor().toPlainString()` y las dos escribian `.valor()` a secas; el area se
+        // componia a mano, si, pero no en la forma que el escaner reconoce.
         //
-        // `ActualizarFichaCatastral` escribe «120.00 m2» dentro de la descripcion que va a la
-        // columna JSON de la auditoria, y esa columna SI sale por HTTP. Por eso esta en la lista
-        // con su motivo: ahi el area no es un campo tipado sino una instantanea de texto libre.
-        //
-        // Y la celda del historial de liquidaciones —la otra excepcion legitima de #607— NO puede
-        // estar aqui, y no por criterio sino porque su clase es de `fiscalizacion`, que se quedo
-        // en `rentas`. Una entrada muerta en una lista de excepciones es exactamente el defecto
-        // que esa lista existe para no tener, asi que esta prueba lo afirma en las dos
-        // direcciones.
-        Path descripcion =
-                raizDelBackend()
-                        .resolve("kamayuk-catastro-nucleo/src/main/java/kamayuk/catastro/nucleo")
-                        .resolve("aplicacion/ActualizarFichaCatastral.java");
+        // Una exencion que no exime nada es invisible: nadie la nota, y el dia que la clase con ese
+        // nombre SI componga un area a mano, el escaner callara. Es exactamente la advertencia que
+        // la prueba de abajo escribe sobre `DiferenciaEntreLiquidaciones`, aplicada a la lista
+        // entera y no a un nombre elegido a mano.
+        List<String> muertas = new ArrayList<>();
 
-        assertThat(descripcion)
-                .as("la clase tiene que existir para poder afirmar esto de ella")
-                .exists();
+        for (String clase : new ConfiguracionDeCatastro().componenElAreaAManoConMotivo()) {
+            Path archivo = archivoDe(clase);
+            String fuente = Files.readString(archivo, StandardCharsets.UTF_8);
+            if (RevisorDeCodigoFuente.revisarAreas("UnRecursoCualquiera.java", fuente).isEmpty()) {
+                muertas.add(clase);
+            }
+        }
+
+        assertThat(muertas)
+                .as(
+                        "una entrada que no exime ningun hallazgo sobra en la lista: o la clase dejo"
+                                + " de componer el area a mano —y entonces se quita— o la compone de"
+                                + " una forma que el escaner no ve, y entonces lo que falta es el"
+                                + " escaner")
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("la celda del historial no puede estar en la lista: su clase es de `rentas`")
+    void laCeldaDelHistorialNoPuedeEstar() {
+        // La otra mitad de #607, adaptada a lo que ESTE sistema tiene despues de P5C y de #20.
+        //
+        // La celda del historial de liquidaciones NO puede estar aqui, y no por criterio sino
+        // porque su clase es de `fiscalizacion`, que se quedo en `rentas`. Una entrada muerta en
+        // una lista de excepciones es exactamente el defecto que esa lista existe para no tener
+        // —y la prueba de arriba lo comprueba ahora para TODAS las entradas, y no solo para esta—.
+        assertThat(new ConfiguracionDeCatastro().componenElAreaAManoConMotivo())
+                .as("la celda del historial es de `fiscalizacion`, que no vive en este sistema")
+                .doesNotContain("DiferenciaEntreLiquidaciones");
+    }
+
+    @Test
+    @DisplayName("la descripcion del versionado ya NO compone el area a mano: la pasa tipada (#20)")
+    void laDescripcionDelVersionadoYaNoComponeElAreaAMano() throws IOException {
+        // Hasta #20 esta prueba afirmaba lo contrario: que `ActualizarFichaCatastral` escribia
+        // «120.00» dentro de la descripcion que va a la columna JSON de la auditoria, con
+        // `.valor().toPlainString()` para que saliera sin la unidad. Era el unico sitio de este
+        // sistema donde el area se componia a mano PARA UNA COLUMNA, y por eso estaba en la lista.
+        //
+        // Ahora esa descripcion la compone `DatosDeAuditoria` con el `AreaM2` tipado, y quien
+        // escribe la cifra es el serializador de `ObjetosDeValorEnJson` —la cifra sola, sin la
+        // unidad—, que es donde #607 dice que tiene que escribirse. La afirmacion se invierte: lo
+        // que se comprueba es que ya no hay nada que eximir.
+        Path descripcion = archivoDe("ActualizarFichaCatastral", "kamayuk-catastro-nucleo");
 
         String fuente = Files.readString(descripcion, StandardCharsets.UTF_8);
 
         assertThat(RevisorDeCodigoFuente.revisarAreas("UnRecursoCualquiera.java", fuente))
-                .as("fuera de la lista, lo que esa clase escribe SI seria un hallazgo")
-                .isNotEmpty();
-        assertThat(RevisorDeCodigoFuente.revisarAreas(descripcion.getFileName().toString(), fuente))
-                .as("y dentro de la lista, no")
+                .as(
+                        "ni siquiera fuera de la lista es ya un hallazgo: el area va tipada y la"
+                                + " escribe el serializador")
                 .isEmpty();
-
+        assertThat(fuente)
+                .as("y se ve en el fuente: el AreaM2 entra entero en el campo del asiento")
+                .contains(".mas(\"areaTerreno\", ficha.areaTerreno())");
         assertThat(new ConfiguracionDeCatastro().componenElAreaAManoConMotivo())
-                .as("la celda del historial es de `fiscalizacion`, que no vive en este sistema")
-                .doesNotContain("DiferenciaEntreLiquidaciones");
+                .as("por eso salio de la lista")
+                .doesNotContain("ActualizarFichaCatastral");
+    }
+
+    /** El {@code .java} de esa clase dentro de {@code src/main}, buscado en los once modulos. */
+    private static Path archivoDe(String clase) throws IOException {
+        return archivoDe(clase, null);
+    }
+
+    private static Path archivoDe(String clase, @Nullable String modulo) throws IOException {
+        Path backend = raizDelBackend();
+        try (Stream<Path> arbol = Files.walk(backend)) {
+            return arbol.filter(Files::isRegularFile)
+                    .filter(ruta -> ruta.toString().contains("/src/main/"))
+                    .filter(ruta -> !ruta.toString().contains("/build/"))
+                    .filter(ruta -> modulo == null || ruta.toString().contains("/" + modulo + "/"))
+                    .filter(ruta -> ruta.getFileName().toString().equals(clase + ".java"))
+                    .findFirst()
+                    .orElseThrow(
+                            () ->
+                                    new AssertionError(
+                                            "la clase '"
+                                                    + clase
+                                                    + "' esta en la lista de excepciones y no existe"
+                                                    + " en src/main: es una entrada muerta"));
+        }
     }
 }

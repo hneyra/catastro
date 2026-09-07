@@ -58,8 +58,20 @@ public class AuditoriaJdbc extends RepositorioJdbc implements Auditoria {
                 .param("equipo", origen.equipo())
                 .param("ip", origen.ip())
                 .param("observacion", registro.observacion().texto())
-                .param("datosAnteriores", registro.datosAnteriores())
-                .param("datosNuevos", registro.datosNuevos())
+                .param("datosAnteriores", jsonDe(registro.datosAnteriores()))
+                .param("datosNuevos", jsonDe(registro.datosNuevos()))
                 .update();
+    }
+
+    /**
+     * El texto que entra en el {@code cast(… AS jsonb)}, o {@code null} si no hay antes o despues.
+     *
+     * <p>Es la <b>unica</b> conversion de {@link DatosDeAuditoria} a cadena en todo el sistema, y
+     * esta aqui a proposito: es el ultimo metro antes del motor. Que el tipo llegue entero hasta
+     * este punto es lo que hace imposible componer el JSON a mano por el camino (#20).
+     */
+    private static @org.jspecify.annotations.Nullable String jsonDe(
+            @org.jspecify.annotations.Nullable DatosDeAuditoria datos) {
+        return datos == null ? null : datos.json();
     }
 }

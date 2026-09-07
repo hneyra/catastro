@@ -47,7 +47,7 @@
  *     en el JSON que la pagina recibio**, como hace `ficha.mjs` con las obras
  *     complementarias. Un cero de relleno sale en rojo con el numero que sobra.
  *
- * <h2>Y dos cosas mas que solo se ven CONDUCIENDO</h2>
+ * <h2>Y tres cosas mas que solo se ven CONDUCIENDO</h2>
  *
  *   · **Lo que no se deshace no escribe hasta que se confirma aparte.** Se pulsa
  *     el primario una vez y se cuenta: **cero** peticiones. Se confirma y se
@@ -56,7 +56,16 @@
  *   · **La lista siguiente trae lo que se acaba de escribir.** Es la decision de
  *     `src/simulado/catalogo.ts` hecha medida: sin memoria en el proxy, el alta
  *     contesta `201` y el arbol vuelve igual que antes, que es como se ve un alta
- *     que no se guardo.
+ *     que no se guardo. **Y se mira LA LISTA, no la pagina**: la primera version
+ *     leia `<main>` entero y paso en VERDE con el defecto exacto puesto, porque
+ *     el panel de «lo que el servidor contesto» esta dentro de `<main>` y ya trae
+ *     el codigo recien creado.
+ *   · **Y los cinco rechazos dicen QUE HAY QUE HACER.** `Fallo` dice lo que PASO
+ *     —el titulo del codigo, el mensaje— y eso lo mide `errores.mjs`; lo que
+ *     depende de la operacion es lo otro, y el mismo `403` significa «su cuenta
+ *     no escribe el catalogo» en un alta y «le falta ELIMINACION, que es otro
+ *     privilegio» en una retirada. Dos «409» son de verdad y tres se inyectan,
+ *     con su motivo escrito donde se declaran.
  *
  * <h2>Y si no midio nada, sale con 2</h2>
  *

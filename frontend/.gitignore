@@ -11,4 +11,7 @@ dist-con-proxy/
 # terminar; si uno muere a medias, el temporal se queda —y se cola en el commit,
 # que es como llego a estarlo una vez.
 verificaciones/.registro*.mjs
-verificaciones/.modulos*.mjs
+# `.modulo*` y no `.modulos*`: los temporales se llaman `.modulo-ejercicios.mjs`,
+# `.modulo-ficha-datos.mjs`… —el nombre lo elige cada arnes— y con la «s» del
+# plural el patron no casaba con ninguno de ellos.
+verificaciones/.modulo*.mjs

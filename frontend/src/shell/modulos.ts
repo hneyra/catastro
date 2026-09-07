@@ -64,8 +64,14 @@ export const MODULOS: readonly Modulo[] = [
       {
         k: 'predios',
         label: 'Predios',
-        nota: 'El padron, y el frente de cada lote',
+        nota: 'El padron, la ficha de cada predio y el frente de cada lote',
         acceso: 'actualizacion_catastro',
+        /* Los CUATRO de la lectura de ficha, porque la ficha de un predio se pide
+           a la ruta de SU clase y cada una exige el suyo: quien levanta el
+           catastro rural puede abrir un predio rustico y recibe 403 en uno
+           urbano. Declararlos es lo que hace que la pantalla lo diga en vez de
+           quedarse sin la mitad del detalle sin explicar por que. */
+        tambien: ['ficha_urbana', 'ficha_economica', 'ficha_bienes', 'ficha_rural'],
       },
       { k: 'fichas', label: 'Fichas', nota: 'La grilla de fichas versionadas', acceso: 'consulta_fichas' },
       {

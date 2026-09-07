@@ -11,11 +11,126 @@
  * municipalidad de demostracion, y por eso el arnes `sin-red` existe: el dia que
  * el proxy se apague, ninguna de estas cifras puede quedarse en pantalla.
  */
-import { MANZANAS, PADRON, SECTORES, VIAS } from './padron';
+import { DETALLE_DE_FICHAS, MANZANAS, PADRON, SECTORES, VIAS } from './padron';
 import type { FilaDelPadron } from './padron';
+import type { Ficha, VersionDeLaFicha } from '../api/catastro';
 
 export { MANZANAS, PADRON, SECTORES, VIAS };
 export type { FilaDelPadron };
+
+/* ── El detalle de las fichas, y sus DOS versiones ───────────────────────── */
+
+/**
+ * El detalle generado, indexado por codigo de referencia catastral.
+ *
+ * El tipo se escribe **aqui** y no en `padron.ts`, que es un archivo generado, y
+ * se declara `| undefined` a proposito: uno de los 23 predios —Jiron Cusco 900,
+ * un terreno sin construir— no tiene ni una fila en `detalle-de-fichas.csv`, y
+ * `Record<string, T>` a secas afirmaria que si. Ese predio es un caso de verdad
+ * y no un olvido: la pantalla tiene que saber dibujar una ficha sin nada
+ * edificado.
+ */
+export const DETALLE: Readonly<Record<string, DetalleDeLaFicha | undefined>> = DETALLE_DE_FICHAS;
+
+export type DetalleDeLaFicha = {
+  tipoFicha: string;
+  vigenciaDesde: string;
+  origen: string;
+  documentoOrigen: string;
+  construcciones: Ficha['construcciones'];
+  instalaciones: Ficha['instalaciones'];
+  economico: Ficha['economico'];
+  bienesComunes: Ficha['bienesComunes'];
+  rural: Ficha['rural'];
+};
+
+/**
+ * Con que nombre firma la auditoria cada una de las dos cargas, y por que.
+ *
+ * No se inventan: son los valores por omision que declaran
+ * `DatosDeCargaFichasDemo` y `DatosDeCargaDetalleFichasDemo` cuando el guion no
+ * los pasa, que es lo que hace `infra/carga-de-datos/`. La observacion es la
+ * mitad util del historico —un diff dice que el area cambio; solo la observacion
+ * dice por que—, asi que copiar aqui otra cosa dejaria la pestana de movimientos
+ * ensenando una explicacion que la instalacion de verdad no da.
+ */
+const CARGA = {
+  usuario: 'carga-demostracion',
+  siembra: 'Siembra de predios y fichas ficticios para la demostracion (#290)',
+  detalle: 'Siembra del detalle de las fichas ficticias para la demostracion',
+} as const;
+
+/** El identificador de una version de ficha. Distinto por version, no por predio. */
+export function idDeLaVersion(predioId: number, version: number): number {
+  return predioId * 10 + version;
+}
+
+/** El dia anterior a una fecha ISO. Es aritmetica sobre un dato, no un reloj. */
+function elDiaAnterior(fecha: string): string {
+  const dia = new Date(`${fecha}T00:00:00Z`);
+  dia.setUTCDate(dia.getUTCDate() - 1);
+  return dia.toISOString().slice(0, 10);
+}
+
+/**
+ * Las versiones de la ficha de un predio, de la mas antigua a la vigente.
+ *
+ * **Son dos y no una, y eso es lo que carga el archivo de ejemplo**: su cabecera
+ * lo dice con todas las letras —«VERSIONA, NO SOBRESCRIBE. Cada predio de este
+ * archivo acaba con DOS versiones de ficha»—. La primera la inscribe
+ * `fichas.csv`; la segunda la abre `detalle-de-fichas.csv` con su propio
+ * documento de origen, y al abrirla `ActualizarFichaCatastral` **cierra la
+ * anterior el dia antes** (`vigente.cerradaEl(desde.minusDays(1))`). El predio
+ * sin detalle se queda con una sola, vigente y sin cerrar.
+ *
+ * `registradaEn` es lo unico sintetico: el archivo no trae marca de tiempo y
+ * este proxy no tiene reloj, asi que se deriva de la vigencia para que la misma
+ * peticion conteste siempre lo mismo.
+ */
+export function versionesDe(p: FilaDelPadron): VersionDeLaFicha[] {
+  const detalle = DETALLE[p.codRefCatastral];
+  const primera: VersionDeLaFicha = {
+    id: idDeLaVersion(p.predioId, 1),
+    version: 1,
+    areaTerreno: p.areaTerreno,
+    uso: p.uso,
+    vigenciaDesde: p.vigenciaDesde,
+    vigenciaHasta: detalle === undefined ? null : elDiaAnterior(detalle.vigenciaDesde),
+    vigente: detalle === undefined,
+    origen: p.origen,
+    documentoOrigen: p.documentoOrigen,
+    observacion: CARGA.siembra,
+    usuario: CARGA.usuario,
+    registradaEn: `${p.vigenciaDesde}T00:00:00Z`,
+  };
+  if (detalle === undefined) return [primera];
+  return [
+    primera,
+    {
+      id: idDeLaVersion(p.predioId, 2),
+      version: 2,
+      /* El area y el uso NO cambian al versionar por detalle: `fichas.actualizar`
+         no los recibe, los copia de la vigente. Lo que cambia es lo que hay
+         DENTRO de la ficha. */
+      areaTerreno: p.areaTerreno,
+      uso: p.uso,
+      vigenciaDesde: detalle.vigenciaDesde,
+      vigenciaHasta: null,
+      vigente: true,
+      origen: detalle.origen,
+      documentoOrigen: detalle.documentoOrigen,
+      observacion: CARGA.detalle,
+      usuario: CARGA.usuario,
+      registradaEn: `${detalle.vigenciaDesde}T00:00:00Z`,
+    },
+  ];
+}
+
+/** La version vigente de la ficha de un predio: la ultima de las suyas. */
+export function versionVigenteDe(p: FilaDelPadron): VersionDeLaFicha {
+  const versiones = versionesDe(p);
+  return versiones[versiones.length - 1]!;
+}
 
 /**
  * El unico predio del padron simulado que tiene poligono.

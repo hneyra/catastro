@@ -2,9 +2,10 @@
    ==========================================================================
 
    Las 23 filas de `fichas.csv`, las 4 de `sectores.csv`, las 13 de
-   `manzanas.csv` y las 11 de `vias.csv`, con los nombres que publican los
-   `record` del backend. Son los predios de DEMOSTRACION de Catacaos (ubigeo
-   200104) y **ninguno existe**: lo dice la cabecera de su propio CSV.
+   `manzanas.csv`, las 11 de `vias.csv` y las 51 de `detalle-de-fichas.csv`, con
+   los nombres que publican los `record` del backend. Son los predios de
+   DEMOSTRACION de Catacaos (ubigeo 200104) y **ninguno existe**: lo dice la
+   cabecera de su propio CSV.
 
    Se derivan del archivo y no se transcriben porque el codigo de referencia
    catastral son 23 caracteres compuestos de diez tramos, y una errata ahi
@@ -854,3 +855,775 @@ export const VIAS = [
   }
 ];
 export type FilaDelPadron = (typeof PADRON)[number];
+
+/* El DETALLE de cada ficha: las 51 filas de `detalle-de-fichas.csv`, agrupadas
+   por predio y con las formas de los `record` ANIDADOS de `FichaResource`
+   —`ConstruccionResource`, `InstalacionResource`, `EconomicoResource`,
+   `BienesComunesResource` y `RuralResource`—.
+
+   Se deriva del archivo por lo mismo que el padron: aqui hay areas, hectareas,
+   porcentajes y categorias constructivas, y una errata en cualquiera de ellas
+   produce un dato PLAUSIBLE. Los tres agregados que el dominio calcula
+   —`areaComunTotal`, `hectareasTotales` y `sinLicencia`— se calculan tambien, y
+   con suma exacta de decimales, no en coma flotante: son los mismos que
+   `DetalleDeBienesComunes.areaComunTotal()`, `DetalleRural.hectareasTotales()` y
+   `DetalleEconomico.sinLicencia()`.
+
+   Las unidades van DENTRO del valor donde el backend las pone —`"42.00 ML"`,
+   `"1.0500 HA"`, `"100.00 %"`— y fuera donde no —`"120.40"` de un `AreaM2`—,
+   porque eso es lo que distingue una `Medida` de un area en `ConfiguracionDeJson`.
+
+   `20010403003001000000000` —Jiron Cusco 900— NO esta, y no es un olvido: es un
+   terreno sin construir, asi que su ficha se queda en la version 1 y con cero
+   construcciones. Lo dice la cabecera del propio CSV. */
+export const DETALLE_DE_FICHAS = {
+  "20010401001001000000000": {
+    "tipoFicha": "UNICA",
+    "vigenciaDesde": "2026-02-01",
+    "origen": "DECLARACION_JURADA",
+    "documentoOrigen": "DJ-DEMO-0101",
+    "construcciones": [
+      {
+        "id": 1,
+        "piso": "1",
+        "areaConstruida": "120.40",
+        "anioConstruccion": 1998,
+        "material": "LADRILLO",
+        "estadoConservacion": "BUENO",
+        "categorias": "[CCDCCDC]",
+        "porcentajeConstruido": "100.00 %"
+      },
+      {
+        "id": 2,
+        "piso": "2",
+        "areaConstruida": "86.00",
+        "anioConstruccion": 2010,
+        "material": "LADRILLO",
+        "estadoConservacion": "MUY_BUENO",
+        "categorias": "[BBCBBCB]",
+        "porcentajeConstruido": "100.00 %"
+      }
+    ],
+    "instalaciones": [
+      {
+        "id": 1,
+        "descripcion": "Cerco perimetrico",
+        "unidad": "ML",
+        "cantidad": "42.00 ML",
+        "anioConstruccion": 1998,
+        "estadoConservacion": "REGULAR"
+      }
+    ],
+    "economico": null,
+    "bienesComunes": null,
+    "rural": null
+  },
+  "20010401001002000000000": {
+    "tipoFicha": "UNICA",
+    "vigenciaDesde": "2026-02-01",
+    "origen": "DECLARACION_JURADA",
+    "documentoOrigen": "DJ-DEMO-0102",
+    "construcciones": [
+      {
+        "id": 1,
+        "piso": "1",
+        "areaConstruida": "98.30",
+        "anioConstruccion": 1991,
+        "material": "ADOBE",
+        "estadoConservacion": "REGULAR",
+        "categorias": "[EEFEEFE]",
+        "porcentajeConstruido": "100.00 %"
+      }
+    ],
+    "instalaciones": [],
+    "economico": null,
+    "bienesComunes": null,
+    "rural": null
+  },
+  "20010401001003000000000": {
+    "tipoFicha": "ECONOMICA",
+    "vigenciaDesde": "2026-02-01",
+    "origen": "DECLARACION_JURADA",
+    "documentoOrigen": "DJ-DEMO-0103",
+    "construcciones": [
+      {
+        "id": 1,
+        "piso": "1",
+        "areaConstruida": "180.00",
+        "anioConstruccion": 2015,
+        "material": "CONCRETO",
+        "estadoConservacion": "MUY_BUENO",
+        "categorias": "[AABAABA]",
+        "porcentajeConstruido": "100.00 %"
+      }
+    ],
+    "instalaciones": [],
+    "economico": {
+      "actividades": [
+        {
+          "id": 1,
+          "conductor": "DEMO Ceramica Narihuala S.A.C.",
+          "nombreComercial": "Sala de ventas Narihuala",
+          "ciiu": "4773",
+          "areaOcupada": "180.00",
+          "licenciaNumero": null,
+          "licenciaFecha": null,
+          "anuncioNumero": null,
+          "anuncioFecha": null,
+          "vigenciaDesde": null
+        }
+      ],
+      "informacionComplementaria": null,
+      "sinLicencia": 1
+    },
+    "bienesComunes": null,
+    "rural": null
+  },
+  "20010401002001000000000": {
+    "tipoFicha": "UNICA",
+    "vigenciaDesde": "2026-02-01",
+    "origen": "FISCALIZACION",
+    "documentoOrigen": "ACTA-DEMO-0104",
+    "construcciones": [
+      {
+        "id": 1,
+        "piso": "1",
+        "areaConstruida": "72.50",
+        "anioConstruccion": 1990,
+        "material": "ADOBE",
+        "estadoConservacion": "MALO",
+        "categorias": "[FFGFFGF]",
+        "porcentajeConstruido": "100.00 %"
+      }
+    ],
+    "instalaciones": [],
+    "economico": null,
+    "bienesComunes": null,
+    "rural": null
+  },
+  "20010401002002000000000": {
+    "tipoFicha": "ECONOMICA",
+    "vigenciaDesde": "2026-02-01",
+    "origen": "DECLARACION_JURADA",
+    "documentoOrigen": "DJ-DEMO-0105",
+    "construcciones": [
+      {
+        "id": 1,
+        "piso": "1",
+        "areaConstruida": "240.00",
+        "anioConstruccion": 2008,
+        "material": "CONCRETO",
+        "estadoConservacion": "BUENO",
+        "categorias": "[BBCBBCB]",
+        "porcentajeConstruido": "100.00 %"
+      }
+    ],
+    "instalaciones": [
+      {
+        "id": 1,
+        "descripcion": "Horno de ceramica",
+        "unidad": "UND",
+        "cantidad": "2.00 UND",
+        "anioConstruccion": 2008,
+        "estadoConservacion": "BUENO"
+      }
+    ],
+    "economico": {
+      "actividades": [
+        {
+          "id": 1,
+          "conductor": "DEMO Ceramica Narihuala S.A.C.",
+          "nombreComercial": "Taller Narihuala",
+          "ciiu": "2393",
+          "areaOcupada": "240.00",
+          "licenciaNumero": null,
+          "licenciaFecha": null,
+          "anuncioNumero": null,
+          "anuncioFecha": null,
+          "vigenciaDesde": null
+        }
+      ],
+      "informacionComplementaria": null,
+      "sinLicencia": 1
+    },
+    "bienesComunes": null,
+    "rural": null
+  },
+  "20010401003001000000000": {
+    "tipoFicha": "UNICA",
+    "vigenciaDesde": "2026-02-01",
+    "origen": "DECLARACION_JURADA",
+    "documentoOrigen": "DJ-DEMO-0106",
+    "construcciones": [
+      {
+        "id": 1,
+        "piso": "1",
+        "areaConstruida": "110.00",
+        "anioConstruccion": 2001,
+        "material": "LADRILLO",
+        "estadoConservacion": "BUENO",
+        "categorias": "[CCDCCDC]",
+        "porcentajeConstruido": "100.00 %"
+      }
+    ],
+    "instalaciones": [],
+    "economico": null,
+    "bienesComunes": null,
+    "rural": null
+  },
+  "20010401003002000000000": {
+    "tipoFicha": "ECONOMICA",
+    "vigenciaDesde": "2026-02-01",
+    "origen": "DECLARACION_JURADA",
+    "documentoOrigen": "DJ-DEMO-0107",
+    "construcciones": [
+      {
+        "id": 1,
+        "piso": "1",
+        "areaConstruida": "150.00",
+        "anioConstruccion": 2012,
+        "material": "CONCRETO",
+        "estadoConservacion": "BUENO",
+        "categorias": "[BBCBBCB]",
+        "porcentajeConstruido": "100.00 %"
+      }
+    ],
+    "instalaciones": [],
+    "economico": {
+      "actividades": [
+        {
+          "id": 1,
+          "conductor": "DEMO Panaderia Simbila S.R.L.",
+          "nombreComercial": "Panaderia Simbila",
+          "ciiu": "1071",
+          "areaOcupada": "150.00",
+          "licenciaNumero": null,
+          "licenciaFecha": null,
+          "anuncioNumero": null,
+          "anuncioFecha": null,
+          "vigenciaDesde": null
+        }
+      ],
+      "informacionComplementaria": null,
+      "sinLicencia": 1
+    },
+    "bienesComunes": null,
+    "rural": null
+  },
+  "20010401004001000000000": {
+    "tipoFicha": "UNICA",
+    "vigenciaDesde": "2026-02-01",
+    "origen": "DECLARACION_JURADA",
+    "documentoOrigen": "DJ-DEMO-0108",
+    "construcciones": [
+      {
+        "id": 1,
+        "piso": "1",
+        "areaConstruida": "160.00",
+        "anioConstruccion": 1994,
+        "material": "LADRILLO",
+        "estadoConservacion": "BUENO",
+        "categorias": "[CCDCCDC]",
+        "porcentajeConstruido": "100.00 %"
+      },
+      {
+        "id": 2,
+        "piso": "2",
+        "areaConstruida": "140.20",
+        "anioConstruccion": 2018,
+        "material": "CONCRETO",
+        "estadoConservacion": "MUY_BUENO",
+        "categorias": "[AABAABA]",
+        "porcentajeConstruido": "100.00 %"
+      }
+    ],
+    "instalaciones": [],
+    "economico": null,
+    "bienesComunes": null,
+    "rural": null
+  },
+  "20010401004002000000000": {
+    "tipoFicha": "UNICA",
+    "vigenciaDesde": "2026-02-01",
+    "origen": "DECLARACION_JURADA",
+    "documentoOrigen": "DJ-DEMO-0109",
+    "construcciones": [
+      {
+        "id": 1,
+        "piso": "1",
+        "areaConstruida": "84.00",
+        "anioConstruccion": 1990,
+        "material": "LADRILLO",
+        "estadoConservacion": "REGULAR",
+        "categorias": "[DDEDDED]",
+        "porcentajeConstruido": "100.00 %"
+      }
+    ],
+    "instalaciones": [],
+    "economico": null,
+    "bienesComunes": null,
+    "rural": null
+  },
+  "20010401005001000000000": {
+    "tipoFicha": "UNICA",
+    "vigenciaDesde": "2026-02-01",
+    "origen": "DECLARACION_JURADA",
+    "documentoOrigen": "DJ-DEMO-0110",
+    "construcciones": [
+      {
+        "id": 1,
+        "piso": "1",
+        "areaConstruida": "210.00",
+        "anioConstruccion": 2005,
+        "material": "CONCRETO",
+        "estadoConservacion": "BUENO",
+        "categorias": "[BBCBBCB]",
+        "porcentajeConstruido": "100.00 %"
+      },
+      {
+        "id": 2,
+        "piso": "2",
+        "areaConstruida": "95.00",
+        "anioConstruccion": 2022,
+        "material": "CONCRETO",
+        "estadoConservacion": "MUY_BUENO",
+        "categorias": "[AABAABA]",
+        "porcentajeConstruido": "60.00 %"
+      }
+    ],
+    "instalaciones": [
+      {
+        "id": 1,
+        "descripcion": "Piscina",
+        "unidad": "UND",
+        "cantidad": "1.00 UND",
+        "anioConstruccion": 2005,
+        "estadoConservacion": "BUENO"
+      }
+    ],
+    "economico": null,
+    "bienesComunes": null,
+    "rural": null
+  },
+  "20010401005002000000000": {
+    "tipoFicha": "UNICA",
+    "vigenciaDesde": "2026-02-01",
+    "origen": "DECLARACION_JURADA",
+    "documentoOrigen": "DJ-DEMO-0111",
+    "construcciones": [
+      {
+        "id": 1,
+        "piso": "1",
+        "areaConstruida": "90.00",
+        "anioConstruccion": 2000,
+        "material": "LADRILLO",
+        "estadoConservacion": "BUENO",
+        "categorias": "[CCDCCDC]",
+        "porcentajeConstruido": "100.00 %"
+      }
+    ],
+    "instalaciones": [],
+    "economico": null,
+    "bienesComunes": null,
+    "rural": null
+  },
+  "20010402001001000000000": {
+    "tipoFicha": "UNICA",
+    "vigenciaDesde": "2026-02-01",
+    "origen": "FISCALIZACION",
+    "documentoOrigen": "ACTA-DEMO-0112",
+    "construcciones": [
+      {
+        "id": 1,
+        "piso": "1",
+        "areaConstruida": "145.00",
+        "anioConstruccion": 1990,
+        "material": "LADRILLO",
+        "estadoConservacion": "REGULAR",
+        "categorias": "[DDEDDED]",
+        "porcentajeConstruido": "100.00 %"
+      }
+    ],
+    "instalaciones": [],
+    "economico": null,
+    "bienesComunes": null,
+    "rural": null
+  },
+  "20010402002001000000000": {
+    "tipoFicha": "UNICA",
+    "vigenciaDesde": "2026-02-01",
+    "origen": "FISCALIZACION",
+    "documentoOrigen": "ACTA-DEMO-0113",
+    "construcciones": [
+      {
+        "id": 1,
+        "piso": "1",
+        "areaConstruida": "60.00",
+        "anioConstruccion": 1990,
+        "material": "QUINCHA",
+        "estadoConservacion": "MALO",
+        "categorias": "[GGHGGHG]",
+        "porcentajeConstruido": "100.00 %"
+      }
+    ],
+    "instalaciones": [],
+    "economico": null,
+    "bienesComunes": null,
+    "rural": null
+  },
+  "20010402003001010103201": {
+    "tipoFicha": "BIENES_COMUNES",
+    "vigenciaDesde": "2026-02-01",
+    "origen": "DECLARACION_JURADA",
+    "documentoOrigen": "DJ-DEMO-0114",
+    "construcciones": [
+      {
+        "id": 1,
+        "piso": "3",
+        "areaConstruida": "64.20",
+        "anioConstruccion": 2019,
+        "material": "CONCRETO",
+        "estadoConservacion": "MUY_BUENO",
+        "categorias": "[AABAABA]",
+        "porcentajeConstruido": "100.00 %"
+      }
+    ],
+    "instalaciones": [],
+    "economico": null,
+    "bienesComunes": {
+      "bienes": [
+        {
+          "id": 1,
+          "descripcion": "Escalera y hall de ingreso",
+          "area": "48.00",
+          "material": "CONCRETO",
+          "estadoConservacion": "MUY_BUENO",
+          "anioConstruccion": 2019
+        },
+        {
+          "id": 2,
+          "descripcion": "Azotea comun",
+          "area": "120.00",
+          "material": "CONCRETO",
+          "estadoConservacion": "BUENO",
+          "anioConstruccion": 2019
+        }
+      ],
+      "participaciones": [
+        {
+          "predioId": 14,
+          "porcentaje": "50.00 %"
+        },
+        {
+          "predioId": 15,
+          "porcentaje": "50.00 %"
+        }
+      ],
+      "areaComunTotal": "168.00"
+    },
+    "rural": null
+  },
+  "20010402003002010104401": {
+    "tipoFicha": "BIENES_COMUNES",
+    "vigenciaDesde": "2026-02-01",
+    "origen": "DECLARACION_JURADA",
+    "documentoOrigen": "DJ-DEMO-0115",
+    "construcciones": [
+      {
+        "id": 1,
+        "piso": "4",
+        "areaConstruida": "64.20",
+        "anioConstruccion": 2019,
+        "material": "CONCRETO",
+        "estadoConservacion": "MUY_BUENO",
+        "categorias": "[AABAABA]",
+        "porcentajeConstruido": "100.00 %"
+      }
+    ],
+    "instalaciones": [],
+    "economico": null,
+    "bienesComunes": {
+      "bienes": [
+        {
+          "id": 1,
+          "descripcion": "Escalera y hall de ingreso",
+          "area": "48.00",
+          "material": "CONCRETO",
+          "estadoConservacion": "MUY_BUENO",
+          "anioConstruccion": 2019
+        }
+      ],
+      "participaciones": [
+        {
+          "predioId": 14,
+          "porcentaje": "50.00 %"
+        },
+        {
+          "predioId": 15,
+          "porcentaje": "50.00 %"
+        }
+      ],
+      "areaComunTotal": "48.00"
+    },
+    "rural": null
+  },
+  "20010402004001000000000": {
+    "tipoFicha": "ECONOMICA",
+    "vigenciaDesde": "2026-02-01",
+    "origen": "DECLARACION_JURADA",
+    "documentoOrigen": "DJ-DEMO-0116",
+    "construcciones": [
+      {
+        "id": 1,
+        "piso": "1",
+        "areaConstruida": "380.00",
+        "anioConstruccion": 2014,
+        "material": "CONCRETO",
+        "estadoConservacion": "BUENO",
+        "categorias": "[BBCBBCB]",
+        "porcentajeConstruido": "100.00 %"
+      }
+    ],
+    "instalaciones": [
+      {
+        "id": 1,
+        "descripcion": "Patio pavimentado",
+        "unidad": "M2",
+        "cantidad": "320.00 M2",
+        "anioConstruccion": 2014,
+        "estadoConservacion": "BUENO"
+      }
+    ],
+    "economico": {
+      "actividades": [
+        {
+          "id": 1,
+          "conductor": "DEMO Querevalu Eche Segundo",
+          "nombreComercial": "Almacen Querevalu",
+          "ciiu": "5210",
+          "areaOcupada": "380.00",
+          "licenciaNumero": null,
+          "licenciaFecha": null,
+          "anuncioNumero": null,
+          "anuncioFecha": null,
+          "vigenciaDesde": null
+        }
+      ],
+      "informacionComplementaria": null,
+      "sinLicencia": 1
+    },
+    "bienesComunes": null,
+    "rural": null
+  },
+  "20010402004002000000000": {
+    "tipoFicha": "UNICA",
+    "vigenciaDesde": "2026-02-01",
+    "origen": "FISCALIZACION",
+    "documentoOrigen": "ACTA-DEMO-0117",
+    "construcciones": [
+      {
+        "id": 1,
+        "piso": "1",
+        "areaConstruida": "102.00",
+        "anioConstruccion": 1992,
+        "material": "LADRILLO",
+        "estadoConservacion": "REGULAR",
+        "categorias": "[DDEDDED]",
+        "porcentajeConstruido": "100.00 %"
+      }
+    ],
+    "instalaciones": [],
+    "economico": null,
+    "bienesComunes": null,
+    "rural": null
+  },
+  "20010403001001000000000": {
+    "tipoFicha": "ECONOMICA",
+    "vigenciaDesde": "2026-02-01",
+    "origen": "DECLARACION_JURADA",
+    "documentoOrigen": "DJ-DEMO-0118",
+    "construcciones": [
+      {
+        "id": 1,
+        "piso": "1",
+        "areaConstruida": "220.00",
+        "anioConstruccion": 2011,
+        "material": "CONCRETO",
+        "estadoConservacion": "BUENO",
+        "categorias": "[BBCBBCB]",
+        "porcentajeConstruido": "100.00 %"
+      }
+    ],
+    "instalaciones": [
+      {
+        "id": 1,
+        "descripcion": "Patio de maniobras",
+        "unidad": "M2",
+        "cantidad": "235.00 M2",
+        "anioConstruccion": 2011,
+        "estadoConservacion": "REGULAR"
+      }
+    ],
+    "economico": {
+      "actividades": [
+        {
+          "id": 1,
+          "conductor": "DEMO Transportes La Legua E.I.R.L.",
+          "nombreComercial": "Patio La Legua",
+          "ciiu": "4923",
+          "areaOcupada": "455.00",
+          "licenciaNumero": null,
+          "licenciaFecha": null,
+          "anuncioNumero": null,
+          "anuncioFecha": null,
+          "vigenciaDesde": null
+        }
+      ],
+      "informacionComplementaria": null,
+      "sinLicencia": 1
+    },
+    "bienesComunes": null,
+    "rural": null
+  },
+  "20010403002001000000000": {
+    "tipoFicha": "UNICA",
+    "vigenciaDesde": "2026-02-01",
+    "origen": "DECLARACION_JURADA",
+    "documentoOrigen": "DJ-DEMO-0119",
+    "construcciones": [
+      {
+        "id": 1,
+        "piso": "1",
+        "areaConstruida": "130.00",
+        "anioConstruccion": 2003,
+        "material": "LADRILLO",
+        "estadoConservacion": "BUENO",
+        "categorias": "[CCDCCDC]",
+        "porcentajeConstruido": "100.00 %"
+      }
+    ],
+    "instalaciones": [],
+    "economico": null,
+    "bienesComunes": null,
+    "rural": null
+  },
+  "20010404001001000000000": {
+    "tipoFicha": "RURAL",
+    "vigenciaDesde": "2026-02-01",
+    "origen": "MIGRACION",
+    "documentoOrigen": "MIG-DEMO-0120",
+    "construcciones": [],
+    "instalaciones": [],
+    "economico": null,
+    "bienesComunes": null,
+    "rural": {
+      "tierras": [
+        {
+          "id": 1,
+          "clasificacion": "CULTIVO_EN_LIMPIO",
+          "calidadAgrologica": "A1",
+          "riego": "BAJO_RIEGO",
+          "hectareas": "1.0500 HA",
+          "hectareasComunes": null
+        },
+        {
+          "id": 2,
+          "clasificacion": "PASTOS",
+          "calidadAgrologica": "P2",
+          "riego": "SECANO",
+          "hectareas": "0.2000 HA",
+          "hectareasComunes": null
+        }
+      ],
+      "colindantes": [
+        {
+          "orientacion": "NORTE",
+          "descripcion": "Predio de DEMO Sucesion Panta"
+        },
+        {
+          "orientacion": "SUR",
+          "descripcion": "Canal de regadio La Legua"
+        },
+        {
+          "orientacion": "ESTE",
+          "descripcion": "Carretera Catacaos - La Legua"
+        },
+        {
+          "orientacion": "OESTE",
+          "descripcion": "Fundo vecino sin identificar"
+        }
+      ],
+      "hectareasTotales": "1.2500 HA"
+    }
+  },
+  "20010404002001000000000": {
+    "tipoFicha": "RURAL",
+    "vigenciaDesde": "2026-02-01",
+    "origen": "MIGRACION",
+    "documentoOrigen": "MIG-DEMO-0121",
+    "construcciones": [],
+    "instalaciones": [],
+    "economico": null,
+    "bienesComunes": null,
+    "rural": {
+      "tierras": [
+        {
+          "id": 1,
+          "clasificacion": "CULTIVO_EN_LIMPIO",
+          "calidadAgrologica": "A2",
+          "riego": "BAJO_RIEGO",
+          "hectareas": "0.8300 HA",
+          "hectareasComunes": null
+        }
+      ],
+      "colindantes": [
+        {
+          "orientacion": "NORTE",
+          "descripcion": "Canal de regadio La Legua"
+        },
+        {
+          "orientacion": "SUR",
+          "descripcion": "Fundo Simbila Chico"
+        }
+      ],
+      "hectareasTotales": "0.8300 HA"
+    }
+  },
+  "20010404003001000000000": {
+    "tipoFicha": "RURAL",
+    "vigenciaDesde": "2026-02-01",
+    "origen": "MIGRACION",
+    "documentoOrigen": "MIG-DEMO-0122",
+    "construcciones": [],
+    "instalaciones": [],
+    "economico": null,
+    "bienesComunes": null,
+    "rural": {
+      "tierras": [
+        {
+          "id": 1,
+          "clasificacion": "CULTIVO_PERMANENTE",
+          "calidadAgrologica": "B1",
+          "riego": "BAJO_RIEGO",
+          "hectareas": "1.9400 HA",
+          "hectareasComunes": "0.1500 HA"
+        },
+        {
+          "id": 2,
+          "clasificacion": "ERIAZO",
+          "calidadAgrologica": null,
+          "riego": "SECANO",
+          "hectareas": "0.2000 HA",
+          "hectareasComunes": null
+        }
+      ],
+      "colindantes": [
+        {
+          "orientacion": "ESTE",
+          "descripcion": "Carretera Catacaos - La Legua"
+        }
+      ],
+      "hectareasTotales": "2.1400 HA"
+    }
+  }
+};

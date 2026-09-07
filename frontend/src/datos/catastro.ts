@@ -117,6 +117,41 @@ export const MOTIVOS = {
   /** Por que la matriz de valores unitarios puede tener una casilla ambigua. */
   casillaConVariasFilas:
     'Esta casilla tiene mas de una fila en el conjunto sellado —el cuadro publica tramos de anio de construccion y la matriz del artboard no tiene donde ponerlos—, asi que se dice cuantas hay en vez de ensenar una de ellas como si fuera la casilla.',
+  /**
+   * Por que la tabla de obras complementarias no tiene columna de valor.
+   *
+   * **Es el motivo que la pantalla ENSENA**, no un comentario: sin el, una tabla
+   * de obras sin importe se lee como una tabla a la que le falta una columna, y
+   * el hueco se cierra a ojo con un cero. Nombra las dos cosas que faltan porque
+   * son dos y se arreglan por separado: el cuadro —Anexo III, que el corpus no
+   * transcribe— y la columna —`otra_instalacion` no declara ningun importe—.
+   */
+  obraSinImporte:
+    'Estas obras salen sin su valor, y no es que la lectura lo recorte: no existe. El Anexo III de la R.M. 277-2025-VIVIENDA —los valores unitarios a costo directo de obras complementarias— no esta transcrito en el corpus, y la tabla «otra_instalacion» no tiene columna de importe. O sea que no hay ni cuadro del que leerlo ni dato declarado donde estuviera. Lo que si publica el backend es lo que el tecnico midio: que es, cuanto y en que unidad. Un cero aqui seria una base imponible inventada.',
+  /** Por que la ficha se pide a una de cuatro rutas y no a una sola. */
+  fichaPorSuClase:
+    'La ficha se pide a la ruta de SU clase, que es como el backend las publica: cada una fija su tipo y exige su propio permiso de lectura. Pedirla por otra no devuelve un bloque vacio, contesta que ese predio no tiene ficha de esa clase, asi que el tipo sale de la grilla y no se supone.',
+  /** Y que pasa cuando la grilla trae un tipo que esta interfaz no conoce. */
+  tipoDeFichaDesconocido:
+    'La grilla dice que este predio tiene una clase de ficha que esta interfaz no conoce, asi que no hay ruta a la que pedirla. No se prueba con la urbana: esa contesta la ficha unica y ninguna otra, y dibujar la que conteste como si fuera la suya seria ensenar la ficha equivocada.',
+  /** Por que la ficha vigente no ensena los movimientos, y donde estan. */
+  historicoNoSePide:
+    'Esta lectura no pide el historico: viaja aparte, con «historico=true», porque son todas las versiones de la ficha y la pantalla que solo pinta la vigente no tiene por que pagarlas. Estan en la pestana de movimientos.',
+  /** Que significa el historico nulo, que no es una lista vacia. */
+  historicoNoPedido:
+    'El servidor no mando ninguna version porque esta lectura no las pidio. No es que no haya: toda ficha tiene al menos la vigente, asi que una lista vacia aqui seria imposible y un «no hay movimientos» seria falso.',
+  /** Que es un movimiento del predio, y que no lo es. */
+  movimientosSonVersiones:
+    'Cada fila es una version de la ficha, con quien la escribio y por que. La observacion es la mitad util: un cambio de area dice que paso de una cifra a otra, y solo la observacion dice si fue una fiscalizacion de campo o un error de tecleo. Una TRANSFERENCIA no sale aqui y no es un olvido: se anota como el cierre de una titularidad y la apertura de otra, no como un movimiento de la ficha.',
+  /** Por que una actividad sin licencia se pinta distinta. */
+  actividadSinLicencia:
+    'Una actividad que no declara licencia no es un dato que falte: es el hallazgo, y de ahi sale una fiscalizacion. Por eso se cuenta y se marca, en vez de dejar la celda en blanco.',
+  /** Que significa el reparto de los bienes comunes, y que no incluye. */
+  bienesSinValor:
+    'Las areas comunes van en metros cuadrados y el reparto en porcentaje. Ningun importe: cuanto vale un area comun sale del cuadro de valores unitarios, que es dato normativo y no sale de esta lectura.',
+  /** Por que la superficie rural va en hectareas. */
+  ruralEnHectareas:
+    'La superficie rural viaja con su unidad dentro —hectareas— y no como numero suelto: el arancel rural es por hectarea, y quien la interprete en metros calcularia diez mil veces de menos.',
   /** Por que faltan columnas del artboard en los aranceles. */
   arancelSinZona:
     'El artboard pone una columna «Zona» que el cuadro no publica: «ArancelResource» trae la via, el tramo, el valor y el documento fuente, y nada mas. Se quedan las que existen.',
@@ -173,8 +208,42 @@ export const CHIPS_DE_PREDIOS = [
 export const VISTAS_DEL_PREDIO = [
   { k: 'identificacion', label: 'Identificacion' },
   { k: 'ficha', label: 'Ficha vigente' },
+  /* «Movimientos del Predio» del prototipo. Es una pestana aparte y no un bloque
+     mas de la ficha porque es OTRA peticion —la misma ruta con
+     `?historico=true`—: son todas las versiones, y la pantalla que solo pinta la
+     vigente no tiene por que pagarlas. */
+  { k: 'movimientos', label: 'Movimientos' },
   { k: 'frentes', label: 'Frentes' },
 ] as const;
+
+/**
+ * La ficha de un predio: los rotulos de sus secciones.
+ *
+ * Los cinco bloques que la ficha publica y que hasta #46 no se dibujaban —las
+ * obras complementarias, la actividad economica, los bienes comunes, el detalle
+ * rural y el historico— mas lo construido, que tampoco tenia tabla.
+ */
+export const FICHA = {
+  cabecera: 'La version vigente',
+  construcciones: 'Lo construido',
+  notaDeConstrucciones:
+    'Un piso por fila, con su area, su antiguedad y las siete categorias constructivas en una tira. Ningun importe: lo que vale cada categoria es dato normativo y esta lectura no lo trae.',
+  instalaciones: 'Obras complementarias',
+  economico: 'Actividad economica',
+  bienesComunes: 'Bienes comunes',
+  rural: 'Detalle rural',
+  movimientos: 'Movimientos del predio',
+  sinConstrucciones: 'Esta ficha no declara ninguna construccion: es un terreno sin construir.',
+  sinInstalaciones: 'Esta ficha no declara ninguna obra complementaria.',
+  sinActividades: 'Esta ficha economica no declara ninguna actividad.',
+  sinBienes: 'Esta ficha no declara ningun bien comun.',
+  sinParticipaciones: 'Esta ficha no declara ningun reparto del area comun.',
+  sinTierras: 'Esta ficha rural no declara ningun grupo de tierra.',
+  sinColindantes: 'Esta ficha rural no declara ningun colindante.',
+  sinMovimientos: 'Esta ficha no tiene ninguna version anterior.',
+  soloSuBloque:
+    'Los bloques de detalle son nulos salvo el que le toca a la clase de ficha: una ficha rural no publica un bloque economico vacio, para que «este predio no declara actividad» y «esta ficha no es de las que la declaran» no se confundan.',
+} as const;
 
 export const PREDIOS = {
   marcador: 'Codigo de referencia catastral, por prefijo',

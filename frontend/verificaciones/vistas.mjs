@@ -22,6 +22,21 @@
 export const VISTAS = [
   { modulo: 'catastro', hoja: 'predios', sujeto: '1', nombre: 'predio elegido' },
   { modulo: 'catastro', hoja: 'predios', sujeto: '1', filtros: { ver: 'ficha' }, nombre: 'ficha del predio' },
+  /* Las OTRAS TRES clases de ficha, y no por completismo: los tres bloques de
+     detalle —`economico`, `bienesComunes` y `rural`— son nulos salvo el que toca,
+     y la ficha UNICA no tiene ninguno. Con el predio 1 a secas, los tres bloques
+     que #46 dibuja no se dibujarian nunca y los arneses informarian en verde
+     sobre codigo que ninguna vista alcanza. Los sujetos salen del padron de
+     demostracion: 3 es ECONOMICA, 14 BIENES_COMUNES y 21 RURAL. */
+  { modulo: 'catastro', hoja: 'predios', sujeto: '3', filtros: { ver: 'ficha' }, nombre: 'ficha economica' },
+  { modulo: 'catastro', hoja: 'predios', sujeto: '14', filtros: { ver: 'ficha' }, nombre: 'ficha de bienes comunes' },
+  { modulo: 'catastro', hoja: 'predios', sujeto: '21', filtros: { ver: 'ficha' }, nombre: 'ficha rural' },
+  /* Y el predio sin detalle: el terreno sin construir, cuya ficha se queda con
+     cero construcciones y cero obras. Es un caso de verdad —lo dice la cabecera
+     de `detalle-de-fichas.csv`— y es donde se ve que una tabla vacia dice por que
+     lo esta en vez de quedarse en blanco. */
+  { modulo: 'catastro', hoja: 'predios', sujeto: '20', filtros: { ver: 'ficha' }, nombre: 'ficha sin construcciones' },
+  { modulo: 'catastro', hoja: 'predios', sujeto: '1', filtros: { ver: 'movimientos' }, nombre: 'movimientos del predio' },
   { modulo: 'catastro', hoja: 'predios', sujeto: '1', filtros: { ver: 'frentes' }, nombre: 'frentes del predio' },
   { modulo: 'catastro', hoja: 'predios', filtros: { fichado: 'false' }, nombre: 'cola de predios sin ficha' },
   /* El alta (#34): es un ESTADO de Predios y no un destino, asi que sin estas

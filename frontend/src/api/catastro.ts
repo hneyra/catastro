@@ -22,7 +22,17 @@ export const RUTAS = {
   plano: '/catastro/predios/plano',
   marcoDelPlano: '/catastro/predios/plano/marco',
   fichas: '/catastro/fichas',
+  /* La lectura de una ficha son CUATRO rutas y no una, igual que el alta: cada
+     `@GetMapping` fija su `TipoFicha` —`/urbana/{cod}` lee `TipoFicha.UNICA` y
+     nada mas— y exige el acceso de LECTURA de su opcion del menu. Pedir la ficha
+     de un predio por la ruta que no es su tipo NO devuelve el bloque vacio:
+     contesta 404 «El predio no tiene ficha urbana vigente al …». El nombre del
+     parametro tambien cambia —`codEdificacion`, `codUnidad`—, y por eso
+     `RUTA_DE_LA_FICHA` lleva la llave al lado de la ruta. */
   fichaUrbana: '/catastro/fichas/urbana/{codRefCatastral}',
+  fichaEconomica: '/catastro/fichas/economica/{codRefCatastral}',
+  fichaBienesComunes: '/catastro/fichas/bienes-comunes/{codEdificacion}',
+  fichaRural: '/catastro/fichas/rural/{codUnidad}',
   areaDeLaFicha: '/catastro/fichas/{fichaId}/area',
   /* El alta: CUATRO rutas y no una, una por clase de ficha. No es una manera
      de organizar el contrato: cada `@PostMapping` exige el `REGISTRO` de SU
@@ -204,6 +214,19 @@ export type FichaEncontrada = {
 export const TIPOS_DE_FICHA = ['UNICA', 'ECONOMICA', 'BIENES_COMUNES', 'RURAL'] as const;
 export type TipoDeFicha = (typeof TIPOS_DE_FICHA)[number];
 
+/**
+ * Si un `tipo` que llego por el cable es uno de los cuatro.
+ *
+ * Hace falta porque `FichaEncontrada.tipo` viaja como `string` y con el se elige
+ * a que ruta pedir la ficha: un valor que el enumerado no reconozca no puede
+ * caer a la urbana «por defecto», porque esa ruta contesta la ficha UNICA y
+ * ninguna otra. Sin esta guarda, el desenlace de un tipo desconocido seria pedir
+ * la ficha equivocada y dibujarla como si fuera la suya.
+ */
+export function esTipoDeFicha(valor: string): valor is TipoDeFicha {
+  return (TIPOS_DE_FICHA as readonly string[]).includes(valor);
+}
+
 export type FiltrosDeFichas = {
   codRefCatastral?: string;
   contribuyente?: string;
@@ -224,12 +247,142 @@ export function fichas(
 export type Construccion = {
   id: number;
   piso: string;
+  /** `AreaM2` -> texto: la cifra sola, y la unidad la pone la cabecera. */
   areaConstruida: string;
   anioConstruccion: number | null;
   material: string | null;
   estadoConservacion: string | null;
+  /** Las siete partidas en una tira: `"[CCDCCDC]"`, con guion donde no se declara. */
   categorias: string;
+  /** `Porcentaje` -> texto CON su signo: `"60.00 %"`. Nulo no es cero. */
   porcentajeConstruido: string | null;
+};
+
+/**
+ * Una obra complementaria: cerco, piscina, tanque, pavimento.
+ *
+ * **No trae su valor, y esa ausencia es el dato.** El Anexo III de la R.M.
+ * 277-2025-VIVIENDA —los valores unitarios a costo directo de obras
+ * complementarias— **no esta transcrito** en el corpus, y `otra_instalacion`
+ * **no tiene columna de importe**: no hay ni cuadro del que leerlo ni columna
+ * donde estuviera declarado. Asi que `InstalacionResource` publica seis
+ * componentes y ninguno es un importe, y la pantalla dibuja los seis y dice que
+ * falta el septimo. Escribir aqui un `valor: string` obligaria a la pantalla a
+ * pintar `undefined` o un cero, y un cero se lee como «esta obra no vale nada».
+ *
+ * `cantidad` lleva su unidad DENTRO —`"42.00 ML"`— porque «42» no significa lo
+ * mismo en metros lineales que en unidades; `unidad` la repite suelta, que es lo
+ * que una grilla pinta en su columna sin partir una cadena.
+ */
+export type Instalacion = {
+  id: number;
+  descripcion: string;
+  unidad: string;
+  /** `Medida` -> texto CON la unidad dentro: `"42.00 ML"`. */
+  cantidad: string;
+  anioConstruccion: number | null;
+  estadoConservacion: string | null;
+};
+
+/**
+ * Una actividad economica, con su licencia por numero.
+ *
+ * `licenciaNumero` nulo **no es un dato que falte: es el hallazgo**. Un local que
+ * declara actividad y no declara licencia es lo que una fiscalizacion busca, asi
+ * que la pantalla lo pinta distinto en vez de dejar la celda en blanco.
+ */
+export type Actividad = {
+  id: number;
+  conductor: string;
+  nombreComercial: string | null;
+  ciiu: string | null;
+  /** `AreaM2` -> texto. */
+  areaOcupada: string | null;
+  licenciaNumero: string | null;
+  licenciaFecha: string | null;
+  anuncioNumero: string | null;
+  anuncioFecha: string | null;
+  vigenciaDesde: string | null;
+};
+
+/** El bloque de la ficha ECONOMICA. `sinLicencia` es un RECUENTO, no una lista. */
+export type Economico = {
+  actividades: Actividad[];
+  informacionComplementaria: string | null;
+  sinLicencia: number;
+};
+
+/** Un area comun con su antiguedad: se valoriza como una construccion mas. */
+export type BienComun = {
+  id: number;
+  descripcion: string;
+  /** `AreaM2` -> texto. */
+  area: string;
+  material: string | null;
+  estadoConservacion: string | null;
+  anioConstruccion: number | null;
+};
+
+/** Cuanto del area comun le toca a un predio de la edificacion. */
+export type Participacion = {
+  predioId: number;
+  /** `Porcentaje` -> texto CON su signo: `"50.00 %"`. */
+  porcentaje: string;
+};
+
+/** El bloque de la ficha de BIENES_COMUNES. */
+export type BienesComunes = {
+  bienes: BienComun[];
+  participaciones: Participacion[];
+  /** `AreaM2` -> texto. Lo SUMA el dominio, no esta pantalla. */
+  areaComunTotal: string;
+};
+
+/** Un grupo de tierra de un predio rustico. En hectareas, nunca en metros. */
+export type Tierra = {
+  id: number;
+  clasificacion: string;
+  calidadAgrologica: string | null;
+  riego: string;
+  /** `Medida` -> texto CON la unidad dentro: `"1.0500 HA"`. */
+  hectareas: string;
+  /** Nulo es «esta ficha no reparte area comun», que no es repartir cero. */
+  hectareasComunes: string | null;
+};
+
+/** Con quien linda el predio rustico por una orientacion. */
+export type Colindante = { orientacion: string; descripcion: string };
+
+/** El bloque de la ficha RURAL. */
+export type Rural = {
+  tierras: Tierra[];
+  colindantes: Colindante[];
+  /** `Medida` -> texto CON la unidad dentro. Lo SUMA el dominio. */
+  hectareasTotales: string;
+};
+
+/**
+ * Una fila del historico: **que rigio, cuando, quien lo escribio y por que**.
+ *
+ * La `observacion` es la mitad util. Un diff dice que el area paso de 120 a 180;
+ * solo la observacion dice que fue una fiscalizacion de campo y no un error de
+ * tecleo, y es lo que se lee en voz alta cuando el contribuyente pregunta por que
+ * le subio el recibo.
+ */
+export type VersionDeLaFicha = {
+  id: number;
+  version: number;
+  /** `AreaM2` -> texto. */
+  areaTerreno: string;
+  uso: string;
+  vigenciaDesde: string;
+  vigenciaHasta: string | null;
+  vigente: boolean;
+  origen: string;
+  documentoOrigen: string;
+  observacion: string;
+  usuario: string;
+  registradaEn: string;
 };
 
 export type Ficha = {
@@ -250,6 +403,26 @@ export type Ficha = {
   observacion: string;
   denominacion: string | null;
   construcciones: Construccion[];
+  /** Viaja SIEMPRE: no es anulable y se construye en toda respuesta de ficha. */
+  instalaciones: Instalacion[];
+  /* Los tres bloques de detalle son NULOS SALVO EL QUE TOCA, y por eso son tres
+     campos y no uno: una ficha rural no publica un bloque economico vacio, asi
+     que «este predio no declara actividad» y «esta ficha no es de las que la
+     declaran» se distinguen. La ficha UNICA no tiene ninguno —lo suyo son las
+     construcciones—, que es lo que dice `DetalleDeLaFicha` con todas las letras. */
+  economico: Economico | null;
+  bienesComunes: BienesComunes | null;
+  rural: Rural | null;
+  /**
+   * Todas las versiones de la ficha, **solo si se pidieron**.
+   *
+   * `null` significa «no lo pediste» —la peticion no llevo `?historico=true`— y
+   * una lista vacia significaria «no hay ninguna», que no puede pasar: toda
+   * ficha tiene al menos la version vigente. La distincion es del backend y esta
+   * pantalla la conserva: pintar un «no hay movimientos» sobre un nulo seria
+   * afirmar algo que nadie pregunto.
+   */
+  historico: VersionDeLaFicha[] | null;
 };
 
 /**
@@ -260,11 +433,11 @@ export type Ficha = {
  * `FichaResource.java`, y `CampoDeFichaSinPareja` impide que la lista y el tipo
  * se separen.
  *
- * **Y hace falta**: `FichaResource` publica **veintiun** componentes y este tipo
- * declara **dieciseis**. Los cinco que faltan no se leen hoy, y sin esta lista
- * eso no lo dice nada: un campo que el servidor manda y el tipo no declara no da
- * ningun error —`tsc` solo se queja al leerlo—, asi que el hueco es invisible
- * hasta que alguien lo necesita y descubre que tiene que escribir un `as`.
+ * **Y hace falta**: un campo que el servidor manda y el tipo no declara no da
+ * ningun error —el JSON llega entero y `tsc` solo se queja el dia que alguien
+ * intenta leerlo—, asi que el hueco es invisible hasta que alguien lo necesita y
+ * descubre que tiene que escribir un `as`. Con #46 los veintidos componentes
+ * estan declarados; el que declare el vigesimotercero se encuentra esta lista.
  */
 export const CAMPOS_DE_FICHA = [
   'id',
@@ -284,36 +457,26 @@ export const CAMPOS_DE_FICHA = [
   'observacion',
   'denominacion',
   'construcciones',
+  'instalaciones',
+  'economico',
+  'bienesComunes',
+  'rural',
+  'historico',
 ] as const;
 
 /**
  * Lo que `FichaResource` publica y este tipo NO declara, con su motivo.
  *
- * No es documentacion: lo lee `rutas.mjs`, que exige que todo componente del
- * `record` este o en `CAMPOS_DE_FICHA` o aqui. Un hueco declarado se puede
- * discutir; uno callado se descubre el dia que hace falta.
- *
- * **`instalaciones` es el que mas pesa y el unico que no es anulable**: se
- * construye siempre, asi que viaja en TODA respuesta de ficha. Y el asistente de
- * alta ya las manda —`PeticionDeAlta.instalaciones`—, de modo que hoy se puede
- * escribir una obra complementaria y no se puede volver a leer sin un `as`.
+ * **Esta vacia, y es correcto que se vea asi.** Nace de #41, donde nombraba los
+ * cinco componentes que el tipo no declaraba —`instalaciones`, `economico`,
+ * `bienesComunes`, `rural` e `historico`—, y #46 los declaro y los dibujo los
+ * cinco. Lo que queda es el mecanismo: `rutas.mjs` exige que todo componente del
+ * `record` este **o en `CAMPOS_DE_FICHA` o aqui con su motivo**, asi que el
+ * componente numero veintitres que alguien anada al backend saldra en rojo con
+ * su nombre en vez de llegar al navegador sin que nadie lo declare. Un hueco
+ * declarado se puede discutir; uno callado se descubre el dia que hace falta.
  */
-export const CAMPOS_DE_FICHA_QUE_NO_SE_LEEN: Readonly<Record<string, string>> = {
-  instalaciones:
-    'Las obras complementarias. Viaja SIEMPRE —no es anulable— y el alta ya las manda. No se ' +
-    'declara porque ninguna pantalla las dibuja todavia y su importe no existe: el Anexo III de la ' +
-    'R.M. 277-2025-VIVIENDA no esta transcrito y «otra_instalacion» no tiene columna de importe.',
-  economico:
-    'El bloque economico de la ficha de actividad. Ningun paso del alta lo recoge y ninguna ' +
-    'pantalla lo dibuja; se declara aqui igual que «rutas.mjs» lo nombra en el sentido de ida.',
-  bienesComunes: 'El bloque de bienes comunes. Mismo caso que «economico»: nadie lo escribe ni lo lee.',
-  rural:
-    'El bloque rural. El alta SI lo manda —los cuatro linderos—, y la lectura no lo declara: es el ' +
-    'mismo hueco que «instalaciones», con una pantalla menos.',
-  historico:
-    'Las versiones anteriores. Solo llega si la peticion pide «historico=true», y «fichaUrbana» no ' +
-    'ofrece ese parametro: la pestana de movimientos del predio no es alcanzable desde esta capa.',
-};
+export const CAMPOS_DE_FICHA_QUE_NO_SE_LEEN: Readonly<Record<string, string>> = {};
 
 type CampoDeFicha = (typeof CAMPOS_DE_FICHA)[number];
 type FichaSoloEnElTipo = Exclude<keyof Ficha, CampoDeFicha>;
@@ -328,11 +491,63 @@ export type CampoDeFichaSinPareja = [FichaSoloEnElTipo] extends [never]
 
 export const LOS_CAMPOS_DE_FICHA_CUADRAN: CampoDeFichaSinPareja = true;
 
-export function fichaUrbana(
-  codRefCatastral: string,
+/**
+ * A que ruta se le pide la ficha segun su clase, y **con que nombre de camino**.
+ *
+ * Las cuatro devuelven el MISMO `FichaResource`; lo que cambia es el `TipoFicha`
+ * que la ruta fija y el acceso de LECTURA que exige. Elegir mal no da un bloque
+ * vacio: `FichaController.leer` contesta **404** «El predio no tiene ficha
+ * urbana vigente al …», porque `/urbana/{cod}` busca `TipoFicha.UNICA` y ninguna
+ * otra. Y la ficha UNICA **no tiene ningun bloque de detalle** —lo dice
+ * `DetalleDeLaFicha`: «lo suyo son las construcciones»—, asi que pedirlo todo
+ * por la ruta urbana devolveria `economico`, `bienesComunes` y `rural` nulos
+ * SIEMPRE, y una pantalla que los dibujara nunca se ejercitaria.
+ *
+ * La llave del camino cambia con la ruta —`codEdificacion` en bienes comunes,
+ * `codUnidad` en rural— y por eso viaja al lado: `camino()` exige el nombre
+ * exacto y lanza si falta, que es como se ve el error al escribirlo y no al
+ * pedirlo.
+ */
+export const RUTA_DE_LA_FICHA: Record<TipoDeFicha, { ruta: string; llave: string }> = {
+  UNICA: { ruta: RUTAS.fichaUrbana, llave: 'codRefCatastral' },
+  ECONOMICA: { ruta: RUTAS.fichaEconomica, llave: 'codRefCatastral' },
+  BIENES_COMUNES: { ruta: RUTAS.fichaBienesComunes, llave: 'codEdificacion' },
+  RURAL: { ruta: RUTAS.fichaRural, llave: 'codUnidad' },
+};
+
+export type OpcionesDeLaFicha = {
+  /**
+   * Que traiga tambien todas las versiones (`?historico=true`).
+   *
+   * **Solo viaja cuando se pide.** El backend ya toma `false` por omision, y
+   * mandar `historico=false` costaria las versiones de todas las lecturas que no
+   * las pintan: son la ficha entera repetida una vez por version, y la pantalla
+   * que solo dibuja la vigente no tiene por que pagarlas.
+   */
+  historico?: boolean;
+  /** La ficha VIGENTE a esta fecha. Sin ella, la vigente al reloj del servidor. */
+  fecha?: string;
+};
+
+/**
+ * La ficha vigente de un predio, entera.
+ *
+ * Sustituye a `fichaUrbana`, que servia una sola de las cuatro clases y **no
+ * ofrecia `?historico=`** aunque `FichaController.urbana` lo declara: sin el
+ * parametro, la pestana «Movimientos del Predio» —que `ResumenPredialController`
+ * documenta como ya publicada por esta ruta— no se podia pedir desde esta capa.
+ */
+export function ficha(
+  tipo: TipoDeFicha,
+  codigo: string,
+  opciones: OpcionesDeLaFicha = {},
   senal?: AbortSignal,
 ): Promise<Ficha> {
-  return solicitar(camino(RUTAS.fichaUrbana, { codRefCatastral }), { senal });
+  const { ruta, llave } = RUTA_DE_LA_FICHA[tipo];
+  return solicitar(camino(ruta, { [llave]: codigo }), {
+    parametros: { fecha: opciones.fecha, historico: opciones.historico === true ? true : undefined },
+    senal,
+  });
 }
 
 /* ── El territorio ──────────────────────────────────────────────────────── */

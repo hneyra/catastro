@@ -82,7 +82,13 @@ public interface BuzonDeSalida {
                         "Un hallazgo firme es lo que una PERSONA verifico, con su nombre y su fecha"
                                 + " (ADR-0035 punto 2): que vuelva con otro contenido es alguien"
                                 + " reescribiendo lo que otro firmo, y corregirlo es dejarlo sin efecto"
-                                + " y levantar otro, no editarlo.";
+                                + " —lo que publica otro hecho— y levantar otro, no editarlo.";
+                case HALLAZGO_DEJADO_SIN_EFECTO ->
+                        "Retractar un hallazgo es otro acto que otra persona firma, con su motivo,"
+                                + " su nombre y su fecha (#23): que vuelva con otro motivo no es una"
+                                + " retractacion nueva, es alguien cambiando la que hubo. Un hallazgo"
+                                + " se deja sin efecto UNA vez, y `Hallazgo.dejadoSinEfecto` lo"
+                                + " rechaza la segunda.";
                 default ->
                         "Este tipo de hecho deriva su identidad del CONTENIDO, asi que dos"
                                 + " contenidos distintos tendrian que ser dos identidades: que no lo"

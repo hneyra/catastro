@@ -52,6 +52,18 @@ public interface TerritorioParaPublicar {
     /** Los hallazgos que estan FIRMES, en orden ascendente de identificador. */
     List<HallazgoFirme> hallazgosFirmes();
 
+    /**
+     * Los hallazgos que se dejaron sin efecto, con el acto que los retiro (#23 AC-4).
+     *
+     * <p><b>Retractar un hecho ya publicado es OTRO hecho, y hasta #23 no viajaba.</b> Un hallazgo
+     * publicado como {@code HALLAZGO_FIRME} que se anulara simplemente <b>dejaba de aparecer</b> en
+     * {@link #hallazgosFirmes} —que filtra por {@code FIRME}— y nada se lo decia al consumidor; y
+     * republicarlo tampoco servia, porque su identidad se deriva de la identidad y el buzon lo
+     * pararia con {@code HechoSelladoReescrito}. La frontera tenia una puerta de una sola
+     * direccion, y del lado de {@code rentas} el hallazgo seguia en pie para siempre.
+     */
+    List<HallazgoDejadoSinEfecto> hallazgosDejadosSinEfecto();
+
     /** Una manzana con el sector al que pertenece. */
     record ManzanaDelTerritorio(
             long manzanaId, String codigo, String sectorCodigo, String sectorNombre) {
@@ -131,6 +143,31 @@ public interface TerritorioParaPublicar {
             Objects.requireNonNull(areaVerificada, "Un hallazgo trae el area que se verifico");
             Objects.requireNonNull(inspector, "Un hallazgo lleva NOMBRE: quien lo verifico");
             Objects.requireNonNull(verificadoEn, "Un hallazgo trae la fecha en que se verifico");
+        }
+    }
+
+    /**
+     * La retractacion de un hallazgo: <b>por que dejo de valer, quien lo decidio y cuando</b>.
+     *
+     * <p>Lleva el {@code predioId} porque el receptor tiene que poder saber sobre que predio
+     * retracta —y nulo en un {@code OMISO_CATASTRAL}, que no tiene ninguno—. No lleva las areas: lo
+     * que se retracta es el hecho entero, y repetir sus cifras invitaria a aplicarlas.
+     *
+     * @param predioId nulo en un {@code OMISO_CATASTRAL}
+     */
+    record HallazgoDejadoSinEfecto(
+            long hallazgoId,
+            @Nullable Long predioId,
+            String clase,
+            String motivo,
+            String anuladoPor,
+            java.time.Instant anuladoEn) {
+
+        public HallazgoDejadoSinEfecto {
+            Objects.requireNonNull(clase, "Un hallazgo tiene su clase");
+            Objects.requireNonNull(motivo, "Una retractacion sin motivo no explica nada");
+            Objects.requireNonNull(anuladoPor, "Una retractacion dice quien la decidio");
+            Objects.requireNonNull(anuladoEn, "Una retractacion dice cuando se decidio");
         }
     }
 }

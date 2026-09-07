@@ -185,7 +185,6 @@ class ElAtajoNoExisteTest {
                                             candidatoId,
                                             AreaM2.de("180.00"),
                                             "luis.campo",
-                                            null,
                                             OBSERVACION))
                     .isInstanceOf(Candidato.TransicionQueNoExiste.class)
                     .hasMessageContaining("DETECTADO");
@@ -208,8 +207,7 @@ class ElAtajoNoExisteTest {
             long candidatoId = unCandidatoDetectado("ATAJO-2");
             gabinete.admitir(candidatoId, OBSERVACION);
             Hallazgo hallazgo =
-                    campo.confirmar(
-                            candidatoId, AreaM2.de("180.00"), "luis.campo", null, OBSERVACION);
+                    campo.confirmar(candidatoId, AreaM2.de("180.00"), "luis.campo", OBSERVACION);
 
             // Y ahora la unica forma de que el acta se quede sin sus compuertas: mover el
             // candidato por debajo. La foranea dice que la fila existe, no en que estado esta.
@@ -237,8 +235,7 @@ class ElAtajoNoExisteTest {
 
             gabinete.admitir(candidatoId, OBSERVACION);
             Hallazgo hallazgo =
-                    campo.confirmar(
-                            candidatoId, AreaM2.de("180.00"), "luis.campo", null, OBSERVACION);
+                    campo.confirmar(candidatoId, AreaM2.de("180.00"), "luis.campo", OBSERVACION);
             Acta acta =
                     actas.levantar(
                             hallazgo.id(),
@@ -275,7 +272,7 @@ class ElAtajoNoExisteTest {
             gabinete.admitir(enCampo, OBSERVACION);
             campo.descartar(enCampo, "es un toldo, no una edificacion", OBSERVACION);
             gabinete.admitir(verificado, OBSERVACION);
-            campo.confirmar(verificado, AreaM2.de("180.00"), "luis.campo", null, OBSERVACION);
+            campo.confirmar(verificado, AreaM2.de("180.00"), "luis.campo", OBSERVACION);
 
             TasaDeDescarte tasa =
                     enUnaTransaccion.execute(estado -> repositorio.tasaDeDescarte(campaniaId));
@@ -334,7 +331,9 @@ class ElAtajoNoExisteTest {
                                                 codigo,
                                                 "Campania " + codigo,
                                                 java.time.LocalDate.now(RELOJ),
-                                                Score.de("0.20")))
+                                                Score.de("0.20"),
+                                                500),
+                                        OBSERVACION)
                                 .id());
     }
 
@@ -354,7 +353,8 @@ class ElAtajoNoExisteTest {
                                                 OrigenDelCandidato.ORTOFOTO,
                                                 Score.de("0.9100"),
                                                 INSUMOS,
-                                                null))
+                                                null),
+                                        OBSERVACION)
                                 .id());
     }
 

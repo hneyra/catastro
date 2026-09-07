@@ -84,5 +84,23 @@ public enum TipoDeEventoDeCatastro {
      * observacion, y ese acto lo ejecuta una persona por {@code TransferenciaDeFiscalizacion}
      * (ADR-0035 punto 4). Publicar el hecho no lo ejecuta ni lo habilita.
      */
-    HALLAZGO_FIRME
+    HALLAZGO_FIRME,
+
+    /**
+     * Que un hallazgo que ya se publico <b>dejo de estar firme</b> (#23).
+     *
+     * <p>Es la puerta de vuelta que faltaba. Sin ella, un hallazgo anulado dejaba de aparecer en la
+     * proyeccion —que filtra por {@code FIRME}— y el consumidor se quedaba con el hecho en pie para
+     * siempre: del otro lado de la frontera nadie tenia forma de enterarse de que el papel que
+     * llego al administrado ya no vale.
+     *
+     * <p>Trae <b>el motivo, quien y cuando</b>, y no las areas: lo que se retracta es el hecho
+     * entero, y repetir sus cifras invitaria a aplicarlas.
+     *
+     * <p>Se deriva de la IDENTIDAD, como {@link #HALLAZGO_FIRME} y por el mismo motivo: retractar
+     * lo firmado es otro acto que alguien firma, y que la misma identidad vuelva con otro motivo es
+     * alguien reescribiendolo. No colisiona con la del hallazgo firme porque el tipo entra en el
+     * nombre del que sale el resumen.
+     */
+    HALLAZGO_DEJADO_SIN_EFECTO
 }

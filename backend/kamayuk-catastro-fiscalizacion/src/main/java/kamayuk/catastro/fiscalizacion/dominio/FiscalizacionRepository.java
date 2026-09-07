@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 import kamayuk.catastro.compartido.Pagina;
 import kamayuk.catastro.compartido.Paginacion;
+import kamayuk.catastro.dominio.Observacion;
 
 /**
  * El puerto de persistencia del hallazgo catastral.
@@ -20,12 +21,30 @@ import kamayuk.catastro.compartido.Paginacion;
  * <p><b>Ningun metodo borra.</b> No hay {@code eliminar}, ni {@code borrar}, ni {@code purgar}: el
  * descarte se conserva con su motivo, que es la mitad de ADR-0035 punto 5 que no es la regla 4 —su
  * tasa por etapa es el unico indicador honesto de si el umbral de deteccion sirve—.
+ *
+ * <h2>Toda escritura recibe la {@link Observacion}, y por que esta en la FIRMA (#24)</h2>
+ *
+ * <p>Regla 10: la fila tiene que decir <b>por que</b> se escribio, y eso lo lee alguien dos anos
+ * despues mirando la tabla. Hasta #24 el borde exigia la observacion —con la regla escrita en su
+ * mensaje de error— y este puerto no la recibia, asi que el repositorio escribia una <b>constante
+ * del codigo</b> en la columna {@code observacion NOT NULL} que {@code V9} creo exactamente para
+ * eso: «deteccion» en las cuatro mil filas de una campania no dice nada que no diga el nombre de la
+ * tabla.
+ *
+ * <p>Va como parametro y como <b>tipo</b>, no como {@code String}: un {@code String} se cumple
+ * pasando {@code ""} el dia que corre prisa, y {@link Observacion} no se puede construir vacia. Es
+ * la misma forma que {@code UrbanoRepository.guardar(Zona, Observacion)}.
+ *
+ * <p><b>Y el tipo en la firma NO basta</b>, que es la mitad que hay que decir: nada impide escribir
+ * el literal en el {@code INSERT} ignorando el parametro. Lo que muerde es {@code
+ * LaObservacionLlegaALaFilaTest}, que escribe por este puerto contra PostgreSQL de verdad y lee de
+ * vuelta la columna de las cinco tablas.
  */
 public interface FiscalizacionRepository {
 
     // ── Campania ───────────────────────────────────────────────────────
 
-    Campania guardar(Campania campania);
+    Campania guardar(Campania campania, Observacion observacion);
 
     Optional<Campania> campaniaPorId(long id);
 
@@ -33,7 +52,7 @@ public interface FiscalizacionRepository {
 
     // ── Candidato ──────────────────────────────────────────────────────
 
-    Candidato guardar(Candidato candidato);
+    Candidato guardar(Candidato candidato, Observacion observacion);
 
     Optional<Candidato> candidatoPorId(long id);
 
@@ -51,7 +70,7 @@ public interface FiscalizacionRepository {
 
     // ── Hallazgo ───────────────────────────────────────────────────────
 
-    Hallazgo guardar(Hallazgo hallazgo);
+    Hallazgo guardar(Hallazgo hallazgo, Observacion observacion);
 
     Optional<Hallazgo> hallazgoPorId(long id);
 
@@ -80,11 +99,11 @@ public interface FiscalizacionRepository {
 
     // ── Evidencia y acta ───────────────────────────────────────────────
 
-    Evidencia guardar(Evidencia evidencia);
+    Evidencia guardar(Evidencia evidencia, Observacion observacion);
 
     List<Evidencia> evidenciasDe(long hallazgoId);
 
-    Acta guardar(Acta acta);
+    Acta guardar(Acta acta, Observacion observacion);
 
     Optional<Acta> actaDelHallazgo(long hallazgoId);
 }

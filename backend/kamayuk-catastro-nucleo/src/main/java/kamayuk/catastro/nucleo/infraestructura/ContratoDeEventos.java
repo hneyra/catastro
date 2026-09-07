@@ -162,4 +162,21 @@ public final class ContratoDeEventos {
             AreaM2 areaVerificada,
             String inspector,
             String verificadoEn) {}
+
+    /**
+     * El cuerpo de {@code HALLAZGO_DEJADO_SIN_EFECTO}: la retractacion de lo publicado (#23).
+     *
+     * <p>Lleva <b>el motivo, quien y cuando</b>, que es lo que un estado no contesta. Y NO lleva
+     * las areas del hallazgo: lo que se retracta es el hecho entero, y repetir sus cifras invitaria
+     * a aplicarlas — que es exactamente lo que este hecho existe para deshacer.
+     *
+     * <p><b>Ni un importe</b>, como todo lo que sale de aqui (ADR-0024).
+     */
+    public record HallazgoDejadoSinEfecto(
+            long hallazgoId,
+            @Nullable Long predioId,
+            String clase,
+            String motivo,
+            String anuladoPor,
+            String anuladoEn) {}
 }

@@ -110,10 +110,14 @@ public class TerritorioParaPublicarJdbc extends RepositorioJdbc implements Terri
     /**
      * {@inheritDoc}
      *
-     * <p>Solo los {@code FIRME}. Un hallazgo dejado sin efecto no se publica y tampoco se retira de
-     * lo ya publicado: retirarlo seria borrar un hecho que ya salio, y aqui no se borra nada (regla
-     * 4). Que un hallazgo se haya dejado sin efecto es OTRO hecho, y hoy no viaja — declarado, no
-     * escondido.
+     * <p>Solo los {@code FIRME}. Un hallazgo dejado sin efecto no se publica por aqui y tampoco se
+     * retira de lo ya publicado: retirarlo seria borrar un hecho que ya salio, y aqui no se borra
+     * nada (regla 4).
+     *
+     * <p><b>Que se haya dejado sin efecto es OTRO hecho, y desde #23 SI viaja</b>: lo publica
+     * {@link #hallazgosDejadosSinEfecto}. Hasta entonces esta consulta era una puerta de una sola
+     * direccion — el hallazgo anulado desaparecia de la proyeccion y del otro lado de la frontera
+     * seguia en pie para siempre.
      */
     @Override
     public List<HallazgoFirme> hallazgosFirmes() {
@@ -139,6 +143,33 @@ public class TerritorioParaPublicarJdbc extends RepositorioJdbc implements Terri
                                         new AreaM2(fila.getBigDecimal("area_verificada")),
                                         fila.getString("inspector"),
                                         fila.getDate("verificado_en").toLocalDate()))
+                .list();
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Los tres campos del acto —motivo, quien y cuando— salen de la fila y no se derivan: son
+     * columnas desde {@code V12}, atadas al estado por {@code hallazgo_estado_anulacion_check}, asi
+     * que un {@code DEJADO_SIN_EFECTO} sin ellos no se puede escribir.
+     */
+    @Override
+    public List<HallazgoDejadoSinEfecto> hallazgosDejadosSinEfecto() {
+        return jdbc().sql(
+                        "SELECT h.id, h.predio_id, h.clase, h.motivo_anulacion, h.anulado_por,"
+                                + "       h.anulado_en"
+                                + "  FROM hallazgo h"
+                                + " WHERE h.estado = 'DEJADO_SIN_EFECTO'"
+                                + " ORDER BY h.id")
+                .query(
+                        (ResultSet fila, int numero) ->
+                                new HallazgoDejadoSinEfecto(
+                                        fila.getLong("id"),
+                                        (Long) fila.getObject("predio_id"),
+                                        fila.getString("clase"),
+                                        fila.getString("motivo_anulacion"),
+                                        fila.getString("anulado_por"),
+                                        fila.getTimestamp("anulado_en").toInstant()))
                 .list();
     }
 

@@ -50,6 +50,7 @@
  */
 import { chromium } from 'playwright-core';
 import { leerRegistro } from './registro.mjs';
+import { CONTAR_PETICIONES, cronometroDeEsperas } from './reposo.mjs';
 import { VISTAS, comprobarVistas, hashDe } from './vistas.mjs';
 
 const { DESTINOS } = await leerRegistro('.registro-impedimentos');
@@ -68,26 +69,102 @@ const RECORRIDO = [
 const BASE = process.env.CATASTRO_BASE ?? 'http://localhost:5190';
 const soloModulo = process.argv[2]?.startsWith('--') ? null : process.argv[2];
 
+/**
+ * Los dos conjuntos que este arnes cuenta, escritos UNA vez.
+ *
+ * Los lee el recorrido y los relee la calibracion, y por eso no se pueden
+ * repetir: una copia dejaria la calibracion contando otra cosa que lo que se
+ * publica, y entonces cuadrarian siempre.
+ */
+const IMPEDIDOS =
+  'button[disabled], button[aria-disabled="true"], input[disabled], select[disabled],' +
+  ' textarea[disabled], [role="button"][aria-disabled="true"]';
+const CONTROLES_DE_MAIN = 'main button, main a[href], main input, main select';
+
+/**
+ * La espera adaptativa, calibrada CONTRA SI MISMA.
+ *
+ * <h2>Que agujero tapa</h2>
+ *
+ * Desde #86 la espera de este recorrido no es un plazo fijo sino «hasta 600 ms a
+ * que la pantalla deje de cambiar». Si esa condicion se degrada, este arnes lee
+ * la pantalla a medias y **cuenta de menos, en verde**: medido rompiendo la
+ * huella de `reposo.mjs` para que ignore las peticiones, sale `exit 0` diciendo
+ * 866, 879, 902, 911, 920 o 956 controles segun la corrida y la maquina, donde
+ * el arbol sano dice **965**. La perdida no solo es silenciosa: es **no
+ * determinista**, y quien revise no tiene con que compararla.
+ *
+ * Y escribir 965 aqui no vale: seria un segundo sitio con la misma verdad —la
+ * forma de defecto que C-17 encontro cinco veces— que ademas habria que tocar
+ * cada vez que entra una pantalla legitima, o sea que se tocaria sin pensar.
+ *
+ * <h2>Lo que se hace en su lugar</h2>
+ *
+ * En cada pantalla, DESPUES de contar, se vigila el DOM {@link VIGILANCIA} ms
+ * con un `MutationObserver`. Si nada se movio, la espera acerto y no se paga
+ * nada mas. **Si algo se movio, la espera volvio pronto**: entonces se esperan
+ * {@link MARGEN} ms —un plazo fijo, que NO usa el detector que se esta
+ * juzgando— y se vuelven a contar los mismos dos conjuntos. Si la cuenta
+ * cambio, sale con 2.
+ *
+ * No se compara contra ningun numero escrito: se compara **la espera consigo
+ * misma con mas tiempo**, que es la forma que `ejercicios.mjs` usa con el reloj
+ * y `territorio.mjs` con el JSON que la pagina recibio.
+ *
+ * <h2>Por que las 51 y no una muestra, medido</h2>
+ *
+ * Porque **cual pantalla pierde depende de como caiga la carrera**. La primera
+ * version calibraba cuatro maestro-detalle escritas a mano —las que perdian
+ * controles con una degradacion concreta— y con la huella rota de otra manera
+ * las que perdieron fueron `#/catastro/predios/1` (11 controles contra 42) y
+ * `#/fiscalizacion/candidatos/1` (1 contra 7): **ninguna de las cuatro**, y el
+ * arnes salio con 0. La segunda version tomaba las ocho de espera mas corta,
+ * derivadas de la corrida, y cazo el mismo defecto **en 2 de 3 corridas**. Una
+ * guarda que acierta dos de cada tres veces no es una guarda.
+ *
+ * Vigilarlas todas sale casi gratis porque **en el arbol sano no se mueve
+ * ninguna**: medido, **0 de 51** tienen una sola mutacion en los 150 ms
+ * siguientes a la espera, asi que el margen no se paga nunca y el coste es solo
+ * la vigilancia — 7,6 s, o **0,15 s por pantalla nueva**, contra los 0,6 s que
+ * costaria un margen fijo en todas.
+ *
+ * <h2>Y el observador se comprueba a si mismo</h2>
+ *
+ * «No se movio nada» y «el observador no mira» se ven igual —y en el arbol sano
+ * lo primero es cierto en las 51—, asi que al instalarlo se hace **una mutacion
+ * a proposito** y se exige verla. Sin eso, un observador roto dejaria esta
+ * calibracion cumpliendose sola en todas las pantallas.
+ */
+const VIGILANCIA = 150;
+const MARGEN = 1500;
+
 const navegador = await chromium.launch();
 const contexto = await navegador.newContext({ viewport: { width: 1440, height: 1400 } });
+await contexto.addInitScript(CONTAR_PETICIONES);
 const pagina = await contexto.newPage();
 
 const mudos = [];
 const cortados = [];
+const descalibradas = [];
+/** Pantallas en las que el observador no vio ni la mutacion que se hizo aposta. */
+const sinObservador = [];
+const reloj = cronometroDeEsperas();
 let impedidos = 0;
 let controles = 0;
 let vistas = 0;
+let vigiladas = 0;
+let conMovimiento = 0;
 
 for (const d of RECORRIDO) {
   if (soloModulo && d.modulo !== soloModulo) continue;
   await pagina.goto(`${BASE}/${d.hash}`, { waitUntil: 'networkidle' });
-  await pagina.waitForTimeout(600);
+  /* Hasta 600 ms —el plazo fijo de antes— a que la pantalla deje de cambiar.
+     Leer antes de tiempo no puede pasar en verde: bajaria el numero de controles
+     que este arnes PUBLICA, que es la cifra que el AC-2 de #86 exige que no baje. */
+  await reloj.esperar(pagina, { tope: 600 });
   vistas++;
 
-  const hallados = await pagina.evaluate(() => {
-    const seleccion =
-      'button[disabled], button[aria-disabled="true"], input[disabled], select[disabled],' +
-      ' textarea[disabled], [role="button"][aria-disabled="true"]';
+  const hallados = await pagina.evaluate((seleccion) => {
     return [...document.querySelectorAll(seleccion)].map((el) => {
       const descrito = (el.getAttribute('aria-describedby') ?? '')
         .split(/\s+/)
@@ -101,7 +178,7 @@ for (const d of RECORRIDO) {
         descrito,
       };
     });
-  });
+  }, IMPEDIDOS);
 
   impedidos += hallados.length;
   for (const h of hallados) {
@@ -110,8 +187,8 @@ for (const d of RECORRIDO) {
 
   /* Y los que no se ven. Se recorre `<main>` y no la pagina entera: la barra de
      pestanas del armazon se desplaza a proposito. */
-  const recorte = await pagina.evaluate(() => {
-    const sueltos = [...document.querySelectorAll('main button, main a[href], main input, main select')];
+  const recorte = await pagina.evaluate((seleccion) => {
+    const sueltos = [...document.querySelectorAll(seleccion)];
     const cortados = [];
     for (const el of sueltos) {
       const suyo = el.getBoundingClientRect();
@@ -135,9 +212,52 @@ for (const d of RECORRIDO) {
       }
     }
     return { mirados: sueltos.length, cortados };
-  });
+  }, CONTROLES_DE_MAIN);
   controles += recorte.mirados;
   for (const c of recorte.cortados) cortados.push({ ruta: d.hash, ...c });
+
+  /* Y la espera, contra si misma: se vigila el DOM y solo se paga el margen
+     donde algo se movio despues de que la espera dijera que ya no se movia. */
+  await pagina.evaluate(() => {
+    globalThis.__obs?.disconnect();
+    globalThis.__mutaciones = 0;
+    globalThis.__obs = new MutationObserver((lote) => (globalThis.__mutaciones += lote.length));
+    globalThis.__obs.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      characterData: true,
+    });
+    /* El contraste del propio observador: una mutacion a proposito, para que
+       «no se movio nada» no se confunda con «no estaba mirando». */
+    document.body.setAttribute('data-calibracion-de-impedimentos', '1');
+  });
+  await pagina.waitForTimeout(VIGILANCIA);
+  const vigilancia = await pagina.evaluate(() => {
+    globalThis.__obs.disconnect();
+    document.body.removeAttribute('data-calibracion-de-impedimentos');
+    return globalThis.__mutaciones;
+  });
+  vigiladas++;
+  if (vigilancia === 0) sinObservador.push(d.hash);
+  else if (vigilancia > 1) {
+    conMovimiento++;
+    await pagina.waitForTimeout(MARGEN - VIGILANCIA);
+    const conMasTiempo = await pagina.evaluate(
+      ([a, b]) => ({
+        impedidos: document.querySelectorAll(a).length,
+        controles: document.querySelectorAll(b).length,
+      }),
+      [IMPEDIDOS, CONTROLES_DE_MAIN],
+    );
+    if (conMasTiempo.impedidos !== hallados.length || conMasTiempo.controles !== recorte.mirados) {
+      descalibradas.push({
+        ruta: d.hash,
+        antes: `${hallados.length} impedido(s) y ${recorte.mirados} control(es)`,
+        despues: `${conMasTiempo.impedidos} y ${conMasTiempo.controles}`,
+      });
+    }
+  }
 }
 
 await navegador.close();
@@ -146,6 +266,19 @@ console.log(
   `${vistas} pantallas recorridas · ${impedidos} control(es) impedido(s) · ` +
     `${controles} control(es) de «main» medidos a la anchura del artboard`,
 );
+console.log(
+  `${reloj.resumen}\n${vigiladas} pantalla(s) vigiladas ${VIGILANCIA} ms despues de contarlas · ` +
+    `${conMovimiento} se movieron y se recontaron con ${MARGEN} ms de margen`,
+);
+
+/* Y que el detector de reposo haya medido algo. Una espera que vuelve antes de
+   poder haber observado un intervalo de quietud deja este arnes leyendo la
+   pantalla a medias, en verde: es la unica forma en que cambiar una espera fija
+   por una espera a una condicion puede perder una afirmacion. */
+if (reloj.precoces) {
+  console.error(reloj.queja);
+  process.exit(2);
+}
 
 if (impedidos === 0) {
   console.error(
@@ -163,6 +296,49 @@ if (controles === 0) {
     '\nNo se midio NI UN control dentro de «main» en todo el recorrido, asi que la mitad de este arnes\n' +
       'que mira si algo queda cortado por el borde no comprobo nada: pasaria en verde con el defecto\n' +
       'exacto que existe para atrapar.',
+  );
+  process.exit(2);
+}
+
+/**
+ * Y que la vigilancia haya mirado, y que el observador funcione.
+ *
+ * «No se movio nada» y «no estaba mirando» se ven igual: en el arbol sano las 51
+ * pantallas dicen lo primero, asi que sin este contraste un observador roto
+ * dejaria la calibracion cumpliendose sola. Por eso al instalarlo se hace una
+ * mutacion a proposito y aqui se exige que la haya visto.
+ */
+if (vigiladas === 0) {
+  console.error(
+    '\nNo se vigilo NI UNA pantalla despues de contarla, asi que nadie comprobo que la espera\n' +
+      'adaptativa no vuelva pronto: con el detector degradado este arnes cuenta de menos y sale en\n' +
+      'VERDE, con un numero que ademas cambia de una corrida a otra.',
+  );
+  process.exit(2);
+}
+
+if (sinObservador.length) {
+  console.error(
+    `\nEn ${sinObservador.length} de ${vigiladas} pantalla(s) el observador no vio ni la mutacion que este arnes\n` +
+      'hace a proposito al instalarlo, asi que no estaba mirando y su silencio no dice nada. La\n' +
+      `calibracion de la espera se estaria cumpliendo sola ahi. La primera: ${sinObservador[0]}`,
+  );
+  process.exit(2);
+}
+
+if (descalibradas.length) {
+  console.error(
+    `\n${descalibradas.length} de ${vigiladas} pantalla(s) cuentan distinto con ${MARGEN} ms mas de margen:\n`,
+  );
+  for (const c of descalibradas) {
+    console.error(`  ${c.ruta.padEnd(44)} con la espera: ${c.antes}   ·   con mas tiempo: ${c.despues}`);
+  }
+  console.error(
+    '\nLa espera a que la pantalla se asiente esta volviendo ANTES de que termine de dibujarse, asi\n' +
+      'que este arnes lee la pantalla a medias y cuenta de menos — en verde, y con un numero que\n' +
+      'cambia de una corrida a otra. No es que la interfaz este mal: es que esto no la ha medido.\n' +
+      'Lo que hay que mirar es la huella de `reposo.mjs`, que es lo que decide cuando la pantalla\n' +
+      'esta quieta.',
   );
   process.exit(2);
 }

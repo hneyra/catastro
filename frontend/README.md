@@ -151,6 +151,10 @@ src/
 verificaciones/   Los catorce arneses, sus vistas y las muestras que violan cada regla
                   Trece miran `src/`; `imagen.mjs` mira los dos archivos que deciden
                   cómo se sirve: `nginx.conf` y `Dockerfile`
+  registro.mjs    compila `src/` al vuelo, para que lo comparado salga del fuente
+  vistas.mjs      los ESTADOS de una pantalla que su destino a secas no dibuja
+  reposo.mjs      esperar a que la pantalla se asiente, con el plazo fijo como TOPE
+  presupuesto.mjs el reloj del job de navegador, contra su propio `timeout-minutes`
 ```
 
 ## Las decisiones que explican el resto
@@ -388,3 +392,78 @@ tuviera cómo notarlo: en esa pantalla un 404 se lee como «aquí no hay lotes»
 que es justo lo que se espera. Se ordena de lo literal a lo parametrizado y una
 guarda lo comprueba al importar el módulo — un arreglo por reordenación se
 deshace solo en cuanto alguien añade una entrada al final.
+
+## El reloj del recorrido: se espera a una condición, no a un plazo
+
+Cuatro arneses recorren las 51 pantallas —`mirar`, `impedimentos`, `sin-red` y
+`errores`— y los cuatro esperaban con `page.waitForTimeout(N)`: un plazo fijo,
+elegido para el peor caso, que se paga entero en todos los demás. Instrumentados
+uno a uno antes de tocar nada:
+
+| arnés | total | navegar | esperas fijas | trabajo de verdad |
+|---|---|---|---|---|
+| `errores` | 122,7 s | 1,4 s | **117,8 s** | 3,5 s |
+| `sin-red` | 58,7 s | 0,08 s | **56,2 s** | 2,4 s |
+| `mirar` | 39,9 s | 0,6 s | **35,8 s** | 3,5 s (capturas) |
+| `impedimentos` | 31,6 s | 0,6 s | **30,7 s** | 0,2 s |
+
+**El 95 % del reloj era dormir**, y las 222 navegaciones —lo que se propuso
+ahorrar reutilizando cargas de página— cuestan **2,7 s: el 1,1 %**.
+
+`reposo.mjs` cambia «duerme N» por «espera **hasta** N a que la pantalla deje de
+cambiar». Dos propiedades, y las dos importan:
+
+- **El tope es exactamente el plazo que sustituye**, así que el peor caso es el
+  de antes y ningún runner lento empeora.
+- **La condición no es la afirmación**: se espera a que el texto de `body` no
+  cambie y a que no quede ninguna petición en vuelo, nunca a que salga el título,
+  la cifra o el control que después se comprueba. Un arnés que espera a lo que va
+  a afirmar no puede ponerse rojo.
+
+**`networkidle` no sirve aquí, y está medido por qué**: con el proxy de datos
+encendido no hay ni una petición de red —el proxy *sustituye* `fetch` y contesta
+desde la propia página, con 120-320 ms de latencia simulada—, así que Chromium
+declara la red en reposo mientras las lecturas siguen en curso. Y las hojas
+maestro-detalle encadenan: la lista contesta, se dibuja, y **eso** dispara la
+lectura del detalle. Por eso la huella incluye cuántas peticiones se han hecho y
+cuántas siguen en vuelo, contadas envolviendo `fetch` con el mismo `get`/`set`
+que `errores.mjs` ya usaba para inyectar sus rechazos.
+
+**Y lo que impide que este cambio pierda una afirmación son dos guardas, no la
+buena voluntad.** En `errores` y en `sin-red` la lectura temprana va al rojo por
+sí sola —falta el título, falta el mensaje, el `<main>` se queda mudo o anónimo—.
+En `impedimentos` no: ahí sólo baja un número, y **el número no es estable**.
+Medido con la huella rota para que ignore las peticiones, el mismo defecto da
+857, 866, 879, 896, 897, 902, 905, 911, 920 o 956 controles según la corrida y la
+máquina, siempre con `exit 0`, donde el árbol sano dice **965**. Quien revise no
+tiene con qué compararlo, y escribir 965 en el arnés sería un segundo sitio con
+la misma verdad que además habría que tocar cada vez que entra una pantalla
+legítima — o sea que se tocaría sin pensar.
+
+La primera guarda mira **el mecanismo**: una espera que vuelve antes de poder
+haber observado un solo intervalo de quietud saca el arnés con **2**. Hace falta
+porque el detector degradado —devolver `true` en la primera lectura— dejaba
+`impedimentos` en 965 y `errores` en 60 renders verdes, sostenidos por la puerta
+de las peticiones.
+
+La segunda mira **el resultado**, y es la que cierra el agujero: en cada pantalla,
+después de contar, se vigila el DOM 150 ms con un `MutationObserver`. Si nada se
+movió, la espera acertó y no se paga nada más; si algo se movió es que volvió
+pronto, y entonces se esperan 1 500 ms —un plazo fijo, que **no** usa el detector
+que se está juzgando— y se vuelven a contar los mismos dos conjuntos. No se
+compara contra ningún número escrito: **se compara la espera consigo misma con
+más tiempo**, igual que `ejercicios.mjs` mueve el reloj y `territorio.mjs` compara
+con el JSON que la página recibió.
+
+Y se vigilan **las 51 y no una muestra**, porque *cuál* pantalla pierde depende de
+cómo caiga la carrera: una muestra de cuatro escritas a mano no cazó el defecto
+ni una vez, y una de ocho derivada de la corrida lo cazó **2 de 3 veces**. Con las
+51 son **6 de 6**. Sale casi gratis porque en el árbol sano **no se mueve
+ninguna** —0 de 51 tienen una sola mutación en esos 150 ms—, así que el margen no
+se paga nunca: **7,6 s en total, 0,15 s por pantalla nueva**.
+
+Y el observador se comprueba a sí mismo: «no se movió nada» y «no estaba mirando»
+se ven igual, así que al instalarlo se hace **una mutación a propósito** y se
+exige verla. Sin eso, un observador roto dejaría la calibración cumpliéndose sola
+en las 51 — medido: quitarle el `observe` da «En 51 de 51 pantalla(s) el
+observador no vio ni la mutación que este arnés hace a propósito».

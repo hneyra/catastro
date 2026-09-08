@@ -53,6 +53,7 @@
  */
 import { chromium } from 'playwright-core';
 import { leerModulo } from './registro.mjs';
+import { cronometroDeEsperas } from './reposo.mjs';
 
 const { ErrorDeApi, RAIZ } = await leerModulo('src/api/cliente.ts', '.registro-errores-cliente');
 const { tituloDeError, motivoCorto } = await leerModulo('src/ds/componentes.tsx', '.registro-errores-ds');
@@ -253,7 +254,6 @@ const SUPERFICIES = [
       await panel.getByLabel(CAMPOS.tope.rotulo).fill('500');
       await panel.getByLabel(CAMPOS.observacion.rotulo).fill('Se abre la campania del segundo semestre');
       await panel.getByRole('button', { name: ACTOS.abrirCampania }).click();
-      await pagina.waitForTimeout(900);
     },
     region: (pagina) => elPanel(pagina, ACTOS.abrirCampania),
     detalle: 'completo',
@@ -271,7 +271,6 @@ const SUPERFICIES = [
          abre la confirmacion y la segunda la firma. */
       await panel.getByRole('button', { name: ACTOS.dejarSinEfecto }).click();
       await panel.getByRole('button', { name: 'Si, confirmar' }).click();
-      await pagina.waitForTimeout(900);
     },
     region: (pagina) => elPanel(pagina, ACTOS.dejarSinEfecto),
     detalle: 'completo',
@@ -307,7 +306,6 @@ const SUPERFICIES = [
       await panel.getByLabel(CAMPOS_DEL_TERRITORIO.nombreDelSector.rotulo).fill('Ampliacion del cercado');
       await panel.getByLabel(LA_OBSERVACION.rotulo).fill('Se incorpora el sector del plan de ampliacion');
       await panel.getByRole('button', { name: ACTOS_DEL_TERRITORIO.altaDeSector }).click();
-      await pagina.waitForTimeout(900);
     },
     region: (pagina) => elPanel(pagina, ACTOS_DEL_TERRITORIO.altaDeSector),
     detalle: 'completo',
@@ -324,7 +322,6 @@ const SUPERFICIES = [
          confirmacion y la segunda la firma. */
       await panel.getByRole('button', { name: ACTOS_DEL_TERRITORIO.bajaDeVia }).click();
       await panel.getByRole('button', { name: IRREVERSIBLE.confirmar }).click();
-      await pagina.waitForTimeout(900);
     },
     region: (pagina) => elPanel(pagina, ACTOS_DEL_TERRITORIO.bajaDeVia),
     detalle: 'completo',
@@ -339,7 +336,6 @@ const SUPERFICIES = [
     rompe: { camino: '/catastro/contribuyentes/', conParametro: 'formato' },
     preparar: async (pagina) => {
       await pagina.getByRole('button', { name: 'Descargar la ficha' }).click();
-      await pagina.waitForTimeout(900);
     },
     region: (pagina) => pagina.locator('section').last(),
     detalle: 'completo',
@@ -370,6 +366,7 @@ for (const s of elegidas) console.log(`  · ${s.k.padEnd(32)} ${s.que}`);
 
 const navegador = await chromium.launch();
 const fallos = [];
+const reloj = cronometroDeEsperas();
 let observaciones = 0;
 
 for (const superficie of elegidas) {
@@ -404,27 +401,40 @@ for (const superficie of elegidas) {
           if (rompe.metodo && metodo !== rompe.metodo) return false;
           return cuadra && (!rompe.conParametro || url.searchParams.has(rompe.conParametro));
         };
+        /* Y cuantas hay EN VUELO, que es lo que `reposo.mjs` mira para saber si
+           la pantalla ya termino de cambiar. Va aqui y no en `CONTAR_PETICIONES`
+           porque dos envoltorios sobre `globalThis.fetch` no se apilan: el
+           segundo `defineProperty` sustituye al primero y el de abajo dejaria de
+           contar. */
+        window.__enVuelo = 0;
+        window.__hechas = 0;
         let actual = globalThis.fetch;
         const envolver = (delegar) => async (entrada, opciones) => {
-          const href =
-            typeof entrada === 'string' ? entrada : entrada instanceof URL ? entrada.href : entrada.url;
-          const url = new URL(href, location.origin);
-          const metodo = (opciones?.method ?? 'GET').toUpperCase();
-          if (url.pathname.startsWith(raiz)) {
-            window.__peticiones.push(url.pathname);
-            window.__conVerbo.push(`${metodo} ${url.pathname}`);
+          window.__enVuelo += 1;
+          window.__hechas += 1;
+          try {
+            const href =
+              typeof entrada === 'string' ? entrada : entrada instanceof URL ? entrada.href : entrada.url;
+            const url = new URL(href, location.origin);
+            const metodo = (opciones?.method ?? 'GET').toUpperCase();
+            if (url.pathname.startsWith(raiz)) {
+              window.__peticiones.push(url.pathname);
+              window.__conVerbo.push(`${metodo} ${url.pathname}`);
+            }
+            if (!casa(url, metodo)) return await delegar(entrada, opciones);
+            window.__rotas += 1;
+            window.__rotasOperaciones.push(`${metodo} ${url.pathname}`);
+            /* La red caida: `fetch` rechaza con un `TypeError`, que es lo que
+               `cliente.ts` traduce a SIN_RESPUESTA. Un 502 no vale: eso SI es una
+               respuesta y trae otro codigo. */
+            if (esc.red === 'cortada') throw new TypeError('Failed to fetch');
+            return new Response(JSON.stringify(esc.cuerpo), {
+              status: esc.estado,
+              headers: { 'Content-Type': 'application/problem+json' },
+            });
+          } finally {
+            window.__enVuelo -= 1;
           }
-          if (!casa(url, metodo)) return delegar(entrada, opciones);
-          window.__rotas += 1;
-          window.__rotasOperaciones.push(`${metodo} ${url.pathname}`);
-          /* La red caida: `fetch` rechaza con un `TypeError`, que es lo que
-             `cliente.ts` traduce a SIN_RESPUESTA. Un 502 no vale: eso SI es una
-             respuesta y trae otro codigo. */
-          if (esc.red === 'cortada') throw new TypeError('Failed to fetch');
-          return new Response(JSON.stringify(esc.cuerpo), {
-            status: esc.estado,
-            headers: { 'Content-Type': 'application/problem+json' },
-          });
         };
         /* El proxy de datos se instala DESPUES y captura `globalThis.fetch`; con
            el `set` se recoge el suyo y el `get` lo devuelve envuelto, asi que la
@@ -444,8 +454,21 @@ for (const superficie of elegidas) {
     // Antes de navegar: la lista de ejercicios se deriva al montar la aplicacion.
     await pagina.clock.setFixedTime(EL_DIA);
     await pagina.goto(`${BASE}/${superficie.hash}`, { waitUntil: 'domcontentloaded' });
-    await pagina.waitForTimeout(1100);
-    if (superficie.preparar) await superficie.preparar(pagina);
+    /* Hasta 1 100 ms —el plazo fijo de antes— a que la pantalla deje de cambiar.
+       En las cinco superficies que NO preparan nada, el rechazo llega al montar,
+       asi que ademas se exige que la peticion rota ya haya sido contestada; en
+       las que preparan, el rechazo lo dispara el boton y esa puerta se pone
+       DESPUES de `preparar`. */
+    await reloj.esperar(pagina, {
+      tope: 1100,
+      puerta: superficie.preparar ? null : () => window.__rotas > 0,
+    });
+    if (superficie.preparar) {
+      await superficie.preparar(pagina);
+      /* Hasta 900 ms —el plazo que vivia dentro de cada `preparar`— a que el
+         rechazo de la escritura haya llegado y la pantalla lo haya dibujado. */
+      await reloj.esperar(pagina, { tope: 900, puerta: () => window.__rotas > 0 });
+    }
 
     const nombre = `${superficie.k} · ${escenario.k}`;
     const region = superficie.region(pagina);
@@ -507,11 +530,16 @@ for (const superficie of elegidas) {
     /* 3 · Y reintenta LO SUYO. Un boton que existe y re-pide otra lectura es el
        defecto 2 de #49 exactamente: parece que funciona. */
     if (error.reintentable && botones === 1) {
-      await pagina.evaluate(() => {
+      const rotasAntes = await pagina.evaluate(() => {
         window.__peticiones = [];
+        return window.__rotas;
       });
       await region.getByRole('button', { name: 'Reintentar' }).click();
-      await pagina.waitForTimeout(1100);
+      /* Hasta 1 100 ms —el plazo fijo de antes— a que el reintento haya vuelto a
+         romperse. La puerta es la ROTURA y no la peticion a secas: si el boton
+         re-pidiera OTRA lectura —que es el defecto 2 de #49— `__rotas` no sube,
+         se agota el tope y la comprobacion de abajo se pone roja igual que antes. */
+      await reloj.esperar(pagina, { tope: 1100, puerta: (n) => window.__rotas > n, arg: rotasAntes });
       const conVerbo = superficie.rompe.metodo !== undefined;
       const dePaso = await pagina.evaluate((v) => (v ? window.__conVerbo : window.__peticiones), conVerbo);
       const camino = conVerbo
@@ -591,6 +619,16 @@ function unaLinea(texto) {
 console.log(
   `${observaciones} render(s) medidos · ${elegidas.length} superficie(s) × ${ESCENARIOS.length} escenario(s)`,
 );
+console.log(reloj.resumen);
+
+/* Y que el detector de reposo haya medido algo. Una espera que vuelve antes de
+   poder haber observado un intervalo de quietud deja este arnes leyendo la
+   pantalla a medias, en verde: es la unica forma en que cambiar una espera fija
+   por una espera a una condicion puede perder una afirmacion. */
+if (reloj.precoces) {
+  console.error(reloj.queja);
+  process.exit(2);
+}
 
 /**
  * Un arnes que no midio ni un render no afirma nada.

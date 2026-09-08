@@ -225,18 +225,17 @@ jobs:
     # real no avisa de nada: la alarma solo sonaria despues de una regresion del
     # 200 %.
     #
-    # Con #86 el job baja de 356 s a 218 s y 212 s en dos corridas —36 % y 35 %
-    # de este tope— y **el 10 se
-    # queda**, con su aritmetica y no por inercia. Lo que decide si una alarma
-    # sirve no es cuantas veces cabe la duracion actual sino **cuantas pantallas
-    # faltan para que suene**, y esa pendiente es lo que #86 cambio: medida en
-    # esta misma corrida, una pantalla nueva cuesta 1,5 s en los tres recorridos
-    # (25+19+31 s / 51) y una superficie de error 5,0 s (50 s / 10), contra los
-    # 6,6 s por pantalla de antes. Asi que los 142 s que quedan hasta el aviso
-    # —el 60 % son 360 s— son ~95 pantallas o ~28 superficies de error, cuando
-    # en la corrida anterior eran **4 s: media pantalla**. Bajarlo ahora se
-    # gastaria en la alarma justo el margen que este trabajo existe para dar a
-    # los cinco issues de pantalla en cola.
+    # Con #86 el job baja de 356 s a 229 s —38 % de este tope, medido en CI— y
+    # **el 10 se queda**, con su aritmetica y no por inercia. Lo que decide si
+    # una alarma sirve no es cuantas veces cabe la duracion actual sino **cuantas
+    # pantallas faltan para que suene**, y esa pendiente es lo que #86 cambio:
+    # medida en esta misma corrida, una pantalla nueva cuesta 1,65 s en los tres
+    # recorridos (25+28+31 s / 51) y una superficie de error 5,1 s (51 s / 10),
+    # contra los 6,6 s por pantalla de antes. Asi que los 131 s que quedan hasta
+    # el aviso —el 60 % son 360 s— son ~79 pantallas o ~25 superficies de error,
+    # cuando en la corrida anterior eran **4 s: media pantalla**. Bajarlo ahora
+    # se gastaria en la alarma justo el margen que este trabajo existe para dar
+    # a los cinco issues de pantalla en cola.
     timeout-minutes: 10
     defaults:
       run:

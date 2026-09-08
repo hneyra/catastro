@@ -429,19 +429,41 @@ lectura del detalle. Por eso la huella incluye cuántas peticiones se han hecho 
 cuántas siguen en vuelo, contadas envolviendo `fetch` con el mismo `get`/`set`
 que `errores.mjs` ya usaba para inyectar sus rechazos.
 
-**Y lo que impide que este cambio pierda una afirmación son los propios
-contadores.** Leer antes de tiempo baja las cifras que los arneses publican, y
-son las que hay que comparar en cada revisión: 51 pantallas, 48 controles
-impedidos, 965 controles a 1 440 px, 397 secciones plegadas, 60 renders. Medido
-quitándole a `impedimentos` la espera entera: corre en 1,1 s en vez de 19 s,
-**dice 360 controles en vez de 965 y sale con 0**. Y quitándole a la huella el
-conteo de peticiones: 866 controles, también en verde. En `errores` y en
-`sin-red` la lectura temprana va al rojo por sí sola —falta el título, falta el
-mensaje, el `<main>` se queda mudo o anónimo—, pero en `impedimentos` no, y por
-eso su número es el que se lee.
+**Y lo que impide que este cambio pierda una afirmación son dos guardas, no la
+buena voluntad.** En `errores` y en `sin-red` la lectura temprana va al rojo por
+sí sola —falta el título, falta el mensaje, el `<main>` se queda mudo o anónimo—.
+En `impedimentos` no: ahí sólo baja un número, y **el número no es estable**.
+Medido con la huella rota para que ignore las peticiones, el mismo defecto da
+857, 866, 879, 896, 897, 902, 905, 911, 920 o 956 controles según la corrida y la
+máquina, siempre con `exit 0`, donde el árbol sano dice **965**. Quien revise no
+tiene con qué compararlo, y escribir 965 en el arnés sería un segundo sitio con
+la misma verdad que además habría que tocar cada vez que entra una pantalla
+legítima — o sea que se tocaría sin pensar.
 
-La otra mitad la cubre una guarda: **una espera que vuelve antes de poder haber
-observado un solo intervalo de quietud saca el arnés con 2**, no con 0. Hace
-falta porque el detector degradado —devolver `true` en la primera lectura— dejaba
+La primera guarda mira **el mecanismo**: una espera que vuelve antes de poder
+haber observado un solo intervalo de quietud saca el arnés con **2**. Hace falta
+porque el detector degradado —devolver `true` en la primera lectura— dejaba
 `impedimentos` en 965 y `errores` en 60 renders verdes, sostenidos por la puerta
-de las peticiones: sin esa guarda, romper el detector no lo habría dicho nadie.
+de las peticiones.
+
+La segunda mira **el resultado**, y es la que cierra el agujero: en cada pantalla,
+después de contar, se vigila el DOM 150 ms con un `MutationObserver`. Si nada se
+movió, la espera acertó y no se paga nada más; si algo se movió es que volvió
+pronto, y entonces se esperan 1 500 ms —un plazo fijo, que **no** usa el detector
+que se está juzgando— y se vuelven a contar los mismos dos conjuntos. No se
+compara contra ningún número escrito: **se compara la espera consigo misma con
+más tiempo**, igual que `ejercicios.mjs` mueve el reloj y `territorio.mjs` compara
+con el JSON que la página recibió.
+
+Y se vigilan **las 51 y no una muestra**, porque *cuál* pantalla pierde depende de
+cómo caiga la carrera: una muestra de cuatro escritas a mano no cazó el defecto
+ni una vez, y una de ocho derivada de la corrida lo cazó **2 de 3 veces**. Con las
+51 son **6 de 6**. Sale casi gratis porque en el árbol sano **no se mueve
+ninguna** —0 de 51 tienen una sola mutación en esos 150 ms—, así que el margen no
+se paga nunca: **7,6 s en total, 0,15 s por pantalla nueva**.
+
+Y el observador se comprueba a sí mismo: «no se movió nada» y «no estaba mirando»
+se ven igual, así que al instalarlo se hace **una mutación a propósito** y se
+exige verla. Sin eso, un observador roto dejaría la calibración cumpliéndose sola
+en las 51 — medido: quitarle el `observe` da «En 51 de 51 pantalla(s) el
+observador no vio ni la mutación que este arnés hace a propósito».

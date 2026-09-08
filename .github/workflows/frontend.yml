@@ -96,13 +96,25 @@
 # asi que Chromium declara la red en reposo mientras las lecturas siguen en
 # curso, y las hojas maestro-detalle encadenan una lectura tras otra.
 #
-# Y lo que impide que esto pierda una afirmacion son **los contadores que cada
-# arnes publica**: 51 pantallas, 48 controles impedidos, 965 controles a 1 440 px,
-# 397 secciones plegadas, 60 renders. Leer antes de tiempo los baja —medido:
-# quitandole a `impedimentos` la espera entera corre en 1,1 s y dice **360
-# controles en vez de 965, en verde**—, y por eso se comparan en cada revision.
-# La otra mitad la cubre una guarda: una espera que vuelve antes de poder haber
-# observado un solo intervalo de quietud saca el arnes con **2**, no con 0.
+# Y que esto no pierda una afirmacion lo sujetan DOS guardas. En `errores` y en
+# `sin-red` leer pronto ya va al rojo solo —falta el titulo, falta el mensaje, el
+# `<main>` sale mudo o anonimo—. En `impedimentos` no: alli solo baja un numero, y
+# el numero **no es estable** —el mismo defecto da entre 857 y 956 controles segun
+# la corrida, siempre con exit 0, donde el arbol sano dice 965—.
+#
+#   1. Sobre el MECANISMO: una espera que vuelve antes de poder haber observado un
+#      solo intervalo de quietud saca el arnes con **2**.
+#   2. Sobre el RESULTADO: en cada pantalla, despues de contar, se vigila el DOM
+#      150 ms con un `MutationObserver`; si algo se movio, la espera volvio pronto,
+#      y entonces se espera un plazo FIJO de 1 500 ms —que no usa el detector que
+#      se juzga— y se vuelve a contar. **Se compara la espera consigo misma con mas
+#      tiempo**, no contra un 965 escrito en ninguna parte.
+#
+# Se vigilan las 51 y no una muestra porque CUAL pantalla pierde depende de como
+# caiga la carrera: una muestra de cuatro escrita a mano no cazo el defecto ni una
+# vez y una de ocho derivada de la corrida lo cazo 2 de 3; con las 51, **6 de 6**.
+# Y sale casi gratis porque en el arbol sano no se mueve ninguna —0 de 51—, asi que
+# el margen no se paga nunca: 7,6 s, o **0,15 s por pantalla nueva**.
 #
 # <h2>Por que el job de navegador se cronometra a si mismo</h2>
 #

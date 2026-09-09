@@ -1,5 +1,6 @@
 package kamayuk.catastro.seguridad.aplicacion;
 
+import java.util.List;
 import kamayuk.catastro.auditoria.Origen;
 import kamayuk.catastro.auditoria.OrigenContext;
 import kamayuk.catastro.compartido.TenantContext;
@@ -8,6 +9,7 @@ import kamayuk.catastro.dominio.Observacion;
 import kamayuk.catastro.seguridad.infraestructura.RegistroDeMunicipalidadesJdbc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -53,6 +55,16 @@ import org.springframework.stereotype.Component;
  *
  * <p>Se ejecuta en cada despliegue. Lo que ya existe se queda como esta —con los permisos que
  * alguien haya configurado despues—, y lo que falta se crea. Nunca borra.
+ *
+ * <h2>Y termina con una pasada del consumidor de {@code identidad} (etapa 4)</h2>
+ *
+ * <p>Desde ADR-0039 la copia local la mantiene el buzon de {@code identidad}, y el {@code CronJob}
+ * que lo consume corre cada cinco minutos. Una municipalidad recien implantada tendria hasta cinco
+ * minutos con la copia como la dejo la siembra —sin lo que {@code identidad} ya publico—, asi que
+ * la implantacion la pone al dia antes de salir. Si el despliegue no dice donde esta {@code
+ * identidad}, se dice y no se falla: en esta etapa la implantacion sin consumidor sigue siendo una
+ * implantacion (es lo que hay en un compose sin identidad de servicio), y lo que falta lo recoge el
+ * {@code CronJob}.
  */
 @Component
 @Profile("batch")
@@ -65,14 +77,17 @@ public class ImplantarMunicipalidad implements ApplicationRunner {
     private final RegistroDeMunicipalidadesJdbc registro;
     private final SembradorDeLaCopiaLocal sembrador;
     private final DatosDeImplantacion datos;
+    private final ObjectProvider<IngestarEventosDeIdentidad> consumidor;
 
     public ImplantarMunicipalidad(
             RegistroDeMunicipalidadesJdbc registro,
             SembradorDeLaCopiaLocal sembrador,
-            DatosDeImplantacion datos) {
+            DatosDeImplantacion datos,
+            ObjectProvider<IngestarEventosDeIdentidad> consumidor) {
         this.registro = registro;
         this.sembrador = sembrador;
         this.datos = datos;
+        this.consumidor = consumidor;
     }
 
     @Override
@@ -107,9 +122,36 @@ public class ImplantarMunicipalidad implements ApplicationRunner {
                     municipalidadId,
                     nuevos,
                     datos.administrador());
+            ponerLaCopiaAlDia();
         } finally {
             OrigenContext.limpiar();
             TenantContext.limpiar();
         }
+    }
+
+    /**
+     * La ultima pasada: lo que {@code identidad} ya publico para esta municipalidad, aplicado antes
+     * de salir. Con el contexto de tenant ya fijado por {@link #run}.
+     */
+    private void ponerLaCopiaAlDia() {
+        IngestarEventosDeIdentidad ingestor = consumidor.getIfAvailable();
+        if (ingestor == null) {
+            log.warn(
+                    "Municipalidad {}: la implantacion NO consumio el buzon de identidad, porque"
+                            + " este despliegue no dice donde esta (kamayuk.identidad.url vacia)."
+                            + " La copia local queda como la sembro la implantacion, y lo que"
+                            + " identidad ya publico lo recogera el consumidor cuando corra",
+                    datos.ubigeo());
+            return;
+        }
+        List<IngestarEventosDeIdentidad.Vuelta> vueltas =
+                CorrerElConsumidorDeIdentidad.hastaAgotar(ingestor);
+        log.info(
+                "Municipalidad {}: la copia local de la autorizacion se puso al dia con el buzon de"
+                        + " identidad en {} vuelta(s); la ultima: {}",
+                datos.ubigeo(),
+                vueltas.size(),
+                vueltas.getLast());
+        CorrerElConsumidorDeIdentidad.exigirQueNadaQuedaraPospuesto(vueltas);
     }
 }

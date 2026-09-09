@@ -1141,6 +1141,40 @@ public final class DatosDePrueba {
                 EJERCICIO,
                 "10.0.0.1");
         sembrarBuzonDeSalida(app, muni, sufijo);
+        sembrarBuzonDeIdentidad(app, muni, sufijo);
+    }
+
+    /**
+     * Una fila en cada una de las dos tablas del consumidor de {@code identidad} (V14, etapa 4 de
+     * ADR-0039), para que su aislamiento se pueda medir.
+     *
+     * <p>Es la misma forma que {@link #sembrarBuzonDeSalida}: el {@code evento_id} lleva el sufijo
+     * de la municipalidad dentro, y la huella es de mentira. Lo que estas dos filas miden es la
+     * politica RLS de cada tabla, no que un evento signifique algo. La fila del muerto nace SIN
+     * explicar, que es el estado en que la deja el consumidor y el que cuenta {@code
+     * muertosSinExplicar}; ninguna prueba del consumidor lee esta municipalidad, asi que no
+     * contamina ningun recuento suyo.
+     */
+    private static void sembrarBuzonDeIdentidad(Connection app, long muni, String sufijo)
+            throws SQLException {
+        String huella = "0".repeat(64);
+        ejecutar(
+                app,
+                "INSERT INTO identidad_evento_aplicado (municipalidad_id, evento_id, secuencia,"
+                        + " tipo, sujeto_id, huella, aplicado_en)"
+                        + " VALUES (?, CAST(? AS uuid), 1, 'USUARIO_DADO_DE_ALTA', 1, ?, now())",
+                muni,
+                uuidDeterminista("identidad-aplicado-" + sufijo),
+                huella);
+        ejecutar(
+                app,
+                "INSERT INTO identidad_evento_muerto (municipalidad_id, evento_id, secuencia,"
+                        + " tipo, sujeto_id, cuerpo, huella, motivo, recibido_en)"
+                        + " VALUES (?, CAST(? AS uuid), 2, 'PERMISO_FIJADO', 1, 'esto no es json',"
+                        + "         ?, 'siembra de la prueba de aislamiento', now())",
+                muni,
+                uuidDeterminista("identidad-muerto-" + sufijo),
+                huella);
     }
 
     /**

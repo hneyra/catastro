@@ -207,6 +207,13 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
                     // nombrar desde que nacio: el reparto la daba por «replicada» y la regla 11
                     // dejaba de mirarla, en verde. Lo destapo el censo de #7.
                     "catastro_evento",
+                    // V14 (etapa 4 de ADR-0039): las dos tablas del consumidor del buzon de
+                    // `identidad`. Son de ESTE sistema —lo que este sistema aplico y lo que no
+                    // pudo aplicar— y se nombran el mismo dia que nacen, por lo mismo que las de
+                    // arriba: sin la entrada, el reparto las da por «replicadas» y la regla 11
+                    // deja de mirar un cruce contra ellas, en verde.
+                    "identidad_evento_aplicado",
+                    "identidad_evento_muerto",
                     // V7 (#4): las cuatro de la zonificacion. Se nombran aunque este sistema sea
                     // el dueno —y por eso mismo—: sin la entrada, el reparto las da por
                     // «replicadas» y el escaner de la regla 11 DEJA DE MIRAR un cruce contra
@@ -541,6 +548,51 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
                 ".nucleo.aplicacion.PublicarUnHecho.publicar("
                         + "kamayuk.catastro.nucleo.dominio.HechoDeCatastro)",
                 ".nucleo.aplicacion.EntregaDeEventos.marcarEntregados("
-                        + "java.util.List, java.time.Instant)");
+                        + "java.util.List, java.time.Instant)",
+                // El consumidor del buzon de `identidad` (ADR-0039, etapa 4). Las dos escrituras
+                // son de la MISMA clase: aplicar un evento y apartar el que no se pudo aplicar.
+                //
+                // Aplicar NO es una modificacion de nadie de aqui: es la COPIA de un acto que una
+                // persona hizo en `identidad` —con su observacion, alli— y que llega ya ocurrido,
+                // firmado con su huella. La observacion viaja con el acto en el emisor; pedir otra
+                // aqui produciria la cadena fija que el javadoc de la regla advierte. Y lo dispara
+                // un proceso por lotes sin nadie delante.
+                //
+                // Apartar es anotar que un evento NO se pudo aplicar, con su motivo: el motivo es
+                // la explicacion, y quien se haga cargo escribira la suya en `explicacion`.
+                ".seguridad.aplicacion.AplicarUnEventoDeIdentidad.aplicar("
+                        + "kamayuk.catastro.seguridad.dominio.EventoRecibido, java.time.Instant)",
+                ".seguridad.aplicacion.AplicarUnEventoDeIdentidad.matar("
+                        + "kamayuk.catastro.seguridad.dominio.EventoRecibido, java.lang.String,"
+                        + " java.time.Instant)");
+    }
+
+    /**
+     * Quien puede escribir `usuario`, `grupo`, `miembro` y `permiso` en este sistema (ADR-0039,
+     * regla 12), por el nombre simple de la clase.
+     *
+     * <p>Declararla es lo que ENCIENDE la regla aqui: mientras devolvia {@code null} —por omision—
+     * el escaner de {@code comun-verificaciones} no miraba estas cuatro tablas en este repositorio
+     * y lo decia en cada corrida. Desde la etapa 4 se mira, y todo {@code INSERT}, {@code UPDATE} o
+     * {@code DELETE} sobre ellas en {@code src/main} que no venga de una de estas dos clases sale
+     * rojo nombrando el archivo.
+     *
+     * <p>Las dos, con su fecha de fin:
+     *
+     * <ul>
+     *   <li>{@code AplicarUnEventoDeIdentidad}: el consumidor del buzon. Es el escritor que
+     *       ADR-0039 quiere, y no tiene fecha de fin.
+     *   <li>{@code SembradorDeLaCopiaLocal}: la implantacion siembra el catalogo, el grupo de
+     *       administracion y el primer administrador. Es de la etapa 5 retirarlo —cuando la
+     *       implantacion pase a pedirle a `identidad` lo que hoy siembra—, y hasta entonces se
+     *       declara aqui, con esta nota, en vez de dejarlo eximido sin que nadie sepa hasta cuando.
+     * </ul>
+     *
+     * <p>Una entrada que no nombre ninguna clase de `src/main` sale roja (#27): una exencion sin
+     * sujeto es un permiso para la clase que nazca manana con ese nombre.
+     */
+    @Override
+    public Set<String> escritoresDeLaAutorizacionConMotivo() {
+        return Set.of("AplicarUnEventoDeIdentidad", "SembradorDeLaCopiaLocal");
     }
 }

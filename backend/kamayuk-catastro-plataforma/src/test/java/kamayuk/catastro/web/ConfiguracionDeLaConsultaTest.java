@@ -3,9 +3,12 @@ package kamayuk.catastro.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Clock;
+import java.time.LocalDate;
 import java.util.List;
+import kamayuk.catastro.autorizacion.ComprobadorDeAcceso;
 import kamayuk.catastro.autorizacion.ConfiguracionDeAutorizacion;
 import kamayuk.catastro.autorizacion.GuardiaDeAcceso;
+import kamayuk.catastro.autorizacion.Privilegio;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -47,7 +50,28 @@ class ConfiguracionDeLaConsultaTest {
         // En el orden contrario al que tienen que quedar, a proposito: lo que los ordena es el
         // `order` que cada configuracion declara, no el orden en que Spring cree sus beans.
         new ConfiguracionDeLaConsulta().addInterceptors(registro);
-        new ConfiguracionDeAutorizacion((usuario, acceso, privilegio, fecha) -> true, RELOJ)
+        // Clase anonima y no lambda: `ComprobadorDeAcceso` dejo de ser una interfaz funcional al
+        // ganar `conoceAlUsuario` (#29 §8). Se prefirio eso a darle un `default`: un `default` que
+        // dijera «si, lo conozco» devolveria el comportamiento viejo —«no tiene el privilegio»— en
+        // cualquier implementacion que se olvidara de escribirlo, y en silencio.
+        new ConfiguracionDeAutorizacion(
+                        new ComprobadorDeAcceso() {
+
+                            @Override
+                            public boolean autoriza(
+                                    String usuario,
+                                    String acceso,
+                                    Privilegio privilegio,
+                                    LocalDate fecha) {
+                                return true;
+                            }
+
+                            @Override
+                            public boolean conoceAlUsuario(String usuario) {
+                                return true;
+                            }
+                        },
+                        RELOJ)
                 .addInterceptors(registro);
 
         assertThat(interceptoresDe(registro).stream().map(ConfiguracionDeLaConsultaTest::tipo))

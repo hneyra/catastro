@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -74,7 +75,19 @@ class ViaControllerTest {
             EnumSet.of(Privilegio.LECTURA, Privilegio.REGISTRO, Privilegio.MODIFICACION);
 
     private final ComprobadorDeAcceso comprobador =
-            (usuario, acceso, privilegio, fecha) -> privilegios.contains(privilegio);
+            new ComprobadorDeAcceso() {
+
+                @Override
+                public boolean autoriza(
+                        String usuario, String acceso, Privilegio privilegio, LocalDate fecha) {
+                    return privilegios.contains(privilegio);
+                }
+
+                @Override
+                public boolean conoceAlUsuario(String usuario) {
+                    return true;
+                }
+            };
 
     private final MockMvc mvc =
             MockMvcBuilders.standaloneSetup(

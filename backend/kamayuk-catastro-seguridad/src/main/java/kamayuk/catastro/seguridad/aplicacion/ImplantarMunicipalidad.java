@@ -15,6 +15,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 /**
@@ -68,11 +69,24 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @Profile("batch")
+@Order(ImplantarMunicipalidad.ORDEN)
 @ConditionalOnProperty("kamayuk.implantacion.ubigeo")
 @EnableConfigurationProperties(DatosDeImplantacion.class)
 public class ImplantarMunicipalidad implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(ImplantarMunicipalidad.class);
+
+    /**
+     * La implantacion va la primera de los {@code ApplicationRunner} de este perfil.
+     *
+     * <p>Es la que da de alta la municipalidad, y sin ella cualquier otro runner del proceso
+     * trabaja sobre un inquilino que todavia no existe. Sin un orden declarado los runners valen
+     * {@code LOWEST_PRECEDENCE} y el que corre primero lo decide el registro de beans: medido en la
+     * instalacion de AC-5/AC-6, el consumidor de identidad corrio ANTES y esta implantacion nunca
+     * llego a ejecutarse (H4). El numero no importa; lo que importa es que sea menor que el de
+     * {@link CorrerElConsumidorDeIdentidad#ORDEN}, que se escribe como este mas uno.
+     */
+    public static final int ORDEN = 0;
 
     private final RegistroDeMunicipalidadesJdbc registro;
     private final SembradorDeLaCopiaLocal sembrador;
@@ -152,6 +166,5 @@ public class ImplantarMunicipalidad implements ApplicationRunner {
                 datos.ubigeo(),
                 vueltas.size(),
                 vueltas.getLast());
-        CorrerElConsumidorDeIdentidad.exigirQueNadaQuedaraPospuesto(vueltas);
     }
 }

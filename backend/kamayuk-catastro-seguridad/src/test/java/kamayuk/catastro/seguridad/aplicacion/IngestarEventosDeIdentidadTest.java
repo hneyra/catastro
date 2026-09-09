@@ -3,7 +3,11 @@ package kamayuk.catastro.seguridad.aplicacion;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -15,6 +19,7 @@ import kamayuk.catastro.seguridad.dominio.EventoRecibido;
 import kamayuk.catastro.seguridad.dominio.FuenteDeEventosDeIdentidad;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.annotation.OrderUtils;
 import org.springframework.dao.DataAccessResourceFailureException;
 
 /**
@@ -68,25 +73,22 @@ class IngestarEventosDeIdentidadTest {
         assertThat(vuelta.toString())
                 .isEqualTo(
                         "leidos 4 · aplicados 1 · ya estaban 1 · ignorados (de otro sistema) 1"
-                                + " · apartados 1 · pospuestos 0 · quedan en el buzon 0");
+                                + " · apartados 1 · pospuestos 0 · quedan en el buzon tras el"
+                                + " acuse 0");
     }
 
     @Test
     @DisplayName("AC-7 (3): lo que no se puede aplicar AHORA no se acusa, no se aparta y no avisa")
     void loTransitorioNoSeAcusa() {
         EventoRecibido tardio = evento("MIEMBRO_AFILIADO");
-        EventoRecibido laBaseCaida = evento("GRUPO_DADO_DE_ALTA");
         EventoRecibido bueno = evento("USUARIO_DADO_DE_ALTA");
-        BuzonDeMentira buzon = new BuzonDeMentira(List.of(tardio, laBaseCaida, bueno));
+        BuzonDeMentira buzon = new BuzonDeMentira(List.of(tardio, bueno));
         AplicadorDeMentira aplicador =
                 new AplicadorDeMentira(
                         e -> {
                             if (e == tardio) {
                                 throw new AplicadorDeEventosDeIdentidad.NoSePuedeAplicarAhora(
                                         "el grupo no ha llegado");
-                            }
-                            if (e == laBaseCaida) {
-                                throw new DataAccessResourceFailureException("connection refused");
                             }
                             return AplicadorDeEventosDeIdentidad.Resultado.APLICADO;
                         });
@@ -102,8 +104,52 @@ class IngestarEventosDeIdentidadTest {
                 .as("apartar un fallo transitorio lo mataria por un motivo que iba a arreglarse")
                 .isEmpty();
         assertThat(alerta.avisos).isEmpty();
-        assertThat(vuelta.pospuestos()).isEqualTo(2);
+        assertThat(vuelta.pospuestos()).hasSize(1);
+        assertThat(vuelta.pospuestos().getFirst().motivo()).isEqualTo("el grupo no ha llegado");
         assertThat(vuelta.aplicados()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName(
+            "H4: la base que no contesta CORTA la vuelta y se relanza, en vez de posponer evento a"
+                    + " evento")
+    void laBaseQueNoContestaCortaLaVuelta() {
+        EventoRecibido primero = evento("USUARIO_DADO_DE_ALTA");
+        EventoRecibido cuandoSeCae = evento("GRUPO_DADO_DE_ALTA");
+        EventoRecibido detras = evento("USUARIO_DADO_DE_ALTA");
+        BuzonDeMentira buzon = new BuzonDeMentira(List.of(primero, cuandoSeCae, detras));
+        List<UUID> intentados = new ArrayList<>();
+        AplicadorDeMentira aplicador =
+                new AplicadorDeMentira(
+                        e -> {
+                            intentados.add(e.eventoId());
+                            if (e == cuandoSeCae) {
+                                throw new DataAccessResourceFailureException(
+                                        "Could not open JDBC Connection");
+                            }
+                            return AplicadorDeEventosDeIdentidad.Resultado.APLICADO;
+                        });
+        AlertaQueRecuerda alerta = new AlertaQueRecuerda();
+        IngestarEventosDeIdentidad ingestor =
+                new IngestarEventosDeIdentidad(buzon, aplicador, alerta, RELOJ);
+
+        Throwable laBase = catchThrowable(ingestor::unaVuelta);
+
+        assertThat(laBase)
+                .as(
+                        "[una base que no contesta NO es un hecho del dominio: si se clasifica como"
+                                + " «pospuesto» se repite por cada fila que quedaba —174 lineas a un"
+                                + " segundo cada una en la medicion de AC-5/AC-6 (H4)— y el diagnostico"
+                                + " apunta a los eventos en vez de al motor]")
+                .isInstanceOf(DataAccessResourceFailureException.class);
+        assertThat(intentados)
+                .as("y lo que iba detras no se intenta: iba a fallar por lo mismo")
+                .containsExactly(primero.eventoId(), cuandoSeCae.eventoId());
+        assertThat(buzon.acusados)
+                .as("lo que YA confirmo se acusa igual, que es la regla de siempre")
+                .containsExactly(primero.eventoId());
+        assertThat(alerta.avisos).isEmpty();
+        assertThat(alerta.estancados).isEmpty();
     }
 
     @Test
@@ -120,23 +166,27 @@ class IngestarEventosDeIdentidadTest {
         IngestarEventosDeIdentidad ingestor =
                 new IngestarEventosDeIdentidad(buzon, aplicador, new AlertaQueRecuerda(), RELOJ);
 
-        List<IngestarEventosDeIdentidad.Vuelta> vueltas =
-                CorrerElConsumidorDeIdentidad.hastaAgotar(ingestor);
+        List<IngestarEventosDeIdentidad.Vuelta> vueltas = new ArrayList<>();
+        Throwable laCorrida =
+                catchThrowable(
+                        () -> vueltas.addAll(CorrerElConsumidorDeIdentidad.hastaAgotar(ingestor)));
 
+        assertThat(laCorrida)
+                .as(
+                        "[un pospuesto NO hace fallar la corrida: es una dependencia que todavia no"
+                                + " ha llegado, no se pierde —no se acuso— y la corrida siguiente lo"
+                                + " aplica. Salir con codigo 1 por el deja un Job Failed cada cinco"
+                                + " minutos, reintentado por backoffLimit, mientras la dependencia"
+                                + " tarde; y un trabajo que siempre falla deja de decir nada el dia que"
+                                + " falle de verdad]")
+                .isNull();
         assertThat(vueltas)
                 .as(
                         "el pospuesto no se acusa, asi que el buzon lo vuelve a servir: sin la"
                                 + " parada por progreso esto daria 50 vueltas y 50 avisos de lo mismo")
                 .hasSize(1);
         assertThat(vueltas.getFirst().sinProgreso()).isTrue();
-        assertThat(
-                        catchThrowable(
-                                () ->
-                                        CorrerElConsumidorDeIdentidad.exigirQueNadaQuedaraPospuesto(
-                                                vueltas)))
-                .as("y la corrida NO sale en verde con un evento sin aplicar dentro")
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("1 evento(s) POSPUESTOS");
+        assertThat(vueltas.getFirst().pospuestos()).hasSize(1);
     }
 
     @Test
@@ -158,7 +208,6 @@ class IngestarEventosDeIdentidadTest {
         assertThat(vueltas).hasSize(3);
         assertThat(buzon.acusados).containsExactly(uno.eventoId(), dos.eventoId());
         assertThat(vueltas.getLast().leidos()).isZero();
-        CorrerElConsumidorDeIdentidad.exigirQueNadaQuedaraPospuesto(vueltas);
     }
 
     @Test
@@ -233,14 +282,202 @@ class IngestarEventosDeIdentidadTest {
                 .isNotNull();
     }
 
+    @Test
+    @DisplayName(
+            "un pospuesto que lleva mas de 15 minutos produce UN aviso por corrida, con la lista")
+    void avisaCuandoElPospuestoSeEstanca() {
+        EventoRecibido tardio =
+                evento("MIEMBRO_AFILIADO", 77, 4321, AHORA.minus(Duration.ofMinutes(20)));
+        AlertaQueRecuerda alerta = new AlertaQueRecuerda();
+        IngestarEventosDeIdentidad ingestor = elQuePospone(List.of(tardio), alerta);
+
+        List<IngestarEventosDeIdentidad.Vuelta> vueltas =
+                CorrerElConsumidorDeIdentidad.hastaAgotar(ingestor);
+
+        assertThat(vueltas).hasSize(1);
+        assertThat(alerta.estancados)
+                .as(
+                        "[la corrida no falla por un pospuesto —seria un Job Failed cada cinco"
+                                + " minutos mientras la dependencia no llegue—, asi que lo unico que"
+                                + " impide que la copia se quede atras EN SILENCIO es este aviso, y"
+                                + " tiene que decir de que hecho habla]")
+                .containsExactly(
+                        "aviso de 1 tras 15 min:"
+                                + " [MIEMBRO_AFILIADO/sujeto 77/secuencia 4321/edad 20]");
+    }
+
+    @Test
+    @DisplayName("y uno de dos minutos NO avisa: eso es una carrera, no un atasco")
+    void unPospuestoRecienNacidoNoAvisa() {
+        EventoRecibido tardio =
+                evento("MIEMBRO_AFILIADO", 77, 4321, AHORA.minus(Duration.ofMinutes(2)));
+        AlertaQueRecuerda alerta = new AlertaQueRecuerda();
+
+        CorrerElConsumidorDeIdentidad.hastaAgotar(elQuePospone(List.of(tardio), alerta));
+
+        assertThat(alerta.estancados)
+                .as(
+                        "avisar de una carrera normal —el grupo llega en el lote siguiente— es como"
+                                + " se consigue que nadie lea los avisos")
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("y una corrida sin pospuestos no avisa de nada")
+    void sinPospuestosNoAvisa() {
+        BuzonDeMentira buzon = new BuzonDeMentira(List.of(evento("USUARIO_DADO_DE_ALTA")));
+        AlertaQueRecuerda alerta = new AlertaQueRecuerda();
+        IngestarEventosDeIdentidad ingestor =
+                new IngestarEventosDeIdentidad(
+                        buzon,
+                        new AplicadorDeMentira(
+                                e -> AplicadorDeEventosDeIdentidad.Resultado.APLICADO),
+                        alerta,
+                        RELOJ);
+
+        CorrerElConsumidorDeIdentidad.hastaAgotar(ingestor);
+
+        assertThat(alerta.estancados).isEmpty();
+        assertThat(alerta.avisos).isEmpty();
+    }
+
+    @Test
+    @DisplayName("H6: los permisos de otros sistemas se resumen en UNA linea por vuelta")
+    void unaLineaPorVueltaParaLosAjenos() {
+        List<EventoRecibido> ajenos =
+                List.of(
+                        evento("PERMISO_FIJADO"),
+                        evento("PERMISO_FIJADO"),
+                        evento("PERMISO_FIJADO"));
+        IngestarEventosDeIdentidad ingestor =
+                new IngestarEventosDeIdentidad(
+                        new BuzonDeMentira(ajenos),
+                        new AplicadorDeMentira(
+                                e -> AplicadorDeEventosDeIdentidad.Resultado.IGNORADO_AJENO),
+                        new AlertaQueRecuerda(),
+                        RELOJ);
+
+        List<ILoggingEvent> lineas = loQueRegistra(ingestor::unaVuelta);
+
+        assertThat(lineas.stream().map(ILoggingEvent::getFormattedMessage).toList())
+                .as(
+                        "[una implantacion entera trae 146 permisos ajenos en catastro (H6): una"
+                                + " linea por evento son 146 avisos de algo que es normal, y asi es"
+                                + " como se acaba sin leer el registro]")
+                .hasSize(2)
+                .anySatisfy(l -> assertThat(l).contains("3 evento(s) IGNORADOS"))
+                .anySatisfy(l -> assertThat(l).contains("ignorados (de otro sistema) 3"));
+    }
+
+    @Test
+    @DisplayName("H6: «quedan» se cuenta DESPUES del acuse, no antes")
+    void quedanSeCuentaDespuesDelAcuse() {
+        // El emisor cuenta los de esta pagina dentro de su `quedan`: cinco pendientes, dos
+        // servidos.
+        BuzonDeMentira buzon =
+                new BuzonDeMentira(
+                        List.of(
+                                evento("USUARIO_DADO_DE_ALTA"),
+                                evento("USUARIO_DADO_DE_ALTA"),
+                                evento("USUARIO_DADO_DE_ALTA"),
+                                evento("USUARIO_DADO_DE_ALTA"),
+                                evento("USUARIO_DADO_DE_ALTA")),
+                        2);
+        IngestarEventosDeIdentidad.Vuelta vuelta =
+                new IngestarEventosDeIdentidad(
+                                buzon,
+                                new AplicadorDeMentira(
+                                        e -> AplicadorDeEventosDeIdentidad.Resultado.APLICADO),
+                                new AlertaQueRecuerda(),
+                                RELOJ)
+                        .unaVuelta();
+
+        assertThat(vuelta.quedan())
+                .as(
+                        "[el `quedan` del emisor CUENTA los de esta pagina, asi que imprimirlo tal"
+                                + " cual deja «174 acusados; quedan 174 en el buzon», que se lee como"
+                                + " que la vuelta no sirvio de nada (H6)]")
+                .isEqualTo(3);
+        assertThat(vuelta.toString()).endsWith("quedan en el buzon tras el acuse 3");
+    }
+
+    @Test
+    @DisplayName("H4: el consumidor autonomo corre DETRAS de la implantacion")
+    void elConsumidorCorreDetrasDeLaImplantacion() {
+        // Es como Spring ordena los ApplicationRunner: AnnotationAwareOrderComparator pregunta por
+        // @Order de la clase cuando el bean no implementa Ordered, que es el caso de los dos. La
+        // version de UN argumento devuelve null cuando no hay anotacion, y esa es la mitad que hay
+        // que afirmar: «sin declarar» no es un numero grande, es un EMPATE con todos los demas
+        // runners sin declarar, que rompe el desempate a favor del registro de beans.
+        Integer implantacion = OrderUtils.getOrder(ImplantarMunicipalidad.class);
+        Integer consumidor = OrderUtils.getOrder(CorrerElConsumidorDeIdentidad.class);
+
+        assertThat(implantacion)
+                .as(
+                        "[esta es la mitad que de verdad sujeta el orden: sin @Order la implantacion"
+                                + " vale LOWEST_PRECEDENCE y empata con el consumidor, y quien corre"
+                                + " primero lo decide el registro de beans. Medido en la instalacion de"
+                                + " AC-5/AC-6, el consumidor corrio ANTES y la implantacion no llego a"
+                                + " correr (H4)]")
+                .isNotNull();
+        assertThat(consumidor)
+                .as(
+                        "[y esta es la que lo deja escrito en vez de heredado: sin @Order el"
+                                + " consumidor vale LOWEST_PRECEDENCE y hoy corre detras por descarte,"
+                                + " o sea por como esten anotados los demas y no porque nadie lo haya"
+                                + " decidido]")
+                .isNotNull();
+        assertThat(consumidor)
+                .as(
+                        "consumir el buzon antes de que la municipalidad exista no tiene copia que"
+                                + " poner al dia")
+                .isGreaterThan(implantacion);
+    }
+
     // ------------------------------------------------------------------
+
+    /** Un consumidor cuyo unico evento no se puede aplicar todavia. */
+    private static IngestarEventosDeIdentidad elQuePospone(
+            List<EventoRecibido> eventos, AlertaQueRecuerda alerta) {
+        return new IngestarEventosDeIdentidad(
+                new BuzonDeMentira(eventos),
+                new AplicadorDeMentira(
+                        e -> {
+                            throw new AplicadorDeEventosDeIdentidad.NoSePuedeAplicarAhora(
+                                    "el grupo no ha llegado");
+                        }),
+                alerta,
+                RELOJ);
+    }
+
+    /** Lo que el consumidor escribe en el registro mientras corre lo que se le pase. */
+    private static List<ILoggingEvent> loQueRegistra(Runnable queHace) {
+        ch.qos.logback.classic.Logger registro =
+                (ch.qos.logback.classic.Logger)
+                        org.slf4j.LoggerFactory.getLogger(IngestarEventosDeIdentidad.class);
+        ListAppender<ILoggingEvent> anotadas = new ListAppender<>();
+        anotadas.start();
+        registro.addAppender(anotadas);
+        try {
+            queHace.run();
+        } finally {
+            registro.detachAppender(anotadas);
+        }
+        return anotadas.list.stream().filter(e -> e.getLevel() != Level.DEBUG).toList();
+    }
 
     private static AplicadorDeEventosDeIdentidad.Resultado lanzaNunca(String motivo) {
         throw new AplicadorDeEventosDeIdentidad.NoSePuedeAplicar(motivo);
     }
 
     private static EventoRecibido evento(String tipo) {
-        return new EventoRecibido(UUID.randomUUID(), 1, tipo, 1, "{}", "0".repeat(64), AHORA);
+        return evento(tipo, 1, 1, AHORA);
+    }
+
+    private static EventoRecibido evento(
+            String tipo, long sujetoId, long secuencia, Instant creadoEn) {
+        return new EventoRecibido(
+                UUID.randomUUID(), secuencia, tipo, sujetoId, "{}", "0".repeat(64), creadoEn);
     }
 
     private static final class BuzonDeMentira implements FuenteDeEventosDeIdentidad {
@@ -262,7 +499,10 @@ class IngestarEventosDeIdentidadTest {
             List<EventoRecibido> pendientes =
                     eventos.stream().filter(e -> !acusados.contains(e.eventoId())).toList();
             List<EventoRecibido> lote = pendientes.subList(0, Math.min(porLote, pendientes.size()));
-            return new Lote(lote, pendientes.size() - lote.size());
+            // `quedan` cuenta LOS DE ESTA PAGINA, que es como lo publica identidad
+            // (EventosController: «cuantos le faltan en total, contando los de esta pagina»).
+            // Este doble decia lo contrario, y por eso ninguna prueba podia ver H6.
+            return new Lote(lote, pendientes.size());
         }
 
         @Override
@@ -297,10 +537,35 @@ class IngestarEventosDeIdentidadTest {
 
     private static final class AlertaQueRecuerda implements AlertaDeEventosSinAplicar {
         private final List<String> avisos = new ArrayList<>();
+        private final List<String> estancados = new ArrayList<>();
 
         @Override
         public void hayUnEventoSinAplicar(EventoRecibido evento, String motivo, long muertos) {
             avisos.add(evento.eventoId() + ": " + motivo);
+        }
+
+        @Override
+        public void hayPospuestosEstancados(
+                List<IngestarEventosDeIdentidad.Pospuesto> viejos,
+                Duration desdeHace,
+                Instant ahora) {
+            estancados.add(
+                    "aviso de "
+                            + viejos.size()
+                            + " tras "
+                            + desdeHace.toMinutes()
+                            + " min: "
+                            + viejos.stream()
+                                    .map(
+                                            v ->
+                                                    v.tipoPublicado()
+                                                            + "/sujeto "
+                                                            + v.sujetoId()
+                                                            + "/secuencia "
+                                                            + v.secuencia()
+                                                            + "/edad "
+                                                            + v.edad(ahora).toMinutes())
+                                    .toList());
         }
     }
 }

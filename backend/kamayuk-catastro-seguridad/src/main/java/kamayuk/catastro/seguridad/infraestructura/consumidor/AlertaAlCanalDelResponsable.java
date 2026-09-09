@@ -6,7 +6,10 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
 import kamayuk.catastro.seguridad.aplicacion.AlertaDeEventosSinAplicar;
+import kamayuk.catastro.seguridad.aplicacion.IngestarEventosDeIdentidad;
 import kamayuk.catastro.seguridad.dominio.EventoRecibido;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -73,6 +76,48 @@ public class AlertaAlCanalDelResponsable implements AlertaDeEventosSinAplicar {
         }
     }
 
+    @Override
+    public void hayPospuestosEstancados(
+            List<IngestarEventosDeIdentidad.Pospuesto> viejos, Duration desdeHace, Instant ahora) {
+        List<String> lista = viejos.stream().map(p -> comoSeNombra(p, ahora)).toList();
+        String texto =
+                "LA COPIA LOCAL DE LA AUTORIZACION SE ESTA QUEDANDO ATRAS: "
+                        + viejos.size()
+                        + " evento(s) de `identidad` llevan mas de "
+                        + desdeHace.toMinutes()
+                        + " minutos sin poderse aplicar aqui porque les falta algo que tenia que"
+                        + " haber llegado antes. No se pierden —no se acusan, y el buzon los vuelve"
+                        + " a servir—, pero solos no se van a arreglar: hay que mirar por que la"
+                        + " dependencia no llega. Son: "
+                        + String.join(" · ", lista)
+                        + ". Mientras esten ahi, `catastro` dice de los permisos algo que"
+                        + " `identidad` ya no dice (ADR-0039, ADR-0026 §4).";
+        REGISTRO.error("{} Responsable: {}", texto, responsable);
+        if (responsable.seLeEntrega()) {
+            entregar(
+                    new AvisoDePospuestos(
+                            responsable.nombre(),
+                            viejos.size(),
+                            desdeHace.toMinutes(),
+                            lista,
+                            texto));
+        }
+    }
+
+    /** Un pospuesto, escrito como lo que hace falta para ir a buscarlo al buzon del emisor. */
+    private static String comoSeNombra(
+            IngestarEventosDeIdentidad.Pospuesto pospuesto, Instant ahora) {
+        return pospuesto.tipoPublicado()
+                + " (sujeto "
+                + pospuesto.sujetoId()
+                + ", secuencia "
+                + pospuesto.secuencia()
+                + ", espera desde hace "
+                + pospuesto.edad(ahora).toMinutes()
+                + " min): "
+                + pospuesto.motivo();
+    }
+
     /**
      * Entrega el aviso, y si no se puede lo dice.
      *
@@ -81,7 +126,7 @@ public class AlertaAlCanalDelResponsable implements AlertaDeEventosSinAplicar {
      * consumidor entero. No se traga: se registra con nivel ERROR.
      */
     @SuppressWarnings("checkstyle:IllegalCatch")
-    private void entregar(Aviso aviso) {
+    private void entregar(Object aviso) {
         try {
             HttpRequest peticion =
                     HttpRequest.newBuilder(URI.create(responsable.canal()))
@@ -112,11 +157,19 @@ public class AlertaAlCanalDelResponsable implements AlertaDeEventosSinAplicar {
         }
     }
 
-    /** Lo que se manda al canal. */
+    /** Lo que se manda al canal cuando un evento se aparta. */
     record Aviso(
             String responsable,
             String eventoId,
             String motivo,
             long muertosSinExplicar,
+            String texto) {}
+
+    /** Lo que se manda al canal cuando los pospuestos se estancan: uno por corrida. */
+    record AvisoDePospuestos(
+            String responsable,
+            int cuantos,
+            long desdeHaceMinutos,
+            List<String> eventos,
             String texto) {}
 }

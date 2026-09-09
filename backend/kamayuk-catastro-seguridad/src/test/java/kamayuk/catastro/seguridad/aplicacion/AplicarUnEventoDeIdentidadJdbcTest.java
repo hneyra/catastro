@@ -377,13 +377,21 @@ class AplicarUnEventoDeIdentidadJdbcTest {
         // El buzon sirve `bueno` y despues `perdido`: el primer commit confirma y el segundo no.
         gestor.noConfirmarElCommitNumero(2);
 
-        IngestarEventosDeIdentidad.Vuelta vuelta = ingestor.unaVuelta();
+        Throwable elCommit = catchThrowable(ingestor::unaVuelta);
 
+        assertThat(elCommit)
+                .as(
+                        "[un commit que no confirma no es un hecho del dominio: corta la vuelta y"
+                                + " la corrida sale con error. Clasificarlo evento a evento como"
+                                + " «pospuesto» produjo 174 lineas a un segundo cada una con la clave"
+                                + " del pool pisada (H4 de la medicion de AC-5/AC-6)]")
+                .isInstanceOf(TransactionSystemException.class);
         assertThat(buzon.acusados())
                 .as(
                         "el acuse va DESPUES del commit: un evento acusado cuyo commit fallo es un"
                                 + " evento que el emisor ya no vuelve a servir — se pierde, y con el"
-                                + " el permiso que traia")
+                                + " el permiso que traia. Y lo que SI confirmo se acusa igual,"
+                                + " aunque la vuelta se corte")
                 .containsExactly(bueno.eventoId());
         assertThat(usuarioDe(municipalidadA, "noconfirma")).isEmpty();
         assertThat(aplicadosDe(municipalidadA)).doesNotContain(perdido.eventoId().toString());
@@ -391,8 +399,6 @@ class AplicarUnEventoDeIdentidadJdbcTest {
                 .as("AC-7 (3): un commit que no confirma es transitorio, no se aparta")
                 .doesNotContain(perdido.eventoId().toString());
         assertThat(alerta.avisos).isEmpty();
-        assertThat(vuelta.pospuestos()).isEqualTo(1);
-        assertThat(vuelta.aplicados()).isEqualTo(1);
     }
 
     @Test
@@ -419,7 +425,7 @@ class AplicarUnEventoDeIdentidadJdbcTest {
                         "AC-7 (3): una afiliacion cuyo grupo no ha llegado se POSPONE —no se acusa"
                                 + " y el buzon la vuelve a servir—; apartarla como «nunca» la"
                                 + " perderia, porque el emisor no la sirve dos veces")
-                .isEqualTo(1);
+                .hasSize(1);
         assertThat(primera.muertos()).as("apartar un fallo transitorio lo perderia").isZero();
         assertThat(buzon.acusados()).containsExactly(elGrupo.eventoId(), elUsuario.eventoId());
         assertThat(alerta.avisos).isEmpty();
@@ -427,7 +433,7 @@ class AplicarUnEventoDeIdentidadJdbcTest {
 
         IngestarEventosDeIdentidad.Vuelta segunda = ingestor.unaVuelta();
         assertThat(segunda.aplicados()).isEqualTo(1);
-        assertThat(segunda.pospuestos()).isZero();
+        assertThat(segunda.pospuestos()).isEmpty();
         assertThat(miembroDe(municipalidadA, "Grupo tardio", "usuario.tardio"))
                 .containsExactly("true", "admin.emisor");
         assertThat(buzon.acusados()).contains(afiliacion.eventoId());
@@ -494,9 +500,19 @@ class AplicarUnEventoDeIdentidadJdbcTest {
     private static final class AlertaQueRecuerda implements AlertaDeEventosSinAplicar {
         private final List<String> avisos = new ArrayList<>();
 
+        private final List<String> estancados = new ArrayList<>();
+
         @Override
         public void hayUnEventoSinAplicar(EventoRecibido evento, String motivo, long muertos) {
             avisos.add(evento.eventoId() + ": " + motivo + " — sin explicar: " + muertos);
+        }
+
+        @Override
+        public void hayPospuestosEstancados(
+                List<IngestarEventosDeIdentidad.Pospuesto> viejos,
+                java.time.Duration desdeHace,
+                Instant ahora) {
+            estancados.add(viejos.size() + " tras " + desdeHace.toMinutes() + " min");
         }
     }
 

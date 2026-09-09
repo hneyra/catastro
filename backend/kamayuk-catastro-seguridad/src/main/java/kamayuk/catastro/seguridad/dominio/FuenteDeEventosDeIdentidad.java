@@ -36,7 +36,11 @@ public interface FuenteDeEventosDeIdentidad {
      * Un lote del buzon.
      *
      * @param eventos los que vinieron, en orden de secuencia
-     * @param quedan cuantos quedan pendientes ademas de estos, segun el emisor
+     * @param quedan cuantos le faltan a este consumidor en total <b>contando los de esta
+     *     pagina</b>, que es como lo publica {@code identidad}. No es «ademas de estos»: decirlo
+     *     asi —que es lo que este javadoc decia— deja la linea «174 acusados; quedan 174 en el
+     *     buzon», que se lee como que la vuelta no sirvio de nada (H6 de la medicion de AC-5/AC-6).
+     *     Lo que se imprime es la resta, y quien la hace es {@code IngestarEventosDeIdentidad}
      */
     record Lote(List<EventoRecibido> eventos, long quedan) {
         public Lote {

@@ -145,6 +145,17 @@ services:
       # ambiente: son las mismas dos variables que `caja` lleva para la conciliacion.
       KAMAYUK_IDENTIDAD_RESPONSABLE: ${KAMAYUK_RESPONSABLE_DE_OPERACION:?falta KAMAYUK_RESPONSABLE_DE_OPERACION en el .env de la plataforma}
       KAMAYUK_IDENTIDAD_CANAL: ${KAMAYUK_CANAL_DE_OPERACION:?falta KAMAYUK_CANAL_DE_OPERACION en el .env de la plataforma}
+      #
+      # Y AQUI NO ESTA `KAMAYUK_IDENTIDAD_CONSUMIDOR_MUNICIPALIDAD`, que el `CronJob` del
+      # descriptor SI declara. No es un olvido y no lo puede ser: esa variable es lo que
+      # enciende el consumidor AUTONOMO —el que corre solo, sin implantacion delante, y
+      # que por eso necesita que le digan de que municipalidad es la copia—. En este
+      # compose no hay temporizador que lo dispare (arriba, en la cabecera), asi que el
+      # consumidor existe solo como la ultima pasada de la implantacion, y ahi la
+      # municipalidad NO se configura: es la que la implantacion acaba de dar de alta.
+      # Ponerla aqui haria correr las dos cosas en el mismo proceso, que es como la
+      # medicion de AC-5/AC-6 encontro H4. Para correr la pasada a mano con la
+      # municipalidad ya creada, el `docker compose run -e …` de la cabecera.
     restart: "no"
 
   # ── El backend ──────────────────────────────────────────────────────────────

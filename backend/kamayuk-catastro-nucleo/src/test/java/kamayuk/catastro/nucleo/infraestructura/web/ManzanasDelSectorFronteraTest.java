@@ -10,6 +10,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
 import kamayuk.catastro.auditoria.AuditoriaJdbc;
 import kamayuk.catastro.auditoria.Origen;
@@ -128,7 +129,20 @@ class ManzanasDelSectorFronteraTest {
         TenantTransactionManager gestor = new TenantTransactionManager(pool);
         CatastroRepositoryJdbc catastro = new CatastroRepositoryJdbc(jdbc);
         AuditoriaJdbc auditoria = new AuditoriaJdbc(jdbc, RELOJ);
-        ComprobadorDeAcceso todoPermitido = (usuario, acceso, privilegio, fecha) -> true;
+        ComprobadorDeAcceso todoPermitido =
+                new ComprobadorDeAcceso() {
+
+                    @Override
+                    public boolean autoriza(
+                            String usuario, String acceso, Privilegio privilegio, LocalDate fecha) {
+                        return true;
+                    }
+
+                    @Override
+                    public boolean conoceAlUsuario(String usuario) {
+                        return true;
+                    }
+                };
 
         mvc =
                 MockMvcBuilders.standaloneSetup(

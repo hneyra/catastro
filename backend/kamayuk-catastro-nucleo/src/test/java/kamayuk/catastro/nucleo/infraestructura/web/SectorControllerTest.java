@@ -88,7 +88,19 @@ class SectorControllerTest {
             EnumSet.of(Privilegio.LECTURA, Privilegio.REGISTRO, Privilegio.MODIFICACION);
 
     private final ComprobadorDeAcceso comprobador =
-            (usuario, acceso, privilegio, fecha) -> privilegios.contains(privilegio);
+            new ComprobadorDeAcceso() {
+
+                @Override
+                public boolean autoriza(
+                        String usuario, String acceso, Privilegio privilegio, LocalDate fecha) {
+                    return privilegios.contains(privilegio);
+                }
+
+                @Override
+                public boolean conoceAlUsuario(String usuario) {
+                    return true;
+                }
+            };
 
     private final MockMvc mvc =
             MockMvcBuilders.standaloneSetup(

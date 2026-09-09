@@ -77,7 +77,8 @@ class GuardiaDeAccesoTest {
     }
 
     @Test
-    @DisplayName("sin ficha en este sistema: 403 que lo DICE, y no «le falta un privilegio» (#29 §8)")
+    @DisplayName(
+            "sin ficha en este sistema: 403 que lo DICE, y no «le falta un privilegio» (#29 §8)")
     void sinFichaLoDice() throws Exception {
         comprobador.autoriza = false;
         comprobador.conoce = false;
@@ -87,8 +88,9 @@ class GuardiaDeAccesoTest {
 
         assertThat(resultado.getResponse().getStatus()).isEqualTo(403);
         assertThat(cuerpo)
-                .as("distingue «no te conozco» de «no te dejo»: no son la misma cosa ni se"
-                        + " arreglan igual")
+                .as(
+                        "distingue «no te conozco» de «no te dejo»: no son la misma cosa ni se"
+                                + " arreglan igual")
                 .contains("no esta dada de alta en este sistema")
                 .contains("la administracion de usuarios, grupos y permisos vive en rentas");
         // Y el DETALLE no dice que falte un privilegio, que es lo que decia antes y mandaba al

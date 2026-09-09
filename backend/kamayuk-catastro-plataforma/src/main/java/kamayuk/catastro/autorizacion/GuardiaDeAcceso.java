@@ -112,7 +112,8 @@ public class GuardiaDeAcceso implements HandlerInterceptor {
         if (autorizaAlguna(usuario, requisito, hoy)) {
             return true;
         }
-        // Y ANTES de decir «no tiene el privilegio», hay que saber si el sistema lo conoce (#29 §8).
+        // Y ANTES de decir «no tiene el privilegio», hay que saber si el sistema lo conoce (#29
+        // §8).
         //
         // Sin esto las dos cosas salian como el mismo 403: un funcionario dado de alta al que le
         // falta un permiso, y uno que **no esta dado de alta en este sistema** — que aqui no se

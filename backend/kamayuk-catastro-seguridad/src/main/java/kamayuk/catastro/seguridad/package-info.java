@@ -21,13 +21,16 @@
  * {@code rentas/api/v1/sesion/permisos}). Aqui hay dos cosas: quien <b>lee</b> la copia para
  * autorizar, y quien la <b>siembra</b> al implantar la municipalidad.
  *
- * <p><b>HUECO DECLARADO:</b> como se sincroniza la copia cuando alguien cambia un permiso en {@code
- * rentas} — y que pasa mientras esta desatrasada — <b>no esta construido</b>. Es literalmente lo
- * que D-19 enunciaba y lo que la propia decision D-N5 dejo sin fijar («el detalle lo escribe la
- * fase 1»). Hoy la copia la escribe la implantacion y nadie mas, asi que lo que hay es correcto y
- * estatico: los dos grupos que crea la implantacion. Un permiso otorgado en {@code rentas} despues
- * de eso <b>no llega</b>, y eso se dice aqui en vez de descubrirse cuando alguien no pueda abrir
- * una pantalla.
+ * <p><b>El hueco que esta declaracion tuvo desde C-7 se cierra en la etapa 4 de ADR-0039</b>
+ * (identidad#4). Hasta entonces la copia la escribia la implantacion y nadie mas, y un permiso
+ * otorgado despues <b>no llegaba</b>. Desde la etapa 4 la copia la mantiene el buzon de {@code
+ * identidad}: {@code kamayuk.catastro.seguridad.aplicacion.AplicarUnEventoDeIdentidad} aplica cada
+ * evento en su propia transaccion, {@code CorrerElConsumidorDeIdentidad} lo despierta un {@code
+ * CronJob} cada cinco minutos, y la implantacion termina con una pasada suya. Lo que un evento que
+ * no se pudo aplicar deja detras —y a quien se le avisa— esta en {@code identidad_evento_muerto}
+ * ({@code V14}) y en {@code AlertaDeEventosSinAplicar}. Lo que sigue sin medir es la VENTANA:
+ * cuanto tarda un permiso concedido en {@code identidad} en aparecer aqui, que es el AC-5 de
+ * identidad#4 y exige las cinco aplicaciones levantadas.
  */
 @org.jspecify.annotations.NullMarked
 package kamayuk.catastro.seguridad;

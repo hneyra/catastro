@@ -117,6 +117,17 @@ tasks.test {
         .optional()
         .withPathSensitivity(PathSensitivity.NONE)
 
+    // EL CONTRATO QUE ESTE BACKEND PUBLICA COMO CONSUMIDOR de `identidad` (ADR-0039 etapa 4).
+    // Vive en `docs/`, fuera de todo conjunto de fuentes: sin declararlo, editar el archivo
+    // comprometido —o borrarlo— dejaria `ContratoQueConsumeDeIdentidad` sin correr, en UP-TO-DATE
+    // (#192 §2, y la misma entrada que `rentas` declara para los suyos desde su #27). NO es
+    // `optional()`: el archivo es de este repositorio y tiene que estar.
+    inputs
+        .files(
+            rootProject.layout.projectDirectory.file(
+                "../docs/50-api/contratos-que-consume/identidad.json"))
+        .withPathSensitivity(PathSensitivity.NONE)
+
     // LAS MUESTRAS VIVEN FUERA DE `backend/`, y por lo mismo. `CatastroNoNombraUnArbitrioTest`
     // corre su escaner sobre `muestras/nombra-un-arbitrio/` (#29) —una clase que viola ADR-0024 a
     // proposito, para que el contraste ejerza el recorrido de verdad y no una cadena escrita en la

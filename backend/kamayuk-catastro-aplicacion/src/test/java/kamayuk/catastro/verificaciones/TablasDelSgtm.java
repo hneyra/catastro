@@ -196,6 +196,16 @@ final class TablasDelSgtm {
                     // ya firmada no es este escaner sino el `WHERE longitud_estado = 'PROPUESTA'`
                     // del repositorio (#26, AC-4).
                     "frente_predio",
+                    // V14 (etapa 4 de ADR-0039): la memoria del consumidor de `identidad`. Lo
+                    // APLICADO es la unica constancia de por que la copia local dice lo que dice;
+                    // lo MUERTO es la unica constancia de que un evento del emisor no llego a la
+                    // copia —y el emisor ya lo dio por entregado—. Se explican, no se borran
+                    // (regla 4, RNF-051), y `V14` no le da DELETE a nadie.
+                    //
+                    // NO entran en INMUTABLES, y es deliberado: explicar un muerto ES un UPDATE
+                    // sobre la propia fila, como la anulacion de `itse`.
+                    "identidad_evento_aplicado",
+                    "identidad_evento_muerto",
                     "auditoria");
 
     /**

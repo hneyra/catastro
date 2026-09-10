@@ -116,12 +116,14 @@ describe("el descriptor de catastro", () => {
     }
   });
 
-  it("su egreso es normativa y rentas, y nada mas", () => {
-    expect(destinosDeEgreso()).toEqual(["normativa", "rentas"]);
+  it("su egreso es identidad (el sistema), normativa y rentas, y nada mas", () => {
+    // `identidad-sistema` es el SISTEMA `identidad` (ADR-0039), no Keycloak: el filtro de abajo
+    // quita `identidad` a secas, que es la etiqueta de Keycloak en la plataforma.
+    expect(destinosDeEgreso()).toEqual(["identidad-sistema", "normativa", "rentas"]);
   });
 });
 
-/** Los SISTEMAS a los que este descriptor declara egreso. El motor y la identidad no cuentan. */
+/** Los SISTEMAS a los que este descriptor declara egreso. El motor y Keycloak no cuentan. */
 function destinosDeEgreso(): string[] {
   const infra = ["postgres", "identidad"];
   return catastro
@@ -225,7 +227,10 @@ describe("C-14 §3 — el publicador del padron, desplegado", () => {
    */
   it("es un CronJob activo, con la municipalidad que fija el contexto", () => {
     const crones = catastro.lotes(ENTORNO).filter((m) => m.kind === "CronJob");
-    expect(crones).toHaveLength(1);
+    expect(crones.map((c) => c.metadata.name)).toEqual([
+      "kamayuk-catastro-publicador",
+      "kamayuk-catastro-consumidor-de-identidad",
+    ]);
     const cron = crones[0]!;
     expect(cron.spec.suspend).toBeUndefined();
     expect(cron.spec.concurrencyPolicy).toBe("Forbid");
@@ -287,5 +292,97 @@ describe("C-17 — que el despliegue pase de verdad", () => {
       (dns[0]?.ports ?? []).map((p) => `${p.protocol}/${p.port}`).sort(),
       "TCP tambien: una respuesta que no cabe en un datagrama se reintenta por TCP",
     ).toEqual(["TCP/53", "UDP/53"]);
+  });
+});
+
+describe("ADR-0039 etapa 4 — el consumidor del buzon de identidad, desplegado (identidad#4 AC-2)", () => {
+  const cron = () =>
+    catastro
+      .lotes(ENTORNO)
+      .filter((m) => m.kind === "CronJob")
+      .find((c) => c.metadata.name === "kamayuk-catastro-consumidor-de-identidad")!;
+
+  /**
+   * Las tres mitades de «el consumidor CORRE» que `infrastructure` comprueba (AC-3), vistas
+   * desde aqui: existe, no nace suspendido, y tiene con que autenticarse. Cualquiera sola lo apaga
+   * en silencio — es lo que #21 midio con el ingestor de `catastro`, que nacio `suspend: true`
+   * «hasta que exista la identidad de servicio» y esa linea se convirtio en un requisito.
+   */
+  it("existe, cada cinco minutos, nunca dos a la vez y con un solo intento", () => {
+    const c = cron();
+    expect(c).toBeDefined();
+    expect(c.spec.schedule).toBe("*/5 * * * *");
+    expect(c.spec.concurrencyPolicy).toBe("Forbid");
+    expect(c.spec.jobTemplate.spec.backoffLimit).toBe(1);
+    expect(c.spec.jobTemplate.spec.template.spec.priorityClassName).toBe(ENTORNO.prioridadDe("lote"));
+  });
+
+  it("y NO nace suspendido: lo que lo sostiene es la cuenta declarada, no un interruptor", () => {
+    expect(cron().spec.suspend, "identidad#4 AC-3: un `suspend: true` lo apaga en silencio").toBeUndefined();
+  });
+
+  it("lleva las seis variables del consumidor, la URL compuesta con el namespace de identidad", () => {
+    const c = cron().spec.jobTemplate.spec.template.spec.containers[0]!;
+    expect(c.image).toBe(ENTORNO.imagenDe("catastro"));
+    expect(valorDe(c, "SPRING_PROFILES_ACTIVE")).toBe("batch");
+    // `kamayuk-identidad-web` en SU namespace: es como se llama el Service del backend de
+    // `identidad`, y `namespaceDe` es lo que impide escribir el namespace de aqui.
+    expect(valorDe(c, "KAMAYUK_IDENTIDAD_URL")).toBe("http://kamayuk-identidad-web.kamayuk-identidad-stg");
+    expect(valorDe(c, "KAMAYUK_IDENTIDAD_TOKEN")).toBe(ENTORNO.plataforma.token);
+    expect(valorDe(c, "KAMAYUK_IDENTIDAD_CLIENTE")).toBe("kamayuk-catastro-servicio-200105");
+    expect(
+      (c.env ?? []).find((v) => v.name === "KAMAYUK_IDENTIDAD_CREDENCIAL")?.valueFrom?.secretKeyRef,
+    ).toEqual({ name: "kamayuk-catastro-stg-identidad", key: "clave" });
+    expect(valorDe(c, "KAMAYUK_IDENTIDAD_RESPONSABLE")).toBe(ENTORNO.operacion.responsable);
+    expect(valorDe(c, "KAMAYUK_IDENTIDAD_CANAL")).toBe(ENTORNO.operacion.canal);
+    // `@ConditionalOnProperty("kamayuk.identidad.consumidor.municipalidad")`: sin ella el runner
+    // NO se registra y el CronJob arranca un proceso que no hace nada (C-18 §5).
+    expect(valorDe(c, "KAMAYUK_IDENTIDAD_CONSUMIDOR_MUNICIPALIDAD")).toBe("1");
+  });
+
+  it("y la implantacion lleva las mismas, menos la municipalidad, porque termina con una pasada", () => {
+    const c = catastro.implantacion(ENTORNO).filter((m) => m.kind === "Job")[0]!.spec.template.spec
+      .containers[0]!;
+    for (const v of [
+      "KAMAYUK_IDENTIDAD_URL",
+      "KAMAYUK_IDENTIDAD_TOKEN",
+      "KAMAYUK_IDENTIDAD_CLIENTE",
+      "KAMAYUK_IDENTIDAD_CREDENCIAL",
+      "KAMAYUK_IDENTIDAD_RESPONSABLE",
+      "KAMAYUK_IDENTIDAD_CANAL",
+    ]) {
+      expect(declara(c, v), v).toBe(true);
+    }
+    // La municipalidad la CREA la implantacion; con la propiedad puesta correrian dos pasadas en
+    // el mismo proceso, la del runner y la de la implantacion.
+    expect(declara(c, "KAMAYUK_IDENTIDAD_CONSUMIDOR_MUNICIPALIDAD")).toBe(false);
+  });
+
+  it("declara la credencial del emisor, con `emisor: keycloak` y el nombre del que cuelga el secretKeyRef", () => {
+    const clave = catastro.claves(ENTORNO).find((c) => c.nombre === "kamayuk-catastro-stg-identidad");
+    expect(clave).toBeDefined();
+    // Sin `emisor`, `bootstrap-secretos.sh` generaria un valor aleatorio que ningun emisor firmo:
+    // el pod arranca y `identidad` contesta 401 en la primera llamada (#21).
+    expect(clave?.emisor).toBe("keycloak");
+    expect(clave?.clave).toBe("clave");
+    // Y ninguna otra clave lleva emisor: las de la base las genera la plataforma.
+    expect(catastro.claves(ENTORNO).filter((c) => c.emisor !== undefined)).toHaveLength(1);
+  });
+
+  it("abre egreso hacia el namespace del SISTEMA identidad, y no hacia Keycloak por el", () => {
+    const reglas = catastro
+      .egreso(ENTORNO)
+      .flatMap((p) => p.spec.egress ?? [])
+      .filter((r) =>
+        (r.to ?? []).some(
+          (d) => d.namespaceSelector?.matchLabels?.["kubernetes.io/metadata.name"] === "kamayuk-identidad-stg",
+        ),
+      );
+    expect(reglas).toHaveLength(1);
+    const destino = reglas[0]!.to![0]!;
+    // `identidad-sistema`: en la plataforma `componente: identidad` es Keycloak, y un
+    // `podSelector` con ese nombre en el namespace del sistema no seleccionaria nada.
+    expect(destino.podSelector?.matchLabels?.["componente"]).toBe("identidad-sistema");
+    expect((reglas[0]!.ports ?? []).map((p) => `${p.protocol}/${p.port}`)).toEqual(["TCP/8080"]);
   });
 });

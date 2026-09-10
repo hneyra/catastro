@@ -31,6 +31,15 @@
  * no ve ni una deduccion»— y es lo que permite abrir su API a desarrollo urbano sin abrir con
  * ella el padron tributario. Si esta arista creciera, lo que hay que revisar es la frontera.
  *
+ * ## Y desde la etapa 4 de ADR-0039 hay una TERCERA arista: `identidad`
+ *
+ * El consumidor del buzon de `identidad` —un `CronJob` cada cinco minutos, y la ultima pasada de
+ * la implantacion— trae a la copia local lo que alli se concedio o se revoco. Es egreso hacia el
+ * **sistema** `identidad` (`kamayuk-identidad-<amb>`, pods `componente: identidad-sistema`), que no
+ * es Keycloak: en la plataforma `identidad` ya significa Keycloak, y la regla de aquel repositorio
+ * es decir `identidad-sistema` donde el nombre chocaria. Por eso hay dos reglas de egreso con la
+ * palabra `identidad` dentro y no son la misma.
+ *
  * ## Todavia no hay codigo de negocio
  *
  * Los `Deployment` apuntan a imagenes que **aun no existen**. Es correcto en esta etapa: describe
@@ -159,6 +168,41 @@ function variablesDeImplantacion(e: EntornoDelDescriptor): VariableDeEntorno[] {
       name: "KAMAYUK_IMPLANTACION_OWNERCLAVE",
       valueFrom: { secretKeyRef: { name: e.secretoDe("owner"), key: "clave" } },
     },
+    // La implantacion termina con una pasada del consumidor de `identidad` (etapa 4).
+    ...variablesDelConsumidorDeIdentidad(e),
+  ];
+}
+
+/**
+ * Lo que el consumidor del buzon de `identidad` necesita (ADR-0039 etapa 4, identidad#4 AC-2).
+ *
+ * Las lleva el `CronJob` del consumidor Y el Job de implantacion, porque la implantacion termina
+ * con una pasada del consumidor: una municipalidad recien implantada no espera cinco minutos a
+ * tener la copia al dia. Lo unico que el Job NO lleva es la municipalidad —la crea el—, que es la
+ * propiedad con la que se registra el runner del `CronJob`.
+ *
+ * - `_URL` se compone con `namespaceDe("identidad")`: el `Service` del backend de `identidad` se
+ *   llama `kamayuk-identidad-web` en SU namespace, y escribirlo con el namespace de aqui apuntaria
+ *   a un `Service` que no existe.
+ * - `_TOKEN` es el punto de emision INTERNO de Keycloak (`e.plataforma.token`), y `_CLIENTE` el
+ *   cliente confidencial de este sistema y esta municipalidad —`kamayuk-catastro-servicio-<ubigeo>`,
+ *   uno por municipalidad y no uno por sistema (ADR-0028 §2)—. `_CREDENCIAL` es su clave, del
+ *   `Secret` `e.secretoDe("identidad")`, que `claves()` declara con `emisor: "keycloak"` para que
+ *   `infrastructure` exija la cuenta en cada municipalidad y no genere un valor aleatorio.
+ * - `_RESPONSABLE` y `_CANAL` son del AMBIENTE (C-7): a quien se le avisa cuando un evento no se
+ *   pudo aplicar (ADR-0026 §4). Sin ellos el consumidor no arranca.
+ */
+function variablesDelConsumidorDeIdentidad(e: EntornoDelDescriptor): VariableDeEntorno[] {
+  return [
+    { name: "KAMAYUK_IDENTIDAD_URL", value: `http://kamayuk-identidad-web.${e.namespaceDe("identidad")}` },
+    { name: "KAMAYUK_IDENTIDAD_TOKEN", value: e.plataforma.token },
+    { name: "KAMAYUK_IDENTIDAD_CLIENTE", value: `kamayuk-${SISTEMA}-servicio-${e.implantacion.ubigeo}` },
+    {
+      name: "KAMAYUK_IDENTIDAD_CREDENCIAL",
+      valueFrom: { secretKeyRef: { name: e.secretoDe("identidad"), key: "clave" } },
+    },
+    { name: "KAMAYUK_IDENTIDAD_RESPONSABLE", value: e.operacion.responsable },
+    { name: "KAMAYUK_IDENTIDAD_CANAL", value: e.operacion.canal },
   ];
 }
 
@@ -267,6 +311,77 @@ function despliegueDelPerfil(e: EntornoDelDescriptor, perfil: string, atiendeHtt
     });
   }
   return manifiestos;
+}
+
+/**
+ * La ventana del consumidor del buzon de `identidad`: cada cinco minutos, y no la de madrugada.
+ *
+ * Una revocacion que tarda un dia en llegar no es una decision, es un descuido con nombre
+ * (identidad#4). Lo que cuesta es un pod de lote de vida corta doce veces por hora, con los
+ * recursos de arranque; lo que compra es que la ventana de inconsistencia de la copia local
+ * —ADR-0039 §«Lo que cuesta», punto 2— tenga un tope que se pueda medir y escribir.
+ */
+const VENTANA_DEL_CONSUMIDOR = "*/5 * * * *";
+
+/**
+ * El consumidor del buzon de `identidad` (ADR-0039 etapa 4, identidad#4 AC-2).
+ *
+ * `CorrerElConsumidorDeIdentidad` es un `ApplicationRunner` del perfil `batch`, como el publicador
+ * y por lo mismo. Se registra con `kamayuk.identidad.consumidor.municipalidad`: sin ella el proceso
+ * arranca y no hace nada, que es el defecto de C-18 §5 con el Job de `rentas`. Corre ACTIVO —no
+ * `suspend: true`—: lo que hasta #21 obligaba a suspender el ingestor de `catastro` era no tener
+ * identidad de servicio, y esta la tiene; lo que la sostiene ya no es un interruptor sino la guarda
+ * de `infrastructure` que exige su cuenta en cada municipalidad.
+ */
+function consumidorDeIdentidad(e: EntornoDelDescriptor): CronJob {
+  const nombre = `kamayuk-${SISTEMA}-consumidor-de-identidad`;
+  const etiquetas = { ...e.etiquetas, componente: SISTEMA };
+  return {
+    apiVersion: "batch/v1",
+    kind: "CronJob",
+    metadata: { name: nombre, namespace: e.namespace, labels: etiquetas },
+    spec: {
+      schedule: VENTANA_DEL_CONSUMIDOR,
+      // Nunca dos a la vez: dos consumidores acusando el mismo lote es la forma mas cara de
+      // descubrir que «el acuse va despues del commit» no basta cuando hay dos commits.
+      concurrencyPolicy: "Forbid",
+      successfulJobsHistoryLimit: 3,
+      failedJobsHistoryLimit: 3,
+      jobTemplate: {
+        spec: {
+          // Un solo intento: lo que no se pudo aplicar se reintenta en la corrida de dentro de
+          // cinco minutos, no en un segundo pod ahora mismo.
+          backoffLimit: 1,
+          template: {
+            metadata: { labels: { ...etiquetas, app: nombre } },
+            spec: {
+              restartPolicy: "Never",
+              priorityClassName: e.prioridadDe("lote"),
+              containers: [
+                {
+                  name: "consumidor",
+                  image: e.imagenDe(SISTEMA),
+                  env: [
+                    { name: "SPRING_PROFILES_ACTIVE", value: "batch" },
+                    ...credencialesDeLaAplicacion(e),
+                    ...variablesDelConsumidorDeIdentidad(e),
+                    // El contexto de tenant que el runner fija, y la propiedad con la que se
+                    // registra. Del ambiente, no de aqui.
+                    {
+                      name: "KAMAYUK_IDENTIDAD_CONSUMIDOR_MUNICIPALIDAD",
+                      value: String(e.implantacion.municipalidadId),
+                    },
+                  ],
+                  resources: RECURSOS_DE_ARRANQUE,
+                  securityContext: SEGURIDAD,
+                },
+              ],
+            },
+          },
+        },
+      },
+    },
+  };
 }
 
 export const catastro: DescriptorDeSistema = {
@@ -448,7 +563,7 @@ export const catastro: DescriptorDeSistema = {
         },
       },
     };
-    return [publicador];
+    return [publicador, consumidorDeIdentidad(e)];
   },
 
   /** Sus rutas, **bajo su prefijo**. Reclamar el de otro no falla: se lo queda. */
@@ -481,6 +596,8 @@ export const catastro: DescriptorDeSistema = {
    *
    * - **`normativa`**: el conjunto sellado con que valoriza (ADR-0025 §1)
    * - **`rentas`**: **solo** para resolver el nombre del titular de un predio
+   * - **`identidad`** (el sistema, no Keycloak): el buzon del que este sistema consume su copia
+   *   local de la autorizacion (ADR-0039, etapa 4). Desde el `CronJob` y desde la implantacion.
    */
   egreso(e): NetworkPolicy[] {
     return [
@@ -591,6 +708,22 @@ export const catastro: DescriptorDeSistema = {
               ],
               ports: [{ protocol: "TCP", port: 8080 }],
             },
+            // identidad, EL SISTEMA: el buzon del que se consume la copia local (ADR-0039 etapa 4).
+            //
+            // `componente: identidad-sistema` y no `identidad`: en la plataforma `identidad` es
+            // Keycloak —la regla de arriba— y el descriptor de aquel sistema etiqueta sus pods
+            // con el sufijo para que no choquen. Y en SU namespace, no en el de la plataforma.
+            {
+              to: [
+                {
+                  namespaceSelector: {
+                    matchLabels: { "kubernetes.io/metadata.name": e.namespaceDe("identidad") },
+                  },
+                  podSelector: { matchLabels: { componente: "identidad-sistema" } },
+                },
+              ],
+              ports: [{ protocol: "TCP", port: 8080 }],
+            },
           ],
         },
       },
@@ -641,6 +774,19 @@ export const catastro: DescriptorDeSistema = {
       rol: "kamayuk_owner",
       rotacion: "anual",
       proposito: `migrar la base de ${SISTEMA}; es el unico rol con DDL`,
+    },
+    {
+      // La clave del cliente confidencial con el que el consumidor pide su token (#21, ADR-0028
+      // §2). `emisor: "keycloak"` es lo que distingue esta clave de las dos de arriba: no la
+      // genera `bootstrap-secretos.sh` con un valor aleatorio —eso es lo que dejaba al ingestor de
+      // `rentas` mandando una cadena que ningun emisor firmo—, la crea `reconciliar-identidades.sh`
+      // en el realm, y `infrastructure` exige que cada municipalidad declare la cuenta
+      // `{"sistema":"catastro","llamaA":"identidad"}` (el `llamaA` sale del nombre del secreto).
+      nombre: e.secretoDe("identidad"),
+      clave: "clave",
+      emisor: "keycloak",
+      rotacion: "trimestral",
+      proposito: `la cuenta de servicio con que ${SISTEMA} consume el buzon de identidad (ADR-0039 etapa 4)`,
     },
   ],
 };

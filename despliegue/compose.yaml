@@ -19,18 +19,22 @@
 #  Dockerfile. No se copia una lista a mano: se derivan las dos y se comparan.
 #
 #
-#  LO QUE ESTE COMPOSE NO TRAE, Y SE DICE EN VEZ DE DESCUBRIRSE: el `CronJob` del
-#  publicador del padron. En el cluster lo declara `lotes()` del descriptor y
-#  corre en su ventana de madrugada; aqui no hay temporizador que lo dispare —el
-#  perfil `batch` TERMINA el proceso, asi que un servicio mas seria un contenedor
-#  que sale con codigo 0 y al que Compose reiniciaria en bucle, que es el defecto
-#  5 de C-17—. Para correrlo a mano:
+#  LO QUE ESTE COMPOSE NO TRAE, Y SE DICE EN VEZ DE DESCUBRIRSE: los DOS `CronJob`
+#  que `lotes()` del descriptor declara —el publicador del padron, en su ventana
+#  de madrugada, y el consumidor del buzon de `identidad`, cada cinco minutos
+#  (ADR-0039 etapa 4)—. Aqui no hay temporizador que los dispare —el perfil
+#  `batch` TERMINA el proceso, asi que un servicio mas seria un contenedor que
+#  sale con codigo 0 y al que Compose reiniciaria en bucle, que es el defecto 5
+#  de C-17—. Lo que si corre es la ULTIMA PASADA del consumidor: la implantacion
+#  termina con ella, y por eso `catastro-implantacion` lleva las seis variables
+#  del consumidor. Para volver a correrla a mano, con la municipalidad ya creada:
 #
-#      docker compose run --rm catastro-implantacion   # con SPRING_PROFILES_ACTIVE=batch
+#      docker compose run --rm -e KAMAYUK_IDENTIDAD_CONSUMIDOR_MUNICIPALIDAD=1 \
+#          catastro-implantacion
 #
-#  no lo dispara: el runner es `PublicarElPadron` y necesita
-#  `KAMAYUK_CATASTRO_PUBLICACION_MUNICIPALIDAD`. Queda como hueco declarado de
-#  C-18.
+#  Queda como hueco declarado de C-18 lo que no cambia: el publicador del padron
+#  no se dispara desde aqui (`PublicarElPadron` necesita
+#  `KAMAYUK_CATASTRO_PUBLICACION_MUNICIPALIDAD`).
 #  AQUI NO HAY FRONTEND, y no es un olvido. Este repositorio no tiene todavia
 #  `frontend/`: ADR-0030 §1 decide que habra uno por sistema y hoy no existe
 #  ninguno de los cuatro. El `README.md` de `infrastructure/despliegue/` decia
@@ -117,6 +121,41 @@ services:
       # punto, asi que `KAMAYUK_IMPLANTACION_OWNER_CLAVE` seria
       # `kamayuk.implantacion.owner.clave` y no `owner-clave`.
       KAMAYUK_IMPLANTACION_OWNERCLAVE: ${KAMAYUK_CLAVE_OWNER:?falta KAMAYUK_CLAVE_OWNER, sale del .env de la plataforma}
+      # ── El consumidor del buzon de `identidad` (ADR-0039, etapa 4) ────────────
+      #
+      # La implantacion TERMINA con una pasada del consumidor, asi que lleva sus seis
+      # variables, las mismas que el `CronJob` del descriptor. Son las que la guarda
+      # de `infrastructure` compara con `lotes()`/`implantacion()`.
+      #
+      # `identidad-sistema` y NO `identidad`: en la red `kamayuk-plataforma` el alias
+      # `identidad` lo tiene Keycloak, y el backend de `identidad` se registra como
+      # `identidad-sistema` a proposito —con dos contenedores bajo el mismo alias el
+      # DNS de Docker reparte y todo token seria invalido de forma intermitente—.
+      KAMAYUK_IDENTIDAD_URL: http://identidad-sistema:8080
+      # El punto de emision INTERNO de Keycloak, que aqui SI es `identidad`.
+      KAMAYUK_IDENTIDAD_TOKEN: http://identidad:8080/realms/sgtm/protocol/openid-connect/token
+      # El cliente confidencial de este sistema y esta municipalidad (#21, ADR-0028 §2).
+      KAMAYUK_IDENTIDAD_CLIENTE: kamayuk-catastro-servicio-${KAMAYUK_UBIGEO:?falta KAMAYUK_UBIGEO en el .env de la plataforma}
+      # Su clave. VACIA por omision, a proposito: aqui la identidad de servicio hay que
+      # crearla a mano (`reconciliar-identidades.sh servicios`), y mientras no exista lo
+      # correcto es que la llamada salga sin credencial y `identidad` la rechace —no que
+      # la implantacion se pase la vida pidiendo tokens que nadie va a dar—.
+      KAMAYUK_IDENTIDAD_CREDENCIAL: ${KAMAYUK_CATASTRO_CREDENCIAL_DE_IDENTIDAD:-}
+      # A quien se le avisa cuando un evento no se pudo aplicar (ADR-0026 §4). Del
+      # ambiente: son las mismas dos variables que `caja` lleva para la conciliacion.
+      KAMAYUK_IDENTIDAD_RESPONSABLE: ${KAMAYUK_RESPONSABLE_DE_OPERACION:?falta KAMAYUK_RESPONSABLE_DE_OPERACION en el .env de la plataforma}
+      KAMAYUK_IDENTIDAD_CANAL: ${KAMAYUK_CANAL_DE_OPERACION:?falta KAMAYUK_CANAL_DE_OPERACION en el .env de la plataforma}
+      #
+      # Y AQUI NO ESTA `KAMAYUK_IDENTIDAD_CONSUMIDOR_MUNICIPALIDAD`, que el `CronJob` del
+      # descriptor SI declara. No es un olvido y no lo puede ser: esa variable es lo que
+      # enciende el consumidor AUTONOMO —el que corre solo, sin implantacion delante, y
+      # que por eso necesita que le digan de que municipalidad es la copia—. En este
+      # compose no hay temporizador que lo dispare (arriba, en la cabecera), asi que el
+      # consumidor existe solo como la ultima pasada de la implantacion, y ahi la
+      # municipalidad NO se configura: es la que la implantacion acaba de dar de alta.
+      # Ponerla aqui haria correr las dos cosas en el mismo proceso, que es como la
+      # medicion de AC-5/AC-6 encontro H4. Para correr la pasada a mano con la
+      # municipalidad ya creada, el `docker compose run -e …` de la cabecera.
     restart: "no"
 
   # ── El backend ──────────────────────────────────────────────────────────────

@@ -574,25 +574,29 @@ public final class ConfiguracionDeCatastro implements ConfiguracionDeLasVerifica
      * <p>Declararla es lo que ENCIENDE la regla aqui: mientras devolvia {@code null} —por omision—
      * el escaner de {@code comun-verificaciones} no miraba estas cuatro tablas en este repositorio
      * y lo decia en cada corrida. Desde la etapa 4 se mira, y todo {@code INSERT}, {@code UPDATE} o
-     * {@code DELETE} sobre ellas en {@code src/main} que no venga de una de estas dos clases sale
-     * rojo nombrando el archivo.
+     * {@code DELETE} sobre ellas en {@code src/main} que no venga de esta clase sale rojo nombrando
+     * el archivo y la linea.
      *
-     * <p>Las dos, con su fecha de fin:
+     * <p><b>Es UNA, y desde la etapa 5 no tiene fecha de fin</b> (identidad#5 AC-1): {@code
+     * AplicarUnEventoDeIdentidad}, el consumidor del buzon. Es el escritor que ADR-0039 quiere y el
+     * unico que va a haber.
      *
-     * <ul>
-     *   <li>{@code AplicarUnEventoDeIdentidad}: el consumidor del buzon. Es el escritor que
-     *       ADR-0039 quiere, y no tiene fecha de fin.
-     *   <li>{@code SembradorDeLaCopiaLocal}: la implantacion siembra el catalogo, el grupo de
-     *       administracion y el primer administrador. Es de la etapa 5 retirarlo —cuando la
-     *       implantacion pase a pedirle a `identidad` lo que hoy siembra—, y hasta entonces se
-     *       declara aqui, con esta nota, en vez de dejarlo eximido sin que nadie sepa hasta cuando.
-     * </ul>
+     * <p>La etapa 4 declaraba ademas {@code SembradorDeLaCopiaLocal}, que escribia el grupo de
+     * administracion, el primer administrador, su afiliacion y sus permisos. Retirarlo era lo que
+     * la etapa 5 tenia pendiente, y no era una limpieza: mientras existia habia <b>dos origenes
+     * para la misma tabla</b> y el segundo solo agregaba, asi que un permiso revocado en {@code
+     * identidad} volvia a otorgarse en el despliegue siguiente. Hoy el sembrador se llama {@code
+     * SembradorDelCatalogo} y escribe {@code modulo_sistema} y {@code acceso}, que no son de la
+     * autorizacion sino del catalogo — quien las declara es este sistema (RF-122), y a quien se le
+     * conceden lo dice {@code identidad}.
      *
      * <p>Una entrada que no nombre ninguna clase de `src/main` sale roja (#27): una exencion sin
-     * sujeto es un permiso para la clase que nazca manana con ese nombre.
+     * sujeto es un permiso para la clase que nazca manana con ese nombre. Medido al retirar el
+     * sembrador: dejar la entrada vieja con el nombre viejo pone roja esa guarda nombrandola, que
+     * es la confirmacion de que ya no exime nada.
      */
     @Override
     public Set<String> escritoresDeLaAutorizacionConMotivo() {
-        return Set.of("AplicarUnEventoDeIdentidad", "SembradorDeLaCopiaLocal");
+        return Set.of("AplicarUnEventoDeIdentidad");
     }
 }

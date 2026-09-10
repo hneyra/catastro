@@ -2,9 +2,12 @@
 //
 // Lo que hay aqui son DOS cosas y no un contexto acotado entero: quien LEE la copia para autorizar
 // —`ComprobadorDeAccesoJdbc`, la implementacion del puerto que `kamayuk-catastro-plataforma`
-// declara— y quien la SIEMBRA al implantar la municipalidad. Las nueve escrituras de
-// administracion de seguridad se quedan en `rentas` (ADR-0030 §3), asi que aqui no hay ni
-// controlador ni pantalla.
+// declara— y quien la TRAE, que desde la etapa 4 de ADR-0039 es el consumidor del buzon de
+// `identidad`. Las once escrituras de administracion de seguridad viven en `identidad`, que es el
+// dueno de la autorizacion, asi que aqui no hay ni controlador ni pantalla. Y desde la etapa 5
+// (identidad#5) la implantacion no escribe ninguna de las cuatro tablas: siembra `modulo_sistema`
+// y `acceso` —el catalogo de este sistema, que es lo unico que este sistema declara— y lo demas
+// llega por el buzon.
 //
 // El nombre del modulo no se elige: `ConfiguracionDeCatastro` ya lo reparte a
 // SISTEMA_REPLICADO desde P5C, porque las cinco tablas de seguridad estan replicadas en los cuatro

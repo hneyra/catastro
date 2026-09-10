@@ -133,7 +133,7 @@ services:
       # DNS de Docker reparte y todo token seria invalido de forma intermitente—.
       KAMAYUK_IDENTIDAD_URL: http://identidad-sistema:8080
       # El punto de emision INTERNO de Keycloak, que aqui SI es `identidad`.
-      KAMAYUK_IDENTIDAD_TOKEN: http://identidad:8080/realms/sgtm/protocol/openid-connect/token
+      KAMAYUK_IDENTIDAD_TOKEN: http://identidad:8080/realms/kamayuk/protocol/openid-connect/token
       # El cliente confidencial de este sistema y esta municipalidad (#21, ADR-0028 §2).
       KAMAYUK_IDENTIDAD_CLIENTE: kamayuk-catastro-servicio-${KAMAYUK_UBIGEO:?falta KAMAYUK_UBIGEO en el .env de la plataforma}
       # Su clave. VACIA por omision, a proposito: aqui la identidad de servicio hay que
@@ -193,13 +193,13 @@ services:
       #
       # Es el MISMO realm que los otros tres: un login para los cuatro
       # (ADR-0030 §3).
-      KAMAYUK_OIDC_EMISOR: ${KAMAYUK_OIDC_EMISOR:-http://localhost:8180}/realms/sgtm
+      KAMAYUK_OIDC_EMISOR: ${KAMAYUK_OIDC_EMISOR:-http://localhost:8180}/realms/kamayuk
       # El emisor es una identidad, no una direccion de red. El navegador llega a
       # Keycloak por su nombre publico y este contenedor por el interno de la red
       # del compose; usar el publico para las dos cosas haria que el backend
       # buscara el JWKS en si mismo y todo token seria invalido por un motivo que
       # no se parece a su causa.
-      KAMAYUK_OIDC_JWKS: http://identidad:8080/realms/sgtm/protocol/openid-connect/certs
+      KAMAYUK_OIDC_JWKS: http://identidad:8080/realms/kamayuk/protocol/openid-connect/certs
     labels:
       # Su prefijo, y SOLO el suyo. Reclamar el de otro no falla: se lo queda, y
       # las peticiones dejan de llegar a su dueno. Es la misma prohibicion (a) que

@@ -230,7 +230,7 @@ class ElConsumidorHablaConIdentidadTest {
                         new TokenDeServicioDeKeycloak(
                                 JSON,
                                 Clock.fixed(AHORA, ZoneOffset.UTC),
-                                emisor.raiz() + "/realms/sgtm/protocol/openid-connect/token",
+                                emisor.raiz() + "/realms/kamayuk/protocol/openid-connect/token",
                                 "kamayuk-catastro-servicio-200105",
                                 "la clave");
 

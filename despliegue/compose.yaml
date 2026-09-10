@@ -140,6 +140,13 @@ services:
       # crearla a mano (`reconciliar-identidades.sh servicios`), y mientras no exista lo
       # correcto es que la llamada salga sin credencial y `identidad` la rechace —no que
       # la implantacion se pase la vida pidiendo tokens que nadie va a dar—.
+      #
+      # LO QUE ESO SIGNIFICA CAMBIA EN LA ETAPA 5 DE ADR-0039, y hay que decirlo: desde
+      # que la implantacion dejo de sembrar el administrador, ese rechazo NO deja una
+      # base a medias que ya funciona — deja una base con su catalogo sembrado y CERO
+      # usuarios. Asi que `catastro-implantacion` FALLA nombrando el remedio en vez de
+      # salir con codigo 0. El orden para levantar esto es: la plataforma, `identidad`
+      # implantado, `reconciliar-identidades.sh servicios`, y despues este compose.
       KAMAYUK_IDENTIDAD_CREDENCIAL: ${KAMAYUK_CATASTRO_CREDENCIAL_DE_IDENTIDAD:-}
       # A quien se le avisa cuando un evento no se pudo aplicar (ADR-0026 §4). Del
       # ambiente: son las mismas dos variables que `caja` lleva para la conciliacion.

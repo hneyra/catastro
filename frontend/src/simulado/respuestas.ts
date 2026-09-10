@@ -32,7 +32,7 @@ export function problema(
   return {
     estado,
     cuerpo: {
-      type: `https://sgtm.gob.pe/errores/${codigo.toLowerCase()}`,
+      type: `https://kamayuk.gob.pe/errores/${codigo.toLowerCase()}`,
       title: mensaje,
       status: estado,
       detail: mensaje,

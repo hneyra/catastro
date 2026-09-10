@@ -726,7 +726,7 @@ function json(cuerpo: unknown, estado: number): Response {
 function noLaSirve(metodo: string, camino: string, estado: number): Response {
   return json(
     {
-      type: 'https://sgtm.gob.pe/errores/operacion-declarada-y-no-servida',
+      type: 'https://kamayuk.gob.pe/errores/operacion-declarada-y-no-servida',
       title: 'La operacion esta declarada como servida y el backend no la sirve',
       status: 502,
       detail: `«${metodo} ${camino}» esta en «src/simulado/servidas.ts» y el backend respondio ${estado}. Quita la ruta de esa lista o implementa la operacion: caer al proxy en silencio esconderia el desajuste.`,
@@ -740,7 +740,7 @@ function noLaSirve(metodo: string, camino: string, estado: number): Response {
 function noSimulada(metodo: string, camino: string): Response {
   return json(
     {
-      type: 'https://sgtm.gob.pe/errores/operacion-no-simulada',
+      type: 'https://kamayuk.gob.pe/errores/operacion-no-simulada',
       title: 'La operacion no existe en el proxy de datos',
       status: 404,
       detail: `El proxy de datos no conoce «${metodo} ${camino}». El backend publica 64 operaciones y este proxy simula ${OPERACIONES_SIMULADAS}: las que el armazon lee. Anadela a «src/simulado/proxy.ts» o enciendela en «servidas.ts».`,

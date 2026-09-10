@@ -49,7 +49,7 @@ public final class ObjetosDeValorEnJson {
      * mapeador concreto y compartir el mismo entre dos seria acoplarlos por el objeto.
      */
     public static SimpleModule modulo() {
-        SimpleModule modulo = new SimpleModule("sgtm-objetos-de-valor");
+        SimpleModule modulo = new SimpleModule("kamayuk-objetos-de-valor");
 
         registrarDecimal(modulo, Dinero.class, d -> d.valor().toPlainString(), Dinero::de);
         registrarDecimal(modulo, Alicuota.class, a -> a.valor().toPlainString(), Alicuota::de);
@@ -88,7 +88,7 @@ public final class ObjetosDeValorEnJson {
      * a lo que se guardo.
      */
     public static SimpleModule decimalesComoTexto() {
-        SimpleModule modulo = new SimpleModule("sgtm-decimales-como-texto");
+        SimpleModule modulo = new SimpleModule("kamayuk-decimales-como-texto");
         modulo.addSerializer(
                 BigDecimal.class,
                 new ValueSerializer<BigDecimal>() {

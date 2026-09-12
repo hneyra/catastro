@@ -40,9 +40,15 @@ ARG VITE_CATASTRO_PROXY_DE_DATOS=false
 ENV VITE_CATASTRO_API=$VITE_CATASTRO_API \
     VITE_CATASTRO_PROXY_DE_DATOS=$VITE_CATASTRO_PROXY_DE_DATOS
 
-# NINGUN token se hornea en la imagen. `VITE_CATASTRO_TOKEN` existe para una vista
-# previa local contra el backend, y meterlo aqui dejaria una credencial dentro de
-# un artefacto que se publica y se comparte.
+# NINGUN token se hornea en la imagen, y desde la puerta de identidad **no hay
+# ninguna variable con la que se pudiera**: `VITE_CATASTRO_TOKEN` ya no existe. El
+# token sale del canje OIDC y vive en memoria (`src/api/identidad.ts`).
+#
+# Lo que sostiene la afirmacion son otras dos cosas, y las dos se verifican:
+# `.dockerignore` excluye los archivos de entorno que Vite lee —sin eso, un
+# `.env.local` en la maquina de quien construye acaba EN CLARO dentro de
+# `assets/index-*.js`, medido— y `verificaciones/imagen.mjs` rechaza cualquier
+# `ARG`/`ENV` cuyo nombre huela a credencial.
 RUN yarn build
 
 # ---------------------------------------------------------------------------

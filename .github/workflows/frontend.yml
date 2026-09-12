@@ -280,11 +280,18 @@ jobs:
           # Sin `wait-on`: es una dependencia mas que descargar para hacer lo que
           # hacen tres lineas, y en un flujo bloqueante cada descarga es una forma
           # nueva de ponerse rojo por algo que no se esta midiendo.
+          #
+          # Se pregunta por `/catastro/` y no por `/`, con la barra final. Desde
+          # #102 la aplicacion se sirve bajo esa base (ADR-0030 §2) y `vite preview`
+          # contesta a la raiz un **302** hacia ella —y a `/catastro` sin barra, un
+          # 404—. Un `curl -f` sin `-L` da por bueno el 302, asi que preguntar por
+          # `/` diria que la vista previa esta lista sin haber pedido nunca la
+          # pagina: un arranque a medias se veria igual que uno bueno.
           for i in $(seq 1 60); do
-            curl -sf -o /dev/null http://localhost:5210/ && break
+            curl -sf -o /dev/null http://localhost:5210/catastro/ && break
             sleep 1
           done
-          curl -sf -o /dev/null http://localhost:5210/
+          curl -sf -o /dev/null http://localhost:5210/catastro/
 
       - name: Los destinos se dibujan
         run: CATASTRO_BASE=http://localhost:5210 node verificaciones/mirar.mjs

@@ -26,6 +26,16 @@
  *   esta interfaz no puede filtrar entre municipalidades — no tiene por donde.
  */
 
+/*
+ * El token ya no es de este archivo: lo tiene la puerta de identidad, en memoria.
+ *
+ * Se importa con alias porque aqui ya hay dos funciones que se llaman igual —`token()` y
+ * `fijarToken()`, que son las que el resto de la interfaz usa— y esta capa anade algo sobre ellas:
+ * la cuenta de sesiones. Sin el alias habria que elegir entre renombrar la API publica de este
+ * modulo o escribir `identidad.token()` por todas partes.
+ */
+import { fijarToken as fijarTokenDeLaSesion, token as tokenDeLaSesion } from './identidad';
+
 /**
  * El catalogo de errores del backend, tal como lo declara su `CodigoDeError`.
  *
@@ -173,33 +183,42 @@ export class ErrorDeApi extends Error {
 export const RAIZ: string = import.meta.env.VITE_CATASTRO_API ?? '/catastro/api/v1';
 
 /**
- * El token con el que se firma cada peticion.
+ * El token con el que se firma cada peticion. **Lo tiene `api/identidad.ts`, en memoria.**
  *
- * ADR-0030 §3 pone la sesion y los permisos en `rentas`, y en este backend no
- * hay ningun endpoint de «quien soy» —los 64 medidos son de catastro, y ninguno
- * de seguridad—. Asi que mientras no exista esa puerta, el token sale de
- * `VITE_CATASTRO_TOKEN` o de `localStorage`. Cuando exista, cambia esta funcion
- * y nada mas.
+ * <h2>De donde salia antes, y por que ya no</h2>
+ *
+ * Hasta la puerta de identidad esto leia `VITE_CATASTRO_TOKEN` o
+ * `localStorage.getItem('catastro.token')`, o sea: un token pegado a mano. Las dos
+ * formas se han ido, y cada una por su motivo.
+ *
+ * `VITE_CATASTRO_TOKEN` la resolvia **Vite al compilar**, asi que un token puesto
+ * para una vista previa quedaba EN CLARO dentro de `assets/index-*.js` —el archivo
+ * que se publica en `ghcr.io`—. El `Dockerfile` afirma lo contrario («NINGUN token
+ * se hornea en la imagen») y lo que sostenia esa afirmacion era que quien construye
+ * no tuviera un `.env.local`.
+ *
+ * `localStorage` era peor en la instalacion que este producto tiene: en una PC de
+ * ventanilla que varios turnos comparten, un token persistido sobrevive al cierre
+ * del navegador, y el del turno de la manana sigue sirviendo por la tarde. Ahora
+ * vive en una variable de modulo de `api/identidad.ts` y se muere con la pestana
+ * (ADR-0030 §3). Lo vigila la prohibicion `token-en-almacenamiento` de
+ * `eslint.config.mjs`, con su muestra que la viola.
  */
 export function token(): string | null {
-  const deEntorno = import.meta.env.VITE_CATASTRO_TOKEN;
-  if (deEntorno) return deEntorno;
-  try {
-    return localStorage.getItem('catastro.token');
-  } catch {
-    /* Una ventana privada puede prohibir el almacenamiento, y eso no es motivo
-       para que la aplicacion no arranque. */
-    return null;
-  }
+  return tokenDeLaSesion();
 }
 
+/**
+ * Fija el token a mano y avisa a las lecturas.
+ *
+ * Existe para pegar un token en una vista previa local contra el backend sin montar
+ * el rebote entero. **No lo persiste**: delega en `api/identidad.ts`, que lo guarda
+ * en memoria. Lo que anade sobre aquella es la mitad que es de esta capa —la cuenta
+ * de sesiones—, que es lo que hace que al cambiar la credencial **todas** las
+ * lecturas se vuelvan a pedir y no solo la que se esta mirando.
+ */
 export function fijarToken(valor: string | null): void {
-  try {
-    if (valor === null) localStorage.removeItem('catastro.token');
-    else localStorage.setItem('catastro.token', valor);
-  } catch {
-    /* Ventana privada: no se puede guardar, y no es motivo para reventar. */
-  }
+  fijarTokenDeLaSesion(valor);
   sesion += 1;
   oyentes.forEach((f) => f());
 }

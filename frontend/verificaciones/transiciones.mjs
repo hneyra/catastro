@@ -42,6 +42,8 @@
  */
 import { chromium } from 'playwright-core';
 import { leerModulo } from './registro.mjs';
+import { baseDeLaApp } from './base.mjs';
+import { emisorDeMentira } from './emisor.mjs';
 
 const api = await leerModulo('src/api/fiscalizacion.ts', '.registro-transiciones-api');
 const {
@@ -53,7 +55,10 @@ const COLUMNAS_ANULADO_POR = COLUMNAS_DE_FISCALIZACION.anuladoPor;
 const COLUMNAS_ANULADO_EN = COLUMNAS_DE_FISCALIZACION.anuladoEn;
 const { RAIZ } = await leerModulo('src/api/cliente.ts', '.registro-transiciones-cliente');
 
-const BASE = process.env.CATASTRO_BASE ?? 'http://localhost:5190';
+/* `CATASTRO_BASE` es el ORIGEN; la base de la aplicacion —«/catastro/»— la pone
+   `base.mjs` leyendola de `vite.config.ts`, que es quien la decide. Escribirla aqui
+   seria el noveno literal que se queda viejo el dia que cambie (ver ese archivo). */
+const BASE = baseDeLaApp(process.env.CATASTRO_BASE ?? 'http://localhost:5190');
 
 /**
  * Las dos tablas que se miden, con la pantalla en la que vive cada una.
@@ -120,6 +125,10 @@ const EL_ACTO_QUE_NO_SE_DESHACE = {
 
 const navegador = await chromium.launch();
 const contexto = await navegador.newContext({ viewport: { width: 1440, height: 1400 } });
+/* La aplicacion NO monta nada sin token: se va al emisor y vuelve. Aqui al otro lado
+   hay un emisor de mentira, porque lo que este arnes mide son las pantallas y no la
+   puerta —esa la mide `identidad.mjs`, sin nadie que la tape—. Ver `emisor.mjs`. */
+await emisorDeMentira(contexto);
 contexto.setDefaultTimeout(6000);
 
 /**

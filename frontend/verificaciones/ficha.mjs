@@ -53,8 +53,13 @@
  */
 import { chromium } from 'playwright-core';
 import { leerModulo } from './registro.mjs';
+import { baseDeLaApp } from './base.mjs';
+import { emisorDeMentira } from './emisor.mjs';
 
-const BASE = process.env.CATASTRO_BASE ?? 'http://localhost:5190';
+/* `CATASTRO_BASE` es el ORIGEN; la base de la aplicacion —«/catastro/»— la pone
+   `base.mjs` leyendola de `vite.config.ts`, que es quien la decide. Escribirla aqui
+   seria el noveno literal que se queda viejo el dia que cambie (ver ese archivo). */
+const BASE = baseDeLaApp(process.env.CATASTRO_BASE ?? 'http://localhost:5190');
 
 const { RUTA_DE_LA_FICHA, TIPOS_DE_FICHA } = await leerModulo('src/api/catastro.ts', '.modulo-ficha-api');
 const { RAIZ } = await leerModulo('src/api/cliente.ts', '.modulo-ficha-cliente');
@@ -132,6 +137,10 @@ const CAMINOS = TIPOS_DE_FICHA.map((t) => RAIZ + RUTA_DE_LA_FICHA[t].ruta.replac
 
 const navegador = await chromium.launch();
 const contexto = await navegador.newContext({ viewport: { width: 1440, height: 2200 } });
+/* La aplicacion NO monta nada sin token: se va al emisor y vuelve. Aqui al otro lado
+   hay un emisor de mentira, porque lo que este arnes mide son las pantallas y no la
+   puerta —esa la mide `identidad.mjs`, sin nadie que la tape—. Ver `emisor.mjs`. */
+await emisorDeMentira(contexto);
 
 /* Anotar lo que sale por la puerta Y lo que vuelve. Con `page.route` no se veria
    nada: el proxy de datos SUSTITUYE `fetch`, asi que se envuelve con un

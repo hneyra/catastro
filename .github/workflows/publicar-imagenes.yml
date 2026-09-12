@@ -96,15 +96,29 @@ jobs:
           # La interfaz. Nace publicada y **sin ninguna `VITE_*` de OIDC dentro**, y por eso una
           # sola imagen por `sha` basta: Vite resuelve esas variables AL COMPILAR, y en cuanto
           # alguna dependa del ambiente habra que publicar una por ambiente —que es lo que hace
-          # el monolito (`sgtm-interfaz:<ambiente>-<sha>`) y por el mismo motivo—. Hoy no las
-          # lleva, asi que etiquetarla como las otras dos no miente.
+          # el monolito (`sgtm-interfaz:<ambiente>-<sha>`) y por el mismo motivo—. Desde la puerta
+          # de identidad **el emisor OIDC tampoco va dentro**: lo sirve un `ConfigMap` al arrancar
+          # el contenedor (`frontend/src/api/configuracion.ts`), justamente para que esto siga
+          # siendo verdad.
           #
           # El `Dockerfile` fija ademas `VITE_CATASTRO_PROXY_DE_DATOS=false`: la imagen NO lleva
           # dentro el proxy de datos simulados.
+          #
+          # **Se llama `kamayuk-catastro-interfaz` y no `kamayuk-catastro-web` desde #102.** Ese
+          # otro nombre YA ES otra cosa en el cluster: el `Deployment` y el `Service` del BACKEND
+          # con el perfil `web` de Spring. Mientras nadie desplegaba la interfaz no colisionaba,
+          # pero desde que los dos manifiestos conviven en el mismo namespace la frase «despliega
+          # `kamayuk-catastro-web`» pasa a tener dos respuestas —una sirve la API y la otra
+          # archivos estaticos—. `rentas` y `caja` llaman `kamayuk-<sistema>-interfaz` a lo suyo.
+          #
+          # Lo que cuesta el renombrado, dicho en vez de descubierto: las imagenes ya publicadas
+          # como `kamayuk-catastro-web` **se quedan huerfanas** y la etiqueta nueva no existe
+          # hasta que este flujo corra en `main`. Un despliegue anterior a ese merge pediria una
+          # imagen que no esta y dejaria el pod en `ImagePullBackOff`.
           - contexto: frontend
             archivo: frontend/Dockerfile
             destino: interfaz
-            imagen: kamayuk-catastro-web
+            imagen: kamayuk-catastro-interfaz
 
     steps:
       - uses: actions/checkout@v4
@@ -176,7 +190,7 @@ jobs:
           set -u
           propietario=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
           fallo=0
-          for imagen in kamayuk-catastro kamayuk-catastro-migrador kamayuk-catastro-web; do
+          for imagen in kamayuk-catastro kamayuk-catastro-migrador kamayuk-catastro-interfaz; do
             token=$(curl -sS -u "$GHCR_USUARIO:$GHCR_CLAVE" \
               "https://ghcr.io/token?service=ghcr.io&scope=repository:$propietario/$imagen:pull" \
               | python3 -c 'import sys, json; print(json.load(sys.stdin).get("token", ""))')

@@ -11,9 +11,12 @@
 #      estatico y, como la misma imagen se despliega en varias municipalidades,
 #      las dos mitades del despliegue acaban apuntando a sitios distintos, en
 #      verde y sin un solo sintoma.
-#   2. `/catastro/api/v1` lo reenvia nginx al backend por la red del despliegue.
-#      Por eso la aplicacion pide a su propio origen y no hay CORS que configurar:
-#      el navegador nunca habla con el backend directamente.
+#   2. `/catastro/api/v1` **ya no lo reenvia este nginx**: lo parte el ingreso, que manda
+#      esa ruta al backend y el resto de `/catastro` aqui, dentro del mismo `Host`. La
+#      aplicacion sigue pidiendo a su propio origen —que es lo que quita el CORS— y este
+#      contenedor no necesita alcanzar al backend por la red. Ver `nginx.conf`.
+#   3. El paquete se sirve bajo `/catastro/` (`vite.config.ts`, `base`) y el ingreso quita
+#      ese prefijo antes de reenviar, asi que aqui dentro las rutas llegan sin el.
 
 # ---------------------------------------------------------------------------
 FROM node:22-alpine AS construccion
@@ -37,9 +40,15 @@ ARG VITE_CATASTRO_PROXY_DE_DATOS=false
 ENV VITE_CATASTRO_API=$VITE_CATASTRO_API \
     VITE_CATASTRO_PROXY_DE_DATOS=$VITE_CATASTRO_PROXY_DE_DATOS
 
-# NINGUN token se hornea en la imagen. `VITE_CATASTRO_TOKEN` existe para una vista
-# previa local contra el backend, y meterlo aqui dejaria una credencial dentro de
-# un artefacto que se publica y se comparte.
+# NINGUN token se hornea en la imagen, y desde la puerta de identidad **no hay
+# ninguna variable con la que se pudiera**: `VITE_CATASTRO_TOKEN` ya no existe. El
+# token sale del canje OIDC y vive en memoria (`src/api/identidad.ts`).
+#
+# Lo que sostiene la afirmacion son otras dos cosas, y las dos se verifican:
+# `.dockerignore` excluye los archivos de entorno que Vite lee —sin eso, un
+# `.env.local` en la maquina de quien construye acaba EN CLARO dentro de
+# `assets/index-*.js`, medido— y `verificaciones/imagen.mjs` rechaza cualquier
+# `ARG`/`ENV` cuyo nombre huela a credencial.
 RUN yarn build
 
 # ---------------------------------------------------------------------------
@@ -68,5 +77,16 @@ RUN sed -i \
     && chown -R nginx:0 /var/cache/nginx /etc/nginx \
     && chmod -R g=u /var/cache/nginx /etc/nginx
 
-USER nginx
+# EL UID EN NUMERO, no `USER nginx`, y esto no es estilo.
+#
+# `infrastructure/src/descriptor.ts` le pone a este contenedor `runAsNonRoot: true` —el
+# endurecimiento que no admite excepcion— y el kubelet **no puede comprobar** que un usuario
+# nombrado no sea root: para eso tendria que leer `/etc/passwd` dentro de una imagen que aun no
+# ha arrancado. Se niega, y el pod queda en `CreateContainerConfigError` — un fallo que solo
+# aparece AL DESPLEGAR, sobre una imagen que localmente funciona perfectamente.
+#
+# 101 es el uid del usuario `nginx` en la imagen base, medido sobre `nginx:1.31.5-alpine`. Es el
+# mismo numero que usan las interfaces de `rentas` y de `caja`, y por el mismo motivo; las dos
+# imagenes del backend de este repositorio ya usaban `USER 10001` y `USER 10002`.
+USER 101
 EXPOSE 8080

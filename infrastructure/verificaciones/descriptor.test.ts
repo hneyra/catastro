@@ -155,8 +155,20 @@ describe("C-14 — que esto se pueda desplegar", () => {
     expect(declara(c, "KAMAYUK_DB_USUARIO")).toBe(false);
   });
 
-  it("y las dos imagenes son los dos objetivos del Dockerfile", () => {
-    expect(catastro.imagenes).toEqual(["catastro", `${"catastro"}-migrador`]);
+  /**
+   * Y las TRES imagenes: dos objetivos de `backend/Dockerfile` y una de `frontend/Dockerfile`.
+   *
+   * La tercera se llama `catastro-interfaz` y no `catastro-web`, que es como se publicaba hasta
+   * `catastro`#102: `kamayuk-catastro-web` ya es el `Deployment` y el `Service` del BACKEND con
+   * el perfil `web`, y con los dos manifiestos en el mismo namespace esa frase pasa a tener dos
+   * respuestas. `rentas` y `caja` llaman `kamayuk-<sistema>-interfaz` a lo suyo.
+   */
+  it("y las tres imagenes son los dos objetivos del backend y la de la interfaz", () => {
+    expect(catastro.imagenes).toEqual([
+      "catastro",
+      `${"catastro"}-migrador`,
+      `${"catastro"}-interfaz`,
+    ]);
   });
 
   /**
@@ -279,19 +291,29 @@ describe("C-17 — que el despliegue pase de verdad", () => {
    * anadida a mano sobre el clúster, las ocho tareas de los cuatro sistemas pasaron de `Failed` a
    * `Complete` (C-17, punto 3).
    */
-  it("abre DNS hacia kube-system, en UDP y en TCP", () => {
-    const reglas = catastro.egreso(ENTORNO).flatMap((p) => p.spec.egress ?? []);
-    const dns = reglas.filter((r) =>
-      (r.to ?? []).some(
-        (d) => d.namespaceSelector?.matchLabels?.["kubernetes.io/metadata.name"] === "kube-system",
-      ),
-    );
+  it("abre DNS hacia kube-system, en UDP y en TCP, en CADA politica de egreso", () => {
+    /* Por politica y no en total: desde `catastro`#102 hay dos —la del backend y la de la
+       interfaz— y una cuenta global de «hay una regla de DNS» se cumpliria con que UNA de las dos
+       la tuviera, dejando a la otra sin resolver ningun nombre. Cada `podSelector` restringe a
+       sus pods por separado: lo que abre una politica no lo hereda la otra. */
+    const politicas = catastro.egreso(ENTORNO).filter((p) => p.spec.policyTypes.includes("Egress"));
+    expect(politicas.length, "sin politicas de egreso esto se cumpliria solo").toBeGreaterThan(1);
 
-    expect(dns, "sin DNS ninguna de las demas reglas de egreso puede resolver un nombre").toHaveLength(1);
-    expect(
-      (dns[0]?.ports ?? []).map((p) => `${p.protocol}/${p.port}`).sort(),
-      "TCP tambien: una respuesta que no cabe en un datagrama se reintenta por TCP",
-    ).toEqual(["TCP/53", "UDP/53"]);
+    for (const politica of politicas) {
+      const dns = (politica.spec.egress ?? []).filter((r) =>
+        (r.to ?? []).some(
+          (d) => d.namespaceSelector?.matchLabels?.["kubernetes.io/metadata.name"] === "kube-system",
+        ),
+      );
+      expect(
+        dns,
+        `«${politica.metadata.name}»: sin DNS ninguna de sus reglas de egreso puede resolver un nombre`,
+      ).toHaveLength(1);
+      expect(
+        (dns[0]?.ports ?? []).map((p) => `${p.protocol}/${p.port}`).sort(),
+        "TCP tambien: una respuesta que no cabe en un datagrama se reintenta por TCP",
+      ).toEqual(["TCP/53", "UDP/53"]);
+    }
   });
 });
 
@@ -384,5 +406,170 @@ describe("ADR-0039 etapa 4 — el consumidor del buzon de identidad, desplegado 
     // `podSelector` con ese nombre en el namespace del sistema no seleccionaria nada.
     expect(destino.podSelector?.matchLabels?.["componente"]).toBe("identidad-sistema");
     expect((reglas[0]!.ports ?? []).map((p) => `${p.protocol}/${p.port}`)).toEqual(["TCP/8080"]);
+  });
+});
+
+/**
+ * La interfaz, desplegada por fin (`catastro`#102).
+ *
+ * Hasta este trabajo `kamayuk-catastro-web` —la imagen de la interfaz— se publicaba en cada merge
+ * y **este descriptor no la mencionaba ni una vez**: un artefacto que nadie arrancaba. Lo contaba
+ * `infrastructure` como censo, «lo que se publica y nadie despliega».
+ */
+describe("la interfaz, y el reparto de la ruta que la hace alcanzable", () => {
+  const manifiestos = () => catastro.despliegue(ENTORNO);
+  const de = (kind: string, name: string) =>
+    manifiestos().find((m) => m.kind === kind && m.metadata.name === name);
+
+  it("tiene su ConfigMap, su Deployment y su Service", () => {
+    for (const kind of ["ConfigMap", "Deployment", "Service"]) {
+      const nombre = kind === "ConfigMap" ? "kamayuk-catastro-interfaz-configuracion" : "kamayuk-catastro-interfaz";
+      expect(
+        de(kind, nombre),
+        `falta el ${kind} «${nombre}»: la imagen se publica en cada merge y sin esto no la arranca nadie`,
+      ).toBeDefined();
+    }
+  });
+
+  /**
+   * Su `componente` es SUYO, y esa es la etiqueta que le niega la salida a la base.
+   *
+   * `egreso()` abre el motor, Keycloak y los tres sistemas vecinos a los pods
+   * `componente: catastro`. Con esa misma etiqueta, un nginx de archivos estaticos heredaria las
+   * cinco aristas — incluida la de PostgreSQL, o sea la base del padron catastral.
+   */
+  it("no lleva la etiqueta «componente» del backend, que es lo que le abriria el motor", () => {
+    const interfaz = de("Deployment", "kamayuk-catastro-interfaz");
+    const backend = de("Deployment", "kamayuk-catastro-web");
+    const componenteDe = (m: Manifiesto | undefined) =>
+      (m?.metadata.labels ?? {})["componente"];
+    expect(componenteDe(backend)).toBe("catastro");
+    expect(componenteDe(interfaz)).toBe("catastro-interfaz");
+  });
+
+  /** Un `Secret` montado en un nginx de archivos estaticos es una credencial regalada. */
+  it("no recibe ni una variable de entorno ni un solo secreto", () => {
+    const d = de("Deployment", "kamayuk-catastro-interfaz");
+    const contenedores: Contenedor[] =
+      d?.kind === "Deployment" ? d.spec.template.spec.containers : [];
+    expect(contenedores).toHaveLength(1);
+    expect(contenedores[0]!.env ?? []).toEqual([]);
+    expect(JSON.stringify(d)).not.toContain("secretKeyRef");
+  });
+
+  /**
+   * El `ConfigMap` trae el emisor PUBLICO, el cliente y el alcance.
+   *
+   * Es lo unico que hace que una sola imagen sirva para todas las municipalidades: Vite resuelve
+   * `import.meta.env.VITE_*` al construir, asi que un emisor horneado convertiria la imagen en la
+   * imagen de un ambiente. Se monta sobre `public/configuracion.js`, que viaja vacio.
+   */
+  it("sirve las senias del ambiente, con el emisor PUBLICO y no el JWKS interno", () => {
+    const cm = de("ConfigMap", "kamayuk-catastro-interfaz-configuracion");
+    const guion = (cm as unknown as { data: Record<string, string> }).data["configuracion.js"] ?? "";
+    expect(guion).toContain("window.__KAMAYUK_CATASTRO__");
+    // El mismo nombre global que declara `frontend/src/api/configuracion.ts`: si uno cambia y el
+    // otro no, la cadena cae al escalon de abajo y el ambiente no entra nunca — en silencio.
+    const senas = JSON.parse(guion.replace(/^[^=]*=\s*/, "").replace(/;\s*$/, "")) as Record<string, string>;
+    expect(senas["oidcRealm"]).toBe(ENTORNO.plataforma.emisor);
+    expect(
+      senas["oidcRealm"],
+      "el JWKS es una direccion de la red interna del cluster: el navegador no la alcanza",
+    ).not.toBe(ENTORNO.plataforma.jwks);
+    expect(senas["oidcCliente"]).toBe("kamayuk-backoffice");
+    expect(
+      senas["oidcAlcance"],
+      "sin `offline_access`: el token vive en memoria y muere con la pestana (ADR-0030 §3)",
+    ).toBe("openid profile");
+  });
+
+  /**
+   * **Las prioridades del ingreso, explicitas.**
+   *
+   * Traefik v3 ordena por la longitud del `match` cuando nadie declara `priority`, asi que hoy
+   * saldria bien por accidente. El fallo no grita: con la precedencia al reves, una ruta de la
+   * API la atenderia el nginx de la interfaz, cuyo `try_files` devuelve el `index.html` con un
+   * **200**. La pantalla pide JSON y recibe HTML con codigo de exito.
+   */
+  it("manda /catastro/api/v1 al backend y /catastro a la interfaz, y la API gana", () => {
+    const ingreso = catastro.ingreso(ENTORNO);
+    const ruta = ingreso.find((m) => m.kind === "IngressRoute");
+    const rutas = ruta?.kind === "IngressRoute" ? ruta.spec.routes : [];
+    expect(rutas).toHaveLength(2);
+
+    const api = rutas.find((r) => r.match.includes("/catastro/api/v1"))!;
+    const interfaz = rutas.find((r) => !r.match.includes("/catastro/api/v1"))!;
+    expect(api.services[0]!.name).toBe("kamayuk-catastro-web");
+    expect(interfaz.services[0]!.name).toBe("kamayuk-catastro-interfaz");
+    expect(
+      api.priority,
+      "sin prioridades explicitas el reparto depende de como Traefik ordene dos reglas",
+    ).toBeGreaterThan(interfaz.priority!);
+
+    // Y el prefijo se quita SOLO en la de la interfaz: `Api.RAIZ` del backend ES la ruta entera,
+    // asi que quitarselo dejaria a Spring buscando `/api/v1/...` y contestando 404 a todo.
+    expect(api.middlewares ?? []).toEqual([]);
+    expect((interfaz.middlewares ?? []).map((m) => m.name)).toEqual(["kamayuk-catastro-quitar-prefijo"]);
+    const middleware = ingreso.find((m) => m.kind === "Middleware");
+    expect(
+      (middleware as unknown as { spec: { stripPrefix: { prefixes: string[] } } }).spec.stripPrefix.prefixes,
+    ).toEqual(["/catastro"]);
+  });
+
+  /**
+   * Su egreso es DNS y NADA MAS — y sobre todo, **no el backend**.
+   *
+   * No es una promesa: `frontend/nginx.conf` no tiene un solo `proxy_pass` desde este trabajo, y
+   * no lo tiene porque el mismo origen se consigue en el ingreso. El dia que alguien vuelva a
+   * escribir uno, no funcionara en el cluster aunque funcione en una vista previa.
+   */
+  it("solo puede salir a DNS: ni a la base, ni al backend, ni a Keycloak", () => {
+    const egreso = catastro
+      .egreso(ENTORNO)
+      .find((p) => p.metadata.name === "kamayuk-catastro-interfaz-egreso");
+    expect(egreso, "sin esta politica la interfaz hereda la denegacion del namespace y nada mas").toBeDefined();
+    expect(egreso!.spec.podSelector.matchLabels).toEqual({ componente: "catastro-interfaz" });
+    const reglas = egreso!.spec.egress ?? [];
+    expect(reglas).toHaveLength(1);
+    expect((reglas[0]!.ports ?? []).map((p) => `${p.protocol}/${p.port}`).sort()).toEqual([
+      "TCP/53",
+      "UDP/53",
+    ]);
+  });
+
+  /** Entrada: el ingreso y nadie mas, y por el puerto del POD y no el del `Service`. */
+  it("solo admite entrada desde el ingreso, por el 8080 del contenedor", () => {
+    const ingreso = catastro
+      .egreso(ENTORNO)
+      .find((p) => p.metadata.name === "kamayuk-catastro-interfaz-ingreso");
+    expect(ingreso).toBeDefined();
+    const reglas = ingreso!.spec.ingress ?? [];
+    expect(reglas).toHaveLength(1);
+    // 8080 y no 80: una `NetworkPolicy` filtra sobre el puerto del POD, y el mapeo 80 -> 8080 lo
+    // deshace el `Service` antes de que la politica mire nada. Con 80 no admitiria nada, y el
+    // sintoma seria el navegador esperando delante de un pod sano.
+    expect((reglas[0]!.ports ?? []).map((p) => `${p.protocol}/${p.port}`)).toEqual(["TCP/8080"]);
+  });
+
+  /**
+   * **La mitad de `runAsNonRoot` que este paquete SI puede afirmar.**
+   *
+   * `SEGURIDAD` fija `runAsNonRoot: true` y **no** fija `runAsUser`, y eso solo es correcto
+   * porque la imagen declara su uid EN NUMERO: el kubelet no puede comprobar que un `USER`
+   * nombrado no sea root —tendria que leer `/etc/passwd` de una imagen que aun no ha arrancado—
+   * asi que se niega y el pod queda en `CreateContainerConfigError`, un fallo que solo aparece
+   * AL DESPLEGAR sobre una imagen que localmente funciona.
+   *
+   * La otra mitad —que `frontend/Dockerfile` diga `USER 101` y no `USER nginx`, y que su
+   * `nginx.conf` no reenvie a ningun sitio— la comprueba `frontend/verificaciones/imagen.mjs`,
+   * que es donde se puede leer un archivo: **este paquete no declara `@types/node` a proposito**,
+   * porque un descriptor es una funcion pura que no lee ni el disco ni el entorno (ADR-0031 §2) y
+   * la forma mas barata de que siga siendolo es que ni siquiera pueda.
+   */
+  it("no fija runAsUser, porque quien declara el uid es la imagen", () => {
+    const d = de("Deployment", "kamayuk-catastro-interfaz");
+    const contenedor = d?.kind === "Deployment" ? d.spec.template.spec.containers[0] : undefined;
+    expect(contenedor?.securityContext?.runAsNonRoot).toBe(true);
+    expect(JSON.stringify(contenedor?.securityContext)).not.toContain("runAsUser");
   });
 });

@@ -23,11 +23,20 @@
  * Necesita la vista previa levantada y el Chromium de Playwright.
  */
 import { chromium } from 'playwright-core';
+import { baseDeLaApp } from './base.mjs';
+import { emisorDeMentira } from './emisor.mjs';
 
-const BASE = process.env.CATASTRO_BASE ?? 'http://localhost:5190';
+/* `CATASTRO_BASE` es el ORIGEN; la base de la aplicacion —«/catastro/»— la pone
+   `base.mjs` leyendola de `vite.config.ts`, que es quien la decide. Escribirla aqui
+   seria el noveno literal que se queda viejo el dia que cambie (ver ese archivo). */
+const BASE = baseDeLaApp(process.env.CATASTRO_BASE ?? 'http://localhost:5190');
 
 const navegador = await chromium.launch();
 const contexto = await navegador.newContext({ viewport: { width: 1440, height: 900 } });
+/* La aplicacion NO monta nada sin token: se va al emisor y vuelve. Aqui al otro lado
+   hay un emisor de mentira, porque lo que este arnes mide son las pantallas y no la
+   puerta —esa la mide `identidad.mjs`, sin nadie que la tape—. Ver `emisor.mjs`. */
+await emisorDeMentira(contexto);
 const pagina = await contexto.newPage();
 await pagina.goto(`${BASE}/#/catastro/panel`, { waitUntil: 'domcontentloaded' });
 await pagina.waitForTimeout(1000);

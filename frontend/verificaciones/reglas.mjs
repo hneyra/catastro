@@ -112,6 +112,24 @@ const PROHIBICIONES = [
     en: 'src/simulado/proxy.ts',
     delata: /Ningun fetch suelto/,
   },
+  {
+    prohibicion: 'el token en el almacenamiento del navegador',
+    muestra: 'token-en-almacenamiento.ts',
+    en: EN_UNA_PANTALLA,
+    delata: /El token vive en memoria/,
+  },
+  /* Y **dentro de la puerta de identidad tambien**, que es donde de verdad
+     importa: es el unico archivo del arbol que toca `sessionStorage`, asi que es
+     el unico donde alguien podria «aprovechar el viaje» y guardar ahi tambien el
+     token. La excepcion que ese archivo tiene es para `fetch`, no para esto, y
+     sin este caso ensanchar la una se llevaria la otra por delante sin ruido —que
+     es exactamente lo que le paso al proxy, tres entradas mas arriba—. */
+  {
+    prohibicion: 'ni siquiera la puerta de identidad guarda el token',
+    muestra: 'token-en-almacenamiento.ts',
+    en: 'src/api/identidad.ts',
+    delata: /El token vive en memoria/,
+  },
 ];
 
 /** Y las excepciones, que hay que medir igual: aqui la regla NO debe disparar. */
@@ -121,6 +139,22 @@ const EXCEPCIONES = [
     muestra: 'fetch-en-una-pantalla.ts',
     en: 'src/api/cliente.ts',
     calla: /Ningun fetch suelto/,
+  },
+  {
+    excepcion: 'la puerta de identidad si puede llamar a fetch',
+    muestra: 'fetch-en-una-pantalla.ts',
+    en: 'src/api/identidad.ts',
+    calla: /Ningun fetch suelto/,
+  },
+  /* La mitad que impide que la prohibicion del token se ensanche hasta apagar la
+     puerta: el verificador PKCE tiene que poder guardarse, o no hay canje al
+     volver del emisor. Prohibir `sessionStorage` a secas se leeria como una
+     mejora y dejaria la aplicacion sin poder entrar. */
+  {
+    excepcion: 'el verificador PKCE si puede vivir en sessionStorage',
+    muestra: 'verificador-pkce.ts',
+    en: 'src/api/identidad.ts',
+    calla: /El token vive en memoria/,
   },
   {
     excepcion: 'la puerta si puede nombrar fetch',

@@ -54,6 +54,8 @@
 import { chromium } from 'playwright-core';
 import { leerModulo } from './registro.mjs';
 import { cronometroDeEsperas } from './reposo.mjs';
+import { baseDeLaApp } from './base.mjs';
+import { emisorDeMentira } from './emisor.mjs';
 
 const { ErrorDeApi, RAIZ } = await leerModulo('src/api/cliente.ts', '.registro-errores-cliente');
 const { tituloDeError, motivoCorto } = await leerModulo('src/ds/componentes.tsx', '.registro-errores-ds');
@@ -71,7 +73,10 @@ const { ACTOS_DEL_TERRITORIO, CAMPOS_DEL_TERRITORIO } = await leerModulo(
 );
 const { IRREVERSIBLE, LA_OBSERVACION } = await leerModulo('src/datos/actos.ts', '.registro-errores-actos');
 
-const BASE = process.env.CATASTRO_BASE ?? 'http://localhost:5190';
+/* `CATASTRO_BASE` es el ORIGEN; la base de la aplicacion —«/catastro/»— la pone
+   `base.mjs` leyendola de `vite.config.ts`, que es quien la decide. Escribirla aqui
+   seria el noveno literal que se queda viejo el dia que cambie (ver ese archivo). */
+const BASE = baseDeLaApp(process.env.CATASTRO_BASE ?? 'http://localhost:5190');
 
 /**
  * El mismo mensaje en los seis. Es lo que hace que este arnes mida algo.
@@ -376,6 +381,10 @@ for (const superficie of elegidas) {
   for (const escenario of ESCENARIOS) {
     const error = errorDe(escenario);
     const contexto = await navegador.newContext({ viewport: { width: 1440, height: 1800 } });
+    /* La aplicacion NO monta nada sin token: se va al emisor y vuelve. Aqui al otro lado
+       hay un emisor de mentira, porque lo que este arnes mide son las pantallas y no la
+       puerta —esa la mide `identidad.mjs`, sin nadie que la tape—. Ver `emisor.mjs`. */
+    await emisorDeMentira(contexto);
     /* Corto a proposito: aqui una region que NO existe es un resultado —es el
        defecto que se busca—, no algo que este por llegar. Con los 30 s de
        Playwright, medir los seis escenarios de una tarjeta que aun no ofrece

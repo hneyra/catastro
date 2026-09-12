@@ -35,6 +35,19 @@ const PUERTA = ['src/api/cliente.ts'];
 const PROXY = ['src/simulado/proxy.ts'];
 
 /**
+ * El tercero, y es una excepcion nueva con su motivo.
+ *
+ * `src/api/identidad.ts` canjea el codigo de autorizacion por un token, y ese `POST` **no es
+ * una peticion de esta API**: va al emisor OIDC, no lleva token —es lo que lo pide—, no cuelga
+ * de `Api.RAIZ` y su rechazo no es un `problem+json` que `solicitar()` sepa traducir. Pasarlo
+ * por la puerta obligaria a la puerta de ESTE backend a saber hablar con un tercero, que es
+ * mas superficie de la que la regla ahorra.
+ *
+ * Lo que NO se le permite es sustituir `fetch`: eso sigue siendo del proxy y de nadie mas.
+ */
+const PUERTA_DE_IDENTIDAD = ['src/api/identidad.ts'];
+
+/**
  * Los nombres de campo que el backend emite como TEXTO.
  *
  * `ConfiguracionDeJson` serializa `Dinero`, `Alicuota`, `Porcentaje` y `AreaM2`
@@ -73,6 +86,30 @@ const PROHIBICIONES = [
     selector: `BinaryExpression[operator=/^[-+*/%]$/] > MemberExpression[property.name=/${CAMPOS_DE_TEXTO}/i]`,
     message:
       'Ninguna aritmetica sobre un importe. La cifra llega como texto del backend, y una cuenta aqui es una segunda formula que puede divergir de la del servidor.',
+  },
+  /* **El token no toca el almacenamiento del navegador.**
+
+     Lo prohibido es guardar CREDENCIALES, no usar `localStorage`: la aplicacion puede querer
+     recordar una pestana abierta o un filtro, y eso no es esto. Por eso el selector mira la
+     LLAVE y no la llamada —si el nombre de lo que se guarda suena a credencial, se prohibe—.
+
+     El motivo no es purismo. Esta interfaz corre en PCs de ventanilla que varios turnos
+     comparten: un token en `localStorage` sobrevive al cierre del navegador, y el del turno de
+     la manana sigue sirviendo por la tarde. Vive en una variable de modulo de
+     `src/api/identidad.ts` y se muere con la pestana (ADR-0030 §3).
+
+     El verificador PKCE SI va en `sessionStorage` —sin el no hay canje al volver del emisor—
+     y su llave, `catastro.pkce.verificador`, no lleva ninguna de estas palabras. No es por
+     esquivar la regla: es que no es una credencial, y llamarlo `catastro.token.verificador`
+     seria pedirle a quien lea el codigo dentro de seis meses que distinga dos cosas que se
+     llaman igual. */
+  {
+    selector:
+      'CallExpression[callee.object.name=/^(localStorage|sessionStorage)$/]' +
+      '[callee.property.name=/^(setItem|getItem|removeItem)$/]' +
+      '[arguments.0.value=/token|jwt|bearer|credencial|contrasena|acceso|sesion/i]',
+    message:
+      'El token vive en memoria, nunca en localStorage ni sessionStorage: en una PC de ventanilla compartida entre turnos, un token persistido sobrevive al cierre del navegador (ADR-0030 §3).',
   },
 ];
 
@@ -144,6 +181,37 @@ export default tseslint.config(
       // El proxy puede SUSTITUIR `fetch` —`globalThis.fetch = …`— y no puede
       // llamarlo suelto: lo que delega, lo delega en la funcion que guardo.
       'no-restricted-syntax': ['error', ...PROHIBICIONES, ...NOMBRAR_FETCH],
+    },
+  },
+
+  {
+    files: PUERTA_DE_IDENTIDAD,
+    rules: {
+      // Puede LLAMAR a `fetch` —el canje va al emisor, ver arriba— y no puede
+      // sustituirlo: `TOCAR_FETCH` se queda. Y las prohibiciones de la casa
+      // valen aqui como en todas partes: que pueda hablar con el emisor no le
+      // da permiso para guardar el token en el navegador.
+      'no-restricted-syntax': ['error', ...PROHIBICIONES, ...TOCAR_FETCH],
+    },
+  },
+
+  {
+    /*
+     * Las senias del ambiente, que son un guion CLASICO y no un modulo.
+     *
+     * `public/configuracion.js` no lo compila nadie: viaja tal cual a `dist/` y el `ConfigMap`
+     * del cluster lo reemplaza. Sin este bloque, `js.configs.recommended` lo linta con los
+     * globales por omision —que no son los del navegador, porque esos solo se declaran para
+     * `src/**`— y `window` sale como `no-undef` sobre un archivo perfectamente correcto.
+     *
+     * Sin `rules` a proposito: aqui no hay ninguna prohibicion propia que declarar, y una que
+     * se declarara tendria que traer su muestra (`verificaciones/reglas.mjs`).
+     */
+    files: ['public/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'script',
+      globals: { ...globals.browser },
     },
   },
 );

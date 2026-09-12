@@ -30,8 +30,9 @@
    Copiada de `sgtm`, donde nacio con #711. Lo unico que cambia es QUE cuenta como
    codigo de produccion en ESTE repositorio —la lista `RUTAS_DE_CODIGO` de abajo— y el
    nombre de la variable de entorno, que aqui es `KAMAYUK_CUERPO_DEL_PR`. La tabla que
-   protege es la de `CLAUDE.md`, que en este repositorio **nace vacia**: el registro
-   anterior es historia de `sgtm` y no viaja.
+   protege es la de `docs/agent/HISTORY.md` —hasta el 2026-09-12 estuvo en `CLAUDE.md`,
+   y se mudo con `infrastructure`#114—, que en este repositorio **nacio vacia**: el
+   registro anterior es historia de `sgtm` y no viaja.
 
    ## Uso
 
@@ -57,17 +58,20 @@ const RUTAS_DE_CODIGO = [
 ];
 
 /**
- * Donde puede estar la fila. **Son dos a proposito, y es una ventana de compatibilidad**
- * (`infrastructure`#114): el registro se muda de `CLAUDE.md` a `docs/agent/HISTORY.md`
- * —eran el 92 % de un archivo que cada sesion carga entero— y los seis repositorios no
- * migran a la vez.
+ * Donde vive la fila. **Es uno solo, y ya no es una ventana de compatibilidad**
+ * (`infrastructure`#114): el registro se mudo de `CLAUDE.md` a `docs/agent/HISTORY.md`
+ * —eran el 92 % de un archivo que cada sesion carga entero— y **los seis repositorios
+ * migraron el 2026-09-12**, asi que no queda nadie a quien esperar.
  *
- * Mientras las dos esten aqui, una fila escrita en cualquiera de los dos cuenta. El dia que
- * los seis hayan migrado se retira `CLAUDE.md` **en un cambio propio**, y entonces una fila
- * en el sitio viejo deja de contar. Estrechar antes deja rojos cruzados en los que aun no
- * han migrado.
+ * Mientras `CLAUDE.md` estuvo tambien en esta lista, una fila escrita alli contaba. Desde
+ * este cambio **no cuenta**: un PR que deje su fila en `CLAUDE.md` sale ROJO, y el rojo
+ * nombra `docs/agent/HISTORY.md`. Es lo que impide que el registro se parta en dos sitios
+ * —y lo que hace que la mudanza sea una mudanza y no una copia—.
+ *
+ * Estrechar antes de que los seis migraran habria dejado rojos cruzados en los que aun no
+ * lo habian hecho; por eso fue un cambio propio y este es.
  */
-const DONDE_VIVE_LA_FILA = ['docs/agent/HISTORY.md', 'CLAUDE.md'];
+const DONDE_VIVE_LA_FILA = ['docs/agent/HISTORY.md'];
 
 /** Como se declara que un PR cierra un issue. GitHub admite estas y alguna mas. */
 const CIERRA = /\b(?:cierra|closes?|close|fixes?|fix|resuelve|resolves?)\s+#(\d+)/gi;
@@ -132,9 +136,31 @@ console.log(`Cada issue que este PR cierra tiene su fila: #${issues.join(', #')}
 
 // ---------------------------------------------------------------------------
 
-/** Si ese texto nombra al issue como tal y no como parte de otro numero. */
+/**
+ * Si alguna FILA DE LA TABLA nombra al issue.
+ *
+ * ## Por que mira la fila y no el texto entero
+ *
+ * Buscaba el numero en cualquier linea anadida, y eso lo satisface cualquier mencion:
+ * un enlace, un parrafo, la cabecera del archivo. **Lo destaparon tres carriles a la vez**
+ * al mudar el registro (`infrastructure`#114): los tres escribieron en su archivo nuevo una
+ * cabecera que citaba el issue del propio trabajo —«se mudo aqui por #37»— y su rotura de
+ * control, la que borra el registro entero, **salio VERDE**. El archivo traia de fabrica una
+ * forma de cumplir esta guarda vacia.
+ *
+ * Que sean tres y no uno es lo que lo convierte en un defecto del mecanismo: un archivo
+ * nuevo tiende a explicar de donde viene, y explicarlo desactivaba la comprobacion.
+ *
+ * Asi que se exige que el numero aparezca en una linea que **sea una fila**: empieza por
+ * `|`. Es lo que la tabla es, y una cabecera o un parrafo ya no cuentan.
+ */
 function nombra(texto, numero) {
-  return new RegExp(`#${numero}(?![0-9])`).test(texto);
+  const patron = new RegExp(`#${numero}(?![0-9])`);
+  return texto
+    .split('\n')
+    // Las lineas vienen del diff, asi que llevan el `+` delante.
+    .filter((linea) => /^\+?\s*\|/.test(linea))
+    .some((linea) => patron.test(linea));
 }
 
 function lineas(texto) {

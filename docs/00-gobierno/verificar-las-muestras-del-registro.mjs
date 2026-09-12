@@ -4,7 +4,7 @@
    esquivada, que en una convencion de proceso es peor todavia — el peaje se aprende a
    rodear y la tabla se queda igual de vacia.
 
-   Asi que se corre la comprobacion contra seis situaciones fabricadas, tres que tiene
+   Asi que se corre la comprobacion contra siete situaciones fabricadas, cuatro que tiene
    que rechazar y tres que tiene que dejar pasar, y se exige que el rechazo **nombre el
    issue**: rechazar por el motivo equivocado seria pasar por casualidad.
 
@@ -46,6 +46,18 @@ const CASOS = [
     cuerpo: 'Cierra #71',
     archivos: ['infrastructure/src/descriptor.ts'],
     anadido: '+| Una fila cualquiera (#711) | … | … |',
+    esperado: 'rojo',
+    dice: '#71',
+  },
+  {
+    // La destaparon tres carriles a la vez al mudar el registro (`infrastructure`#114): la
+    // cabecera del archivo nuevo citaba el issue del propio trabajo, y la rotura de control
+    // -borrar el registro entero- salia VERDE. Un archivo que explica de donde viene
+    // desactivaba la comprobacion.
+    nombre: 'una cabecera o un parrafo que citen el issue NO valen como fila',
+    cuerpo: 'Cierra #71',
+    archivos: ['infrastructure/src/descriptor.ts'],
+    anadido: '+# Registro\n+\n+Se mudo aqui por #71, y esto no es una fila.',
     esperado: 'rojo',
     dice: '#71',
   },

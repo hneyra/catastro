@@ -90,3 +90,25 @@ RUN sed -i \
 # imagenes del backend de este repositorio ya usaban `USER 10001` y `USER 10002`.
 USER 101
 EXPOSE 8080
+
+# La sonda se ejecuta DENTRO del contenedor, y aqui —al reves que en `backend/Dockerfile`— no hay
+# que instalar ningun cliente: el `wget` de busybox viene en la base.
+#
+# Pide `/index.html` y no `/`: con el `try_files` de `nginx.conf`, `/` devuelve la pantalla
+# **aunque el directorio este vacio**. Pedir el archivo **por su nombre** es lo unico que
+# distingue «nginx levantado» de «nginx levantado sobre el `dist/` que se copio»: si el `COPY`
+# fallara, esto da 404 y el contenedor sale `unhealthy`.
+#
+# Por `127.0.0.1` y no `localhost`, porque este nginx escucha solo en IPv4 (`listen 8080`): con
+# `localhost` el `wget` puede resolver primero `::1` y fallar contra un nginx sano.
+#
+# En forma JSON, o sea sin shell de por medio: `wget --spider` ya sale con codigo 1 cuando no
+# puede conectar o recibe un 4xx, de modo que el `|| exit 1` que la forma de shell obliga a
+# escribir no anade nada y se lleva por delante un proceso mas.
+#
+# **Faltaba**, y se ve desde el compose: los otros tres sistemas con interfaz lo declaran aqui y
+# por eso su servicio del compose NO repite el `healthcheck`. Sin esto, `docker compose up --wait`
+# da por buena esta interfaz **en cuanto el contenedor existe**, sin haber pedido una sola pagina
+# (#105).
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD ["wget", "--spider", "-q", "http://127.0.0.1:8080/index.html"]

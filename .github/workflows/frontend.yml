@@ -42,7 +42,15 @@
 #      arneses: un campo que el servidor DESCARTA —el `activo` del alta, el
 #      `codigo` de un `PUT`— contesta 201 sin aplicarse, y un conteo nulo pintado
 #      como cero se ve exactamente igual que uno contado.
-#  10. `ejercicios` — el desplegable de la barra global sale del RELOJ, y se mide
+#  10. `identidad` — la PUERTA: que el `redirect_uri` con el que se vuelve del
+#      emisor sea la raiz de la APLICACION —`/catastro/`— y no la del sitio. Es
+#      `rentas`#71, donde ese defecto llego a produccion **con su prueba unitaria
+#      en verde**: el entorno de pruebas no declaraba la misma `base` que el de
+#      construccion, asi que la prueba afirmaba el valor equivocado siendo
+#      coherente. Por eso esto no simula nada: compila el paquete, lo sirve y lee
+#      la URL con la que el navegador se va. Y es el unico que corre SIN el emisor
+#      de mentira que los demas ponen delante para llegar a las pantallas.
+#  11. `ejercicios` — el desplegable de la barra global sale del RELOJ, y se mide
 #      MOVIENDOLO. Es la unica forma de medirlo: los cuatro literales que #48
 #      quita coinciden hoy con el reloj letra por letra, asi que una guarda que
 #      pregunte «ofrece el ano en curso» pasa en verde con el defecto puesto
@@ -345,6 +353,17 @@ jobs:
       # paquete equivocado y pasaria en verde sin haber apagado nada.
       - name: Con el proxy apagado, ninguna pantalla ensena una cifra
         run: node verificaciones/sin-red.mjs
+
+      # Compila su PROPIA vista previa —con el proxy de datos apagado, que es como
+      # se construye la imagen— y **sin emisor de mentira delante**: los nueve
+      # arneses de arriba ponen uno para poder llegar a las pantallas, y este es el
+      # unico que mide la puerta. Lee la URL con la que la aplicacion se va a
+      # Keycloak y afirma el `redirect_uri`, el reto S256 y donde NO esta el token.
+      #
+      # No usa `CATASTRO_BASE`: se sirve a si mismo en otro puerto, porque el
+      # paquete que mide no es el de arriba.
+      - name: La puerta de identidad vuelve a la raiz de la APLICACION
+        run: yarn identidad
 
       # El ultimo que ejecuta algo, por lo mismo: lo que quede detras no se
       # contaria. Avisa al 60 % del tope y falla al 85 %, o sea ANTES de que la

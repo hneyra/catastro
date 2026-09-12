@@ -32,6 +32,8 @@ import { readFile, readdir, rm } from 'node:fs/promises';
 import { leerRegistro } from './registro.mjs';
 import { CONTAR_PETICIONES, cronometroDeEsperas } from './reposo.mjs';
 import { VISTAS, comprobarVistas, hashDe } from './vistas.mjs';
+import { baseDeLaApp } from './base.mjs';
+import { emisorDeMentira } from './emisor.mjs';
 
 const { DESTINOS } = await leerRegistro('.registro-sin-red');
 const soloModulo = process.argv[2]?.startsWith('--') ? null : process.argv[2];
@@ -63,7 +65,12 @@ const RAIZ_EN_PANTALLA = '/catastro/api/v1';
 
 const SALIDA = 'dist-sin-red';
 const PUERTO = Number(process.env.CATASTRO_PUERTO_SIN_RED ?? 5211);
-const BASE = `http://localhost:${PUERTO}`;
+/* La base de la aplicacion —«/catastro/»— sale de `vite.config.ts` por `base.mjs`, y no
+   de un literal: este arnes compila su PROPIA vista previa, asi que si la base cambiara
+   y esto no, pediria la raiz del sitio y `vite preview` contestaria un 302 que el
+   recorrido daria por bueno — un arnes midiendo una redireccion que el despliegue no
+   hace. Ver `verificaciones/base.mjs`. */
+const BASE = baseDeLaApp(`http://localhost:${PUERTO}`);
 
 /** Lo que solo puede salir de un dato que aqui no se ha podido leer. */
 const CIFRAS = [
@@ -198,7 +205,9 @@ process.on('exit', () => servidor.kill());
 let vivo = false;
 for (let i = 0; i < 60 && !vivo; i++) {
   await new Promise((r) => setTimeout(r, 500));
-  vivo = await fetch(BASE)
+  /* Con la barra final: `vite preview` sirve la aplicacion en «/catastro/» y contesta 404 al
+     mismo camino sin ella —medido—, asi que preguntarlo sin barra diria que no levanto nunca. */
+  vivo = await fetch(`${BASE}/`)
     .then((r) => r.ok)
     .catch(() => false);
 }
@@ -210,6 +219,10 @@ if (!vivo) {
 
 const navegador = await chromium.launch();
 const contexto = await navegador.newContext({ viewport: { width: 1440, height: 1400 } });
+/* La aplicacion NO monta nada sin token: se va al emisor y vuelve. Aqui al otro lado
+   hay un emisor de mentira, porque lo que este arnes mide son las pantallas y no la
+   puerta —esa la mide `identidad.mjs`, sin nadie que la tape—. Ver `emisor.mjs`. */
+await emisorDeMentira(contexto);
 await contexto.addInitScript(CONTAR_PETICIONES);
 const pagina = await contexto.newPage();
 await pagina.route('**/catastro/api/v1/**', (r) => r.abort());

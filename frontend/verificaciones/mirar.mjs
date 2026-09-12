@@ -23,6 +23,8 @@ import { mkdir } from 'node:fs/promises';
 import { leerRegistro } from './registro.mjs';
 import { CONTAR_PETICIONES, cronometroDeEsperas } from './reposo.mjs';
 import { VISTAS, comprobarVistas, hashDe } from './vistas.mjs';
+import { baseDeLaApp } from './base.mjs';
+import { emisorDeMentira } from './emisor.mjs';
 
 const { DESTINOS } = await leerRegistro('.registro-mirar');
 
@@ -43,7 +45,10 @@ const RECORRIDO = [
   })),
 ];
 
-const BASE = process.env.CATASTRO_BASE ?? 'http://localhost:5190';
+/* `CATASTRO_BASE` es el ORIGEN; la base de la aplicacion —«/catastro/»— la pone
+   `base.mjs` leyendola de `vite.config.ts`, que es quien la decide. Escribirla aqui
+   seria el noveno literal que se queda viejo el dia que cambie (ver ese archivo). */
+const BASE = baseDeLaApp(process.env.CATASTRO_BASE ?? 'http://localhost:5190');
 const SALIDA = process.env.CATASTRO_CAPTURAS ?? '.capturas';
 const soloModulo = process.argv[2]?.startsWith('--') ? null : process.argv[2];
 const alto = Number(process.argv.find((a) => a.startsWith('--alto='))?.slice(7) ?? 1600);
@@ -51,9 +56,15 @@ const alto = Number(process.argv.find((a) => a.startsWith('--alto='))?.slice(7) 
 await mkdir(SALIDA, { recursive: true });
 const navegador = await chromium.launch();
 const contexto = await navegador.newContext({ viewport: { width: 1440, height: alto } });
+/* La aplicacion NO monta nada sin token: se va al emisor y vuelve. Aqui al otro lado
+   hay un emisor de mentira, porque lo que este arnes mide son las pantallas y no la
+   puerta —esa la mide `identidad.mjs`, sin nadie que la tape—. Ver `emisor.mjs`. */
+await emisorDeMentira(contexto);
 await contexto.addInitScript(CONTAR_PETICIONES);
-const TOKEN = process.env.CATASTRO_TOKEN;
-if (TOKEN) await contexto.addInitScript((t) => localStorage.setItem('catastro.token', t), TOKEN);
+/* Aqui habia un `CATASTRO_TOKEN` que se sembraba en `localStorage`. Se fue con la puerta de
+   identidad: el token vive en memoria y se muere con la pestana, y sembrarlo en el
+   almacenamiento seria pedirle a este arnes que hiciera justo lo que la prohibicion
+   `token-en-almacenamiento` impide en `src/`. Quien lo da ahora es `emisor.mjs`. */
 const pagina = await contexto.newPage();
 
 const fallos = [];

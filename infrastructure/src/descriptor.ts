@@ -66,6 +66,51 @@ const SISTEMA = "catastro";
 const MIGRADOR = `${SISTEMA}-migrador`;
 
 /**
+ * La imagen de la interfaz: `frontend/Dockerfile`, un nginx sirviendo el `dist/` de `catastro-web`.
+ *
+ * **Se llama `catastro-interfaz` y hasta hoy se publicaba como `kamayuk-catastro-web`**, que es
+ * tambien el nombre del `Deployment` y del `Service` del BACKEND con el perfil `web` de Spring
+ * —lo produce `despliegueDelPerfil(e, "web", true)`—. Hoy no colisionaba porque nadie desplegaba
+ * la interfaz; desde que los dos manifiestos conviven en el mismo namespace, la frase «despliega
+ * `kamayuk-catastro-web`» pasa a tener dos respuestas, y una de ellas sirve la API y la otra
+ * archivos estaticos. `rentas` y `caja` ya llaman `kamayuk-<sistema>-interfaz` a lo suyo.
+ *
+ * El renombrado toca los dos lados a la vez: aqui y la matriz de `publicar-imagenes.yml`, que es
+ * quien construye y etiqueta. Mientras ese flujo no haya corrido en `main`, la etiqueta nueva
+ * **no existe en el registro** y un despliegue la pediria en vano — es el mismo `ImagePullBackOff`
+ * que D-23, y queda dicho en el PR en vez de descubrirse.
+ */
+const INTERFAZ = `${SISTEMA}-interfaz`;
+
+/** El nombre de sus tres recursos. Sale una vez y se usa en seis sitios. */
+const NOMBRE_DE_LA_INTERFAZ = `kamayuk-${SISTEMA}-interfaz`;
+
+/**
+ * Su etiqueta `componente`, **distinta de la del backend**, y no es cosmetica.
+ *
+ * `egreso()` selecciona por `componente: catastro` los pods que pueden hablar con el motor, con
+ * Keycloak y con los tres sistemas vecinos. Si la interfaz llevara esa misma etiqueta heredaria
+ * las cinco aristas, y un nginx de archivos estaticos con salida a PostgreSQL —a la base del
+ * padron catastral— es superficie que nadie pidio. Con etiqueta propia sus dos politicas se
+ * escriben aparte y dicen lo que de verdad necesita, que es DNS y nada mas.
+ */
+const COMPONENTE_DE_LA_INTERFAZ = INTERFAZ;
+
+/**
+ * El cliente publico de Keycloak con el que la interfaz entra.
+ *
+ * **Es el mismo que usa `rentas`, y eso es lo que hace que este trabajo NO toque el realm**: es
+ * publico, admite PKCE, y su `redirectUris` lleva el comodin `https://<dominio>/*`, que ya cubre
+ * `/catastro/`. Un cliente por sistema serian cinco clientes para un solo login (ADR-0030 §3) y
+ * cinco listas de URI de retorno que mantener.
+ *
+ * **Se escribe aqui porque `EntornoDelDescriptor` no lo publica**: el realm lo describe
+ * `infrastructure` y este contrato entrega el emisor (`plataforma.emisor`) pero no el cliente.
+ * Mientras siga asi, cambiar de cliente es cambiar esta linea.
+ */
+const CLIENTE_OIDC_DE_LA_INTERFAZ = "kamayuk-backoffice";
+
+/**
  * Su base, en el motor de la plataforma. Una por sistema (ADR-0029, ADR-0032).
  *
  * **El anfitrion lo pide, no lo escribe** (C-17, punto 1). Hasta aqui esta linea decia
@@ -238,6 +283,21 @@ function sondas() {
   };
 }
 
+/**
+ * Lo que pide la interfaz, y es **mucho menos que el backend**: un nginx sirviendo archivos
+ * estaticos no necesita 1 CPU ni 1 Gi.
+ *
+ * No son cifras inventadas: son las mismas que `convenciones.recursos.interfaz` de
+ * `infrastructure` le da al nginx del monolito, que hace exactamente esto. Se copian y no se
+ * importan porque un descriptor no puede depender de `infrastructure` —seria la dependencia al
+ * reves de ADR-0031 §2—, y con un solo nodo lo que se reparte es el `request`: 50m frente a los
+ * 100m del backend es la diferencia entre que este pod quepa al lado de todo lo demas o no.
+ */
+const RECURSOS_DE_LA_INTERFAZ = {
+  requests: { cpu: "50m", memory: "64Mi" },
+  limits: { cpu: "200m", memory: "128Mi" },
+};
+
 /** El endurecimiento que no admite excepcion (issue #157). */
 const SEGURIDAD = {
   runAsNonRoot: true,
@@ -314,6 +374,283 @@ function despliegueDelPerfil(e: EntornoDelDescriptor, perfil: string, atiendeHtt
 }
 
 /**
+ * Las senias del ambiente que la interfaz lee **al arrancar**, servidas como un guion.
+ *
+ * <h2>El problema que resuelve</h2>
+ *
+ * Vite sustituye `import.meta.env.VITE_*` **al construir**, asi que todo lo que la interfaz
+ * supiera por esa via quedaria horneado dentro de la imagen. Y una de esas cosas es la **URL del
+ * emisor OIDC**, que no es la misma en el puesto de quien desarrolla que en la municipalidad.
+ *
+ * <h2>Por que NO se hace una imagen por ambiente, que es lo que hizo el monolito</h2>
+ *
+ * `sgtm` etiqueta la suya `sgtm-interfaz:${ambiente}-${version}` justamente por esto. Aqui no
+ * cabe, y por dos motivos que se pierden a la vez:
+ *
+ *   1. **La etiqueta es el `sha` de este repositorio**, que es lo que `publicar-imagenes.yml` ya
+ *      hace con las tres imagenes. Meter el nombre del ambiente dentro deja una etiqueta que no
+ *      resuelve contra ningun `git log`, y entonces «que corre en la municipalidad» vuelve a no
+ *      tener respuesta — que es exactamente el defecto que aquel flujo vino a cerrar.
+ *   2. **Lo verificado dejaria de ser lo desplegado.** Con una imagen por ambiente no se promueve
+ *      un artefacto de la marcha blanca a produccion: se vuelve a construir, y lo que sale no es
+ *      lo que se probo.
+ *
+ * <h2>Y por que un `ConfigMap` con esto y NO con el `nginx.conf`</h2>
+ *
+ * `caja` mete su `nginx.conf` en un `ConfigMap` y lo monta encima del que la imagen trae, para
+ * poder cambiarlo sin republicar. Aqui **no se hace**, y es una decision: desde que el reenvio a
+ * la API se fue de ese archivo, no le queda ni una linea que dependa del ambiente —el reparto
+ * entre la API y la interfaz lo hace el ingreso, asi que no hay ningun destino que reescribir— de
+ * modo que la copia seria un segundo original con cero beneficio y una forma segura de divergir
+ * del que de verdad se sirve. Lo que si depende del ambiente es esto.
+ *
+ * <h2>El nombre del archivo y su forma</h2>
+ *
+ * `configuracion.js`, el mismo que `frontend/public/configuracion.js` —que viaja **vacio** dentro
+ * de la imagen— y sobre el que este se monta. Se compone con `JSON.stringify` y no concatenando
+ * comillas: un valor con una comilla dentro se saldria del literal y dejaria un guion que no
+ * analiza, o sea la aplicacion entera en blanco.
+ */
+function senasDelAmbiente(e: EntornoDelDescriptor): Record<string, string> {
+  return {
+    // El emisor PUBLICO, que es el que el NAVEGADOR tiene que alcanzar. Es la misma cadena que el
+    // backend recibe en `KAMAYUK_OIDC_EMISOR` —el contrato la describe como «el emisor OIDC,
+    // publico. Es lo que se compara con el `iss`»— y por eso no se compone aqui: componerla seria
+    // repetir una convencion de `infrastructure`, y dos copias de una convencion se separan.
+    //
+    // Ojo con la otra: `plataforma.jwks` NO vale aqui. Es una direccion de la red interna del
+    // cluster, y el navegador no la puede alcanzar.
+    oidcRealm: e.plataforma.emisor,
+    oidcCliente: CLIENTE_OIDC_DE_LA_INTERFAZ,
+    // Sin `offline_access` ni nada que pida un `refresh_token`: el token de esta interfaz vive en
+    // una variable de modulo y muere con la pestana (ADR-0030 §3), asi que una credencial de vida
+    // larga seria justo lo que ese diseno evita.
+    oidcAlcance: "openid profile",
+  };
+}
+
+/**
+ * La interfaz: su `ConfigMap`, su `Deployment` y su `Service`.
+ *
+ * <h2>Que corre aqui, y que NO</h2>
+ *
+ * Un nginx sirviendo el `dist/` de `catastro-web`. **Sin una sola variable de entorno y sin un
+ * solo `secretKeyRef`**: lo unico que este proceso necesita saber del ambiente son las senias del
+ * emisor, que no son secretas —el cliente es publico y su URL la ve cualquiera que abra el
+ * navegador— y viajan en el `ConfigMap`. Un `Secret` montado aqui seria una credencial regalada a
+ * un proceso que no la usa.
+ *
+ * <h2>`runAsNonRoot` sin `runAsUser`</h2>
+ *
+ * `SEGURIDAD` fija `runAsNonRoot: true`, y el kubelet no puede comprobar que un `USER` NOMBRADO
+ * no sea root: se niega a arrancar el contenedor con un `CreateContainerConfigError` que solo
+ * aparece al desplegar. Por eso `frontend/Dockerfile` dice **`USER 101`**, en numero — y por eso
+ * `descriptor.test.ts` lee ese archivo y lo comprueba, porque si alguien lo devolviera a un
+ * nombre este `Deployment` dejaria de arrancar sin que este archivo tuviera por que enterarse.
+ *
+ * <h2>Las sondas piden `/index.html` y no `/`</h2>
+ *
+ * Con el `try_files` de `nginx.conf`, `/` devuelve la pantalla **caiga lo que caiga**, asi que
+ * pedirlo no distingue «nginx levantado» de «nginx levantado sobre el `dist/` que se copio».
+ * Pedir el archivo por su nombre si. Y sin `stripPrefix` de por medio: la sonda la hace el
+ * kubelet contra el pod, no contra el ingreso.
+ *
+ * <h2>Sin `startupProbe`, al reves que el backend</h2>
+ *
+ * El backend arranca una JVM con Spring y necesita hasta 150 s. Un nginx escucha en menos de un
+ * segundo; una sonda de arranque aqui solo retrasaria la primera lectura.
+ */
+function despliegueDeLaInterfaz(e: EntornoDelDescriptor): Manifiesto[] {
+  const etiquetas = { ...e.etiquetas, componente: COMPONENTE_DE_LA_INTERFAZ };
+  const configuracion = `${NOMBRE_DE_LA_INTERFAZ}-configuracion`;
+  return [
+    {
+      apiVersion: "v1",
+      kind: "ConfigMap",
+      metadata: { name: configuracion, namespace: e.namespace, labels: etiquetas },
+      data: {
+        "configuracion.js": `window.__KAMAYUK_CATASTRO__ = ${JSON.stringify(senasDelAmbiente(e), null, 2)};\n`,
+      },
+    },
+    {
+      apiVersion: "apps/v1",
+      kind: "Deployment",
+      metadata: { name: NOMBRE_DE_LA_INTERFAZ, namespace: e.namespace, labels: etiquetas },
+      spec: {
+        replicas: 1,
+        // El mismo `maxSurge: 0` que el backend, y por el mismo motivo: en un nodo sin holgura un
+        // pod extra durante el despliegue no agenda y el rollout se cuelga.
+        strategy: { type: "RollingUpdate", rollingUpdate: { maxSurge: 0, maxUnavailable: 1 } },
+        selector: { matchLabels: { app: NOMBRE_DE_LA_INTERFAZ } },
+        template: {
+          metadata: { labels: { ...etiquetas, app: NOMBRE_DE_LA_INTERFAZ } },
+          spec: {
+            priorityClassName: e.prioridadDe("servicio"),
+            containers: [
+              {
+                name: "interfaz",
+                // La etiqueta la pone `infrastructure`. Ver la cabecera.
+                image: e.imagenDe(INTERFAZ),
+                ports: [{ name: "http", containerPort: 8080 }],
+                resources: RECURSOS_DE_LA_INTERFAZ,
+                readinessProbe: {
+                  timeoutSeconds: 3,
+                  httpGet: { path: "/index.html", port: 8080 },
+                  periodSeconds: 10,
+                },
+                livenessProbe: {
+                  timeoutSeconds: 3,
+                  httpGet: { path: "/index.html", port: 8080 },
+                  periodSeconds: 20,
+                },
+                volumeMounts: [
+                  {
+                    name: "configuracion",
+                    mountPath: "/usr/share/nginx/html/configuracion.js",
+                    // `subPath`, o el montaje taparia el directorio entero y se llevaria por
+                    // delante el `index.html` y todo `assets/`: la imagen serviria un directorio
+                    // con un solo archivo dentro.
+                    //
+                    // El precio del `subPath` es que **no se actualiza solo**: cambiar el
+                    // `ConfigMap` exige reiniciar el pod. Es el precio correcto aqui — cambiar de
+                    // emisor a mitad de sesion dejaria a unas pestanas hablando con un realm y a
+                    // otras con otro.
+                    subPath: "configuracion.js",
+                    readOnly: true,
+                  },
+                ],
+                securityContext: SEGURIDAD,
+              },
+            ],
+            volumes: [{ name: "configuracion", configMap: { name: configuracion } }],
+          },
+        },
+      },
+    },
+    {
+      apiVersion: "v1",
+      kind: "Service",
+      metadata: { name: NOMBRE_DE_LA_INTERFAZ, namespace: e.namespace, labels: etiquetas },
+      spec: {
+        type: "ClusterIP",
+        selector: { app: NOMBRE_DE_LA_INTERFAZ },
+        // 80 hacia fuera y 8080 dentro, como el `Service` del backend de este mismo archivo: el
+        // contenedor no corre como root y no puede abrir un puerto privilegiado.
+        ports: [{ name: "http", port: 80, targetPort: 8080 }],
+      },
+    },
+  ];
+}
+
+/**
+ * Las dos prioridades del ingreso, **explicitas y no heredadas de la longitud de la regla**.
+ *
+ * Traefik v3 ordena las rutas por la longitud de su `match` cuando nadie declara `priority`, y
+ * `PathPrefix(/catastro/api/v1)` es mas larga que `PathPrefix(/catastro)`, asi que hoy saldria
+ * bien **por accidente**. No se deja implicito, y el motivo es que el fallo no grita: con la
+ * precedencia al reves, `/catastro/api/v1/catastro/predios` lo atenderia el nginx de la interfaz,
+ * cuyo `try_files $uri /index.html` devuelve el `index.html` con un **200**. La pantalla pide JSON
+ * y recibe HTML con codigo de exito: no un error, una pagina. Es el mismo modo de fallo que
+ * `frontend/vite.config.ts` documenta para el desarrollo.
+ */
+const PRIORIDAD_DE_LA_API = 20;
+const PRIORIDAD_DE_LA_INTERFAZ = 10;
+
+/**
+ * Las dos politicas de red de la interfaz, y son las dos puntas de un solo flujo.
+ *
+ * <h2>Entrada: Traefik y nadie mas</h2>
+ *
+ * `infrastructure` deniega por omision en el namespace, asi que sin esta regla el ingreso enruta
+ * y el paquete no llega — la ruta existe, el pod esta sano y el navegador se queda esperando.
+ *
+ * El puerto es el **8080 del contenedor**, no el 80 del `Service`: una `NetworkPolicy` filtra
+ * sobre el puerto del pod, y el mapeo 80 -> 8080 lo deshace el `Service` antes de que la politica
+ * mire nada. Escribir 80 aqui seria una politica que no admite absolutamente nada, y el sintoma
+ * volveria a ser el navegador esperando.
+ *
+ * <h2>Salida: DNS y NADA MAS, y sobre todo NO el backend</h2>
+ *
+ * Esta interfaz no habla con nadie. No es una promesa: desde este trabajo, `frontend/nginx.conf`
+ * no tiene un solo reenvio, y no lo tiene porque **el mismo origen se consigue un piso mas
+ * arriba** — el ingreso parte `/catastro` en dos. El navegador ve un unico origen, que es lo que
+ * hacia falta para que no hubiera CORS, y este pod no participa.
+ *
+ * De ahi que **no exista una regla hacia el backend**, y eso es la mitad importante de este
+ * bloque: no es un olvido, es que anadirla abriria una salida que ningun proceso usa. Y el dia
+ * que alguien vuelva a escribir un `proxy_pass` aqui, no funcionara en el cluster aunque funcione
+ * en una vista previa — y ese es el sitio correcto para enterarse: el PR que lo escriba.
+ *
+ * Y **no sale a PostgreSQL**: no hereda ninguna de las cinco aristas del backend porque su
+ * `componente` es `catastro-interfaz` y no `catastro`, asi que ningun `podSelector` de `egreso()`
+ * la alcanza.
+ */
+function politicasDeLaInterfaz(e: EntornoDelDescriptor): NetworkPolicy[] {
+  const seleccion = { matchLabels: { componente: COMPONENTE_DE_LA_INTERFAZ } };
+  return [
+    {
+      apiVersion: "networking.k8s.io/v1",
+      kind: "NetworkPolicy",
+      metadata: {
+        name: `${NOMBRE_DE_LA_INTERFAZ}-ingreso`,
+        namespace: e.namespace,
+        labels: e.etiquetas,
+      },
+      spec: {
+        podSelector: seleccion,
+        policyTypes: ["Ingress"],
+        ingress: [
+          {
+            from: [
+              {
+                namespaceSelector: {
+                  matchLabels: { "kubernetes.io/metadata.name": "kube-system" },
+                },
+              },
+            ],
+            ports: [{ protocol: "TCP", port: 8080 }],
+          },
+        ],
+      },
+    },
+    {
+      apiVersion: "networking.k8s.io/v1",
+      kind: "NetworkPolicy",
+      metadata: {
+        name: `${NOMBRE_DE_LA_INTERFAZ}-egreso`,
+        namespace: e.namespace,
+        labels: e.etiquetas,
+      },
+      spec: {
+        podSelector: seleccion,
+        policyTypes: ["Egress"],
+        egress: [
+          // DNS, y nada mas. Es la misma regla que abre `egreso()` para el backend, y aqui es la
+          // unica: sin ella este pod no resolveria ni su propio `Service`, y con cualquier otra
+          // se le abriria una salida que no usa.
+          {
+            to: [
+              {
+                namespaceSelector: {
+                  matchLabels: { "kubernetes.io/metadata.name": "kube-system" },
+                },
+              },
+            ],
+            ports: [
+              { protocol: "UDP", port: 53 },
+              // TCP tambien: una respuesta que no cabe en un datagrama se reintenta por TCP, y
+              // una politica que solo abriera UDP funcionaria hasta el dia que dejara de hacerlo,
+              // por el tamano de una respuesta.
+              { protocol: "TCP", port: 53 },
+            ],
+          },
+        ],
+      },
+    },
+  ];
+}
+
+/**
  * La ventana del consumidor del buzon de `identidad`: cada cinco minutos, y no la de madrugada.
  *
  * Una revocacion que tarda un dia en llegar no es una decision, es un descuido con nombre
@@ -387,9 +724,11 @@ function consumidorDeIdentidad(e: EntornoDelDescriptor): CronJob {
 export const catastro: DescriptorDeSistema = {
   sistema: SISTEMA,
   prefijo: SISTEMA,
-  // DOS imagenes, y son dos objetivos del mismo `Dockerfile` (C-14, punto 1): las
-  // credenciales de `kamayuk_owner` existen durante la migracion y desaparecen con ella.
-  imagenes: [SISTEMA, MIGRADOR],
+  // TRES imagenes. Las dos primeras son dos objetivos del mismo `Dockerfile` (C-14, punto 1):
+  // las credenciales de `kamayuk_owner` existen durante la migracion y desaparecen con ella. La
+  // tercera es de OTRO —`frontend/Dockerfile`, con contexto `frontend/`— y no comparte una sola
+  // capa con ellas: no lleva JVM, ni Node, ni codigo fuente; solo `dist/` y nginx.
+  imagenes: [SISTEMA, MIGRADOR, INTERFAZ],
 
   /**
    * Su base y sus roles. **Solo la suya**: pedir privilegios sobre la de otro sistema es una
@@ -414,7 +753,15 @@ export const catastro: DescriptorDeSistema = {
     };
   },
 
-  despliegue: (e) => [...despliegueDelPerfil(e, "web", true)],
+  /**
+   * El backend y **la interfaz**, que hasta hoy no la desplegaba nadie.
+   *
+   * Su imagen se publicaba desde #40 y este descriptor no la mencionaba ni una vez: un artefacto
+   * que se construye en cada merge, con su coste y su superficie, y que ningun manifiesto pedia.
+   * Lo contaba `infrastructure` como censo —«lo que se publica y nadie despliega»— y es
+   * `catastro`#102.
+   */
+  despliegue: (e) => [...despliegueDelPerfil(e, "web", true), ...despliegueDeLaInterfaz(e)],
 
   /**
    * Su Job de migracion. Cada base tiene sus migraciones y su prueba de aislamiento.
@@ -582,22 +929,65 @@ export const catastro: DescriptorDeSistema = {
     return [publicador, consumidorDeIdentidad(e)];
   },
 
-  /** Sus rutas, **bajo su prefijo**. Reclamar el de otro no falla: se lo queda. */
+  /**
+   * Sus rutas, **bajo su prefijo**. Reclamar el de otro no falla: se lo queda.
+   *
+   * <h2>La ruta va PARTIDA EN DOS, y ese reparto es lo que quita el CORS</h2>
+   *
+   * `/catastro/api/v1` al backend y `/catastro` a la interfaz, dentro del **mismo `Host`**. Desde
+   * el navegador todo cuelga de un solo origen, asi que no hay peticion entre origenes que
+   * autorizar — y hace falta que no la haya, porque esta medido que el backend **no publica ni
+   * una cabecera `Access-Control-Allow-Origin`**: cero `cors` y cero `allowedOrigins` en todo
+   * `backend/`. Una peticion desde otro origen la bloquea el navegador antes de que nadie la lea.
+   *
+   * Es el mismo resultado que un `proxy_pass` dentro del nginx de la interfaz —que es lo que
+   * `frontend/nginx.conf` tenia hasta hoy— y se prefiere este por tres cosas: no hay dos caminos
+   * a la API que puedan divergir, el destino no depende de como se llame el `Service` en cada
+   * forma de levantar esto —que es exactamente por lo que aquel `proxy_pass` apuntaba a un
+   * nombre que en el cluster no resuelve— y la interfaz no necesita salida de red hacia el
+   * backend (ver `politicasDeLaInterfaz`).
+   *
+   * <h2>El prefijo se quita SOLO en la de la interfaz</h2>
+   *
+   * `Api.RAIZ` del backend **es** `/catastro/api/v1` entera, asi que quitarle el prefijo dejaria
+   * a Spring buscando `/api/v1/...` y contestando 404 a todo. La interfaz al reves: su
+   * `nginx.conf` sirve en la raiz del contenedor, y el paquete pide con el prefijo puesto porque
+   * `vite.config.ts` declara `base: '/catastro/'` (ADR-0030 §2).
+   */
   ingreso(e): Manifiesto[] {
+    const quitarElPrefijo = `kamayuk-${SISTEMA}-quitar-prefijo`;
     return [
+      {
+        apiVersion: "traefik.io/v1alpha1",
+        kind: "Middleware",
+        metadata: { name: quitarElPrefijo, namespace: e.namespace, labels: e.etiquetas },
+        // Traefik reenvia lo que queda y anade `X-Forwarded-Prefix`, asi que quien quiera
+        // reconstruir la URL publica puede; nginx no lo necesita para servir un archivo.
+        spec: { stripPrefix: { prefixes: [`/${SISTEMA}`] } },
+      },
       {
         apiVersion: "traefik.io/v1alpha1",
         kind: "IngressRoute",
         metadata: { name: `kamayuk-${SISTEMA}`, namespace: e.namespace, labels: e.etiquetas },
         spec: {
           // Solo `websecure`: 80 redirige, no coexiste. Un formulario de acceso servido por
-          // HTTP es una credencial regalada.
+          // HTTP es una credencial regalada — y desde la puerta de identidad esto es literal:
+          // sin origen seguro el navegador no expone `crypto.subtle` y no hay PKCE S256.
           entryPoints: ["websecure"],
           routes: [
             {
+              match: `Host(\`${e.dominio}\`) && PathPrefix(\`/${SISTEMA}/api/v1\`)`,
+              kind: "Rule",
+              priority: PRIORIDAD_DE_LA_API,
+              // SIN `middlewares`: el backend espera la ruta entera. Ver la cabecera.
+              services: [{ name: `kamayuk-${SISTEMA}-web`, port: 80 }],
+            },
+            {
               match: `Host(\`${e.dominio}\`) && PathPrefix(\`/${SISTEMA}\`)`,
               kind: "Rule",
-              services: [{ name: `kamayuk-${SISTEMA}-web`, port: 80 }],
+              priority: PRIORIDAD_DE_LA_INTERFAZ,
+              services: [{ name: NOMBRE_DE_LA_INTERFAZ, port: 80 }],
+              middlewares: [{ name: quitarElPrefijo }],
             },
           ],
           tls: { certResolver: "letsencrypt" },
@@ -743,6 +1133,11 @@ export const catastro: DescriptorDeSistema = {
           ],
         },
       },
+      // Y las dos de la INTERFAZ, que no comparten ninguna de las cinco aristas de arriba: su
+      // `componente` es «catastro-interfaz» y no «catastro», asi que ningun `podSelector` de la
+      // politica de arriba la selecciona. Es lo que hace que un nginx de archivos estaticos no
+      // tenga salida a la base del padron catastral.
+      ...politicasDeLaInterfaz(e),
     ];
   },
 

@@ -25,7 +25,8 @@
     "transiciones": "node verificaciones/transiciones.mjs",
     "territorio": "node verificaciones/territorio.mjs",
     "paleta": "node verificaciones/paleta.mjs",
-    "imagen": "node verificaciones/imagen.mjs"
+    "imagen": "node verificaciones/imagen.mjs",
+    "identidad": "node verificaciones/identidad.mjs"
   },
   "dependencies": {
     "react": "^19.1.0",

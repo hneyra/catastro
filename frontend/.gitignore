@@ -15,3 +15,4 @@ verificaciones/.registro*.mjs
 # `.modulo-ficha-datos.mjs`… —el nombre lo elige cada arnes— y con la «s» del
 # plural el patron no casaba con ninguno de ellos.
 verificaciones/.modulo*.mjs
+dist-identidad/

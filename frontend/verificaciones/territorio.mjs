@@ -79,8 +79,13 @@
  */
 import { chromium } from 'playwright-core';
 import { leerModulo } from './registro.mjs';
+import { baseDeLaApp } from './base.mjs';
+import { emisorDeMentira } from './emisor.mjs';
 
-const BASE = process.env.CATASTRO_BASE ?? 'http://localhost:5190';
+/* `CATASTRO_BASE` es el ORIGEN; la base de la aplicacion —«/catastro/»— la pone
+   `base.mjs` leyendola de `vite.config.ts`, que es quien la decide. Escribirla aqui
+   seria el noveno literal que se queda viejo el dia que cambie (ver ese archivo). */
+const BASE = baseDeLaApp(process.env.CATASTRO_BASE ?? 'http://localhost:5190');
 
 const { LO_QUE_EL_SERVIDOR_DESCARTA, RUTAS } = await leerModulo('src/api/catastro.ts', '.modulo-territorio-api');
 const { RAIZ } = await leerModulo('src/api/cliente.ts', '.modulo-territorio-cliente');
@@ -207,6 +212,10 @@ if (Object.keys(LO_QUE_EL_SERVIDOR_DESCARTA).length === 0) {
 
 const navegador = await chromium.launch();
 const contexto = await navegador.newContext({ viewport: { width: 1440, height: 1600 } });
+/* La aplicacion NO monta nada sin token: se va al emisor y vuelve. Aqui al otro lado
+   hay un emisor de mentira, porque lo que este arnes mide son las pantallas y no la
+   puerta —esa la mide `identidad.mjs`, sin nadie que la tape—. Ver `emisor.mjs`. */
+await emisorDeMentira(contexto);
 
 /* `page.route` no sirve: el proxy de datos SUSTITUYE `fetch`, asi que las
    peticiones no llegan a la red. Se envuelve con un `get`/`set` y el proxy se

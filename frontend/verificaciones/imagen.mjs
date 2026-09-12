@@ -213,14 +213,44 @@ function partir(directiva) {
  * La ruta con la que se sonda un `location`, y el archivo que hay que sembrar para que
  * exista. Devuelve `null` si el patron no se sabe sondear —y entonces el arnes sale con
  * 2 en vez de callarse—.
+ *
+ * Recibe el BLOQUE y no solo su cabecera: lo que se sirve en un `location` no siempre sale
+ * de un archivo. Ver el caso del `return` dentro.
  */
-function sondaDe(cabecera) {
+function sondaDe(bloque) {
+  const cabecera = bloque.cabecera;
   const resto = cabecera.slice('location'.length).trim();
   const conModificador = resto.match(/^(=|\^~|~\*|~)\s*(.*)$/);
   const modificador = conModificador ? conModificador[1] : '';
   const patron = conModificador ? conModificador[2] : resto;
   if (modificador === '~' || modificador === '~*') return null;
   if (!patron.startsWith('/')) return null;
+
+  /**
+   * Un `location` que solo DEVUELVE un codigo no sirve ningun archivo.
+   *
+   * Lo estreno el bloque `/catastro/`, que contesta 404 explicando que el ingreso no quito el
+   * prefijo. Sin este caso, la sonda de abajo le sembraria un archivo y le exigiria 200: el
+   * arnes saldria rojo sobre un bloque que hace exactamente lo que dice hacer, y el remedio
+   * habria sido quitarle las cabeceras —o sea apagar la unica parte que este arnes vigila—.
+   *
+   * Las dos rutas se conservan aunque las dos esperen lo mismo: una existe como archivo y la
+   * otra no, y que las DOS den el mismo codigo es justo lo que afirma este bloque.
+   */
+  const devuelve = bloque.directivas.find((d) => /^return\s+\d/.test(d.texto));
+  if (devuelve) {
+    const estado = Number(partir(devuelve.texto)[1]);
+    const base = patron.endsWith('/') ? patron : `${patron}/`;
+    const rutas =
+      modificador === '='
+        ? [{ ruta: patron, sembrar: null, estado }]
+        : [
+            { ruta: `${base}sonda-del-arnes.txt`, sembrar: `${base}sonda-del-arnes.txt`, estado },
+            { ruta: `${base}ausente-del-arnes.txt`, sembrar: null, estado },
+          ];
+    return { rutas };
+  }
+
   if (modificador === '=') return { rutas: [{ ruta: patron, sembrar: patron, estado: 200 }] };
   if (patron === '/') return { rutas: [{ ruta: '/', sembrar: '/index.html', estado: 200 }] };
   const base = patron.endsWith('/') ? patron : `${patron}/`;
@@ -282,7 +312,7 @@ const sondas = [
   { ruta: '/una/ruta/que/no/es/un/archivo', sembrar: null, estado: 200, de: 'la aplicacion' },
 ];
 for (const bloque of conCabeceras) {
-  const sonda = sondaDe(bloque.cabecera);
+  const sonda = sondaDe(bloque);
   if (!sonda) {
     noSeMidio(
       `«${bloque.cabecera}» (linea ${bloque.linea}) declara «add_header» y este arnes no sabe sondearlo,\n` +
@@ -508,6 +538,77 @@ for (const instruccion of dockerfile) {
   }
 }
 
+/**
+ * El `USER` de la imagen, **EN NUMERO**.
+ *
+ * `infrastructure/src/descriptor.ts` le pone a este contenedor `runAsNonRoot: true` y NO le pone
+ * `runAsUser`, y eso solo es correcto porque la imagen declara su uid en numero: el kubelet no
+ * puede comprobar que un `USER` nombrado no sea root —tendria que leer `/etc/passwd` dentro de
+ * una imagen que aun no ha arrancado—, asi que se niega y el pod queda en
+ * `CreateContainerConfigError`.
+ *
+ * Es un fallo que **solo aparece al desplegar**, sobre una imagen que localmente arranca
+ * perfectamente. Se comprueba aqui y no en el descriptor porque aquel paquete **no declara
+ * `@types/node` a proposito** —un descriptor es una funcion pura que no lee ni el disco ni el
+ * entorno (ADR-0031 §2)— y la mitad que si puede afirmar, que no haya `runAsUser`, la afirma alli.
+ */
+const users = dockerfile
+  .map((i) => ({ linea: i.linea, valor: i.texto.match(/^USER\s+(\S+)/i)?.[1] }))
+  .filter((u) => u.valor !== undefined);
+
+if (users.length === 0) {
+  rojo(
+    'El «Dockerfile» no declara ningun «USER»: el contenedor correria como root.\n' +
+      '  Y con `runAsNonRoot: true` en el descriptor, el kubelet ni siquiera lo arrancaria.',
+  );
+}
+for (const u of users) {
+  if (!/^\d+$/.test(u.valor)) {
+    rojo(
+      `«Dockerfile» linea ${u.linea} dice «USER ${u.valor}», que no es un numero.\n` +
+        '  El descriptor le pone «runAsNonRoot: true» sin «runAsUser», y el kubelet no puede\n' +
+        '  verificar un usuario nombrado: se niega a arrancar el contenedor con un\n' +
+        '  «CreateContainerConfigError» que NO aparece aqui ni al construir la imagen, solo al\n' +
+        '  desplegar. El uid de «nginx» en esta imagen base es 101, que es lo que usan las\n' +
+        '  interfaces de `rentas` y de `caja`.',
+    );
+  }
+}
+
+/**
+ * Y que este nginx **no reenvie a ningun sitio**.
+ *
+ * Aqui habia `proxy_pass http://catastro:8080` —el nombre del servicio del `compose.yaml`— y en
+ * Kubernetes no existe ningun `Service` que se llame asi: el del backend es
+ * `kamayuk-catastro-web`. Nginx resuelve el anfitrion de un `proxy_pass` **AL ARRANCAR**, asi que
+ * el pod no habria arrancado, con un `[emerg] host not found in upstream "catastro"` que habla de
+ * nginx y no del manifiesto. Es `catastro`#102, y lo tiene medido `infrastructure` en
+ * `infra/verificaciones/upstream-de-la-interfaz.ts`.
+ *
+ * El mismo origen —que es lo que aquel reenvio conseguia, porque el backend no publica ni una
+ * cabecera de CORS— lo da ahora el ingreso, que parte `/catastro` en dos.
+ *
+ * **Se lee sin comentarios**: la cabecera de `nginx.conf` NOMBRA la directiva para explicar por
+ * que ya no esta, y contarla dejaria esta guarda roja sobre un archivo correcto. Es la leccion
+ * que este proyecto lleva anotada tres veces —el `grep -c proxy_pass` de `caja#16`, los rotulos
+ * del panel de `catastro#10` y el escaner que se cazo a si mismo de `caja#37`—.
+ */
+const reenvios = leer('nginx.conf')
+  .split('\n')
+  .map((l, i) => ({ linea: i + 1, texto: l.includes('#') ? l.slice(0, l.indexOf('#')) : l }))
+  .filter((l) => /^\s*proxy_pass\s/.test(l.texto));
+
+for (const r of reenvios) {
+  rojo(
+    `«nginx.conf» linea ${r.linea} reenvia: «${r.texto.trim()}».\n` +
+      '  Esta interfaz no habla con nadie: el mismo origen lo da el ingreso, que manda\n' +
+      '  «/catastro/api/v1» al backend y «/catastro» aqui dentro del mismo Host. Un «proxy_pass»\n' +
+      '  aqui apunta a un nombre que el cluster no resuelve —nginx lo resuelve AL ARRANCAR, asi\n' +
+      '  que el pod no arranca— y ademas exigiria abrirle a este pod una salida de red hacia el\n' +
+      '  backend que su NetworkPolicy le niega a proposito.',
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Levantar nginx y preguntar
 
@@ -546,10 +647,14 @@ if (sinMedir.length === 0) {
     docker(['pull', desdeNginx], { stdio: 'inherit', encoding: undefined });
   }
 
-  // `catastro` es el nombre del servicio del despliegue y nginx resuelve el upstream AL
-  // ARRANCAR: sin esto el contenedor muere con «host not found in upstream "catastro"» y
-  // no habria a quien preguntar. Apunta a el mismo, y no se sonda esa ruta.
-  const creado = docker(['create', '--add-host', 'catastro:127.0.0.1', desdeNginx]);
+  // Sin `--add-host`, y es una linea que se fue con un defecto. Aqui habia
+  // `--add-host catastro:127.0.0.1` porque `nginx.conf` llevaba un `proxy_pass http://catastro:8080`
+  // y nginx resuelve el upstream AL ARRANCAR: sin esa entrada el contenedor moria con
+  // «host not found in upstream "catastro"» y no habia a quien preguntar. Ese reenvio ya no
+  // existe —el ingreso parte la ruta, ver la cabecera de `nginx.conf`—, asi que la entrada
+  // sobra. Y sobra bien: mientras estuviera, un `proxy_pass` nuevo a un nombre que el cluster
+  // no resuelve arrancaria AQUI en verde y solo fallaria al desplegar.
+  const creado = docker(['create', desdeNginx]);
   if (creado.status !== 0) {
     noSeMidio(`No se pudo crear el contenedor de «${desdeNginx}»: ${creado.stderr.trim()}`);
   } else {
@@ -698,7 +803,8 @@ console.log(
   `${desdeNginx} en el ${puerto} · ${sondeadas} ruta(s) sondeada(s) y ${comprobadas} cabecera(s) comprobada(s) ` +
     `sobre ${conCabeceras.length} «location» con cabeceras propias · ` +
     `${deGit.length} entrada(s) de .gitignore y los ${deEntorno.length} archivos de entorno que lee Vite, ` +
-    `contra ${patronesDocker.length} patron(es) de .dockerignore`,
+    `contra ${patronesDocker.length} patron(es) de .dockerignore · ` +
+    `${users.length} «USER» y ${reenvios.length} reenvio(s)`,
 );
 
 if (fallos.length > 0) {
@@ -707,4 +813,7 @@ if (fallos.length > 0) {
   process.exit(1);
 }
 
-console.log('las cabeceras llegan en todas las rutas, y nada que git no vea entra en la imagen');
+console.log(
+  'las cabeceras llegan en todas las rutas, el uid esta en numero, este nginx no reenvia a nadie, y\n' +
+    'nada que git no vea entra en la imagen',
+);

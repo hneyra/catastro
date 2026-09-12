@@ -12,7 +12,7 @@ que cerrara un issue pasaría en verde sin fila del registro.
 
 ```bash
 yarn install
-yarn dev        # http://localhost:5190
+yarn dev        # http://localhost:5190/catastro/ (la `base` de ADR-0030 §2)
 yarn build      # tsc + vite build
 yarn verificar  # solo los tipos
 yarn lint       # las prohibiciones de eslint.config.mjs
@@ -89,12 +89,24 @@ yarn imagen     # los dos archivos que deciden CÓMO SE SIRVE: levanta `nginx.co
                 # cabeceras de seguridad llegan en cada ruta —`add_header` no se
                 # hereda, así que juntarlas «para no repetirlas» las apaga—, y
                 # comprueba que nada que git no vea entra en el contexto de
-                # construcción
+                # construcción. Y desde #102, que el `USER` esté EN NÚMERO —el
+                # kubelet no puede verificar uno nombrado contra `runAsNonRoot`—
+                # y que este nginx **no reenvíe a ningún sitio**
+yarn identidad  # la PUERTA, medida sobre el paquete que se publica: compila su
+                # propia vista previa con el proxy apagado, abre un navegador y
+                # lee la URL con la que la aplicación se va al emisor. Afirma que
+                # el `redirect_uri` es la raíz de la APLICACIÓN —`/catastro/`— y
+                # no la del sitio (`rentas`#71), el reto S256, el cliente, el
+                # alcance, que el token NO toca el almacenamiento, y que las
+                # señas servidas por `configuracion.js` mandan sobre las horneadas
 ```
 
 `mirar`, `impedimentos`, `paleta`, `errores`, `ejercicios`, `ficha`, `transiciones` y `territorio` necesitan una vista previa levantada; si no está en el 5190, se le dice con
-`CATASTRO_BASE=http://localhost:5210 yarn mirar`. `sin-red` **levanta la suya**, y hace falta:
-la bandera del proxy la resuelve Vite al compilar, así que correrlo contra otra vista previa
+`CATASTRO_BASE=http://localhost:5210 yarn mirar`. **`CATASTRO_BASE` es el ORIGEN y nada más**:
+la ruta de la aplicación —`/catastro`— la pone `verificaciones/base.mjs` leyéndola de
+`vite.config.ts`, que es quien la decide; escribirla en cada arnés sería el noveno literal que
+se queda viejo el día que cambie. `sin-red` e `identidad` **levantan la suya**, y hace falta:
+la bandera del proxy la resuelve Vite al compilar, así que correrlos contra otra vista previa
 mediría el paquete equivocado. `imagen` necesita **Docker**, y sin Docker **sale con 2, no se
 omite**: una comprobación bloqueante que se salta a sí misma deja el flujo en verde sin haber
 verificado nada. No construye la imagen del frontend: copia `nginx.conf` sobre `nginx:…` y siembra
@@ -148,9 +160,13 @@ src/
     catastro/AltaDeFicha.tsx   el asistente de seis pasos del alta
     fiscalizacion/Fiscalizacion.tsx  el ciclo entero: las dos compuertas, la
                   evidencia, el acta, la anulación y el cierre (#71)
-verificaciones/   Los catorce arneses, sus vistas y las muestras que violan cada regla
+verificaciones/   Los quince arneses, sus vistas y las muestras que violan cada regla
                   Trece miran `src/`; `imagen.mjs` mira los dos archivos que deciden
-                  cómo se sirve: `nginx.conf` y `Dockerfile`
+                  cómo se sirve: `nginx.conf` y `Dockerfile`; `identidad.mjs` mira la
+                  PUERTA, sobre el paquete construido y sin emisor de mentira delante
+  base.mjs        dónde vive la aplicación dentro del sitio, leído de `vite.config.ts`
+  emisor.mjs      el emisor OIDC de mentira que los nueve arneses de pantalla ponen al
+                  otro lado de la puerta para poder llegar a las pantallas
   registro.mjs    compila `src/` al vuelo, para que lo comparado salga del fuente
   vistas.mjs      los ESTADOS de una pantalla que su destino a secas no dibuja
   reposo.mjs      esperar a que la pantalla se asiente, con el plazo fijo como TOPE
@@ -188,7 +204,30 @@ captura de los arneses se puede volver a producir.
 
 **El mismo origen, o nada.** `backend/` no tiene ni una línea de CORS —cero ocurrencias de
 `cors` y de `allowedOrigins` en todo el árbol—, así que un React servido desde otro origen se
-bloquea antes de que el backend conteste. En desarrollo lo reenvía Vite; en la imagen, nginx.
+bloquea antes de que el backend conteste. En desarrollo lo reenvía Vite; **en el clúster lo parte
+el ingreso**, que manda `/catastro/api/v1` al backend y `/catastro` a esta interfaz dentro del
+mismo `Host`. En `nginx.conf` **ya no hay ningún `proxy_pass`**, y por eso: el que había apuntaba
+a `catastro:8080` —el nombre del servicio del `compose.yaml`—, que en Kubernetes no resuelve, y
+nginx resuelve el anfitrión de un `proxy_pass` **al arrancar**, así que el pod no arrancaba.
+
+**El token vive en MEMORIA, y en ningún otro sitio.** `api/identidad.ts` hace el código de
+autorización con PKCE S256 contra Keycloak —escrito a mano, sin `keycloak-js`— y guarda lo que
+canjea en una variable de módulo, que se muere con la pestaña. Nada de `localStorage`: esta
+interfaz corre en PCs de ventanilla que varios turnos comparten, y un token persistido sobrevive
+al cierre del navegador (ADR-0030 §3). Lo vigila la prohibición `token-en-almacenamiento`. Lo
+único que sobrevive al rebote es el verificador PKCE, en `sessionStorage`, porque sin él no hay
+canje al volver — y no es una credencial.
+
+**El `redirect_uri` es la raíz de la APLICACIÓN.** `origin + import.meta.env.BASE_URL`, o sea
+`…/catastro/` y no `…/`. Confundirlas costó el acceso a producción en `rentas` (#71), donde el
+defecto llegó **con su prueba unitaria en verde**: el entorno de pruebas no declaraba la misma
+`base`, así que la prueba afirmaba el valor equivocado siendo coherente. Por eso aquí lo mide
+`yarn identidad` sobre el paquete construido y servido de verdad.
+
+**El emisor OIDC NO se hornea en la imagen.** Vite resuelve `import.meta.env.VITE_*` al compilar,
+así que un emisor escrito ahí convertiría la imagen en la imagen **de un ambiente**. Sale de
+`public/configuracion.js`, que viaja **vacío** a propósito y sobre el que el `ConfigMap` del
+clúster se monta al desplegar (`src/api/configuracion.ts`, tres escalones).
 
 **El `municipalidadId` no se envía nunca.** Sale del claim `municipalidad_id` del token, así que
 un defecto de esta interfaz no puede filtrar entre municipalidades: no tiene por dónde.
